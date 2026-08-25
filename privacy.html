@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Self Budget</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-light: #eff6ff;
+            --text-dark: #0f172a;
+            --text-muted: #475569;
+            --bg-light: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --accent-green: #059669;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #3b82f6;
+                --primary-light: #1e293b;
+                --text-dark: #f8fafc;
+                --text-muted: #94a3b8;
+                --bg-light: #0f172a;
+                --card-bg: #1e293b;
+                --border-color: #334155;
+                --accent-green: #10b981;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.6;
+            padding: 24px 16px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            padding: 32px 0 24px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--primary-light);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .section h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section p {
+            color: var(--text-muted);
+            font-size: 0.98rem;
+            margin-bottom: 12px;
+        }
+
+        .section ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .section li {
+            position: relative;
+            padding-left: 24px;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+        }
+
+        .section li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        .contact-box {
+            background-color: var(--primary-light);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+        }
+
+        .contact-box a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-box a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            padding: 24px 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Privacy Policy</h1>
+            <p><strong>Self Budget</strong> by DevCalApps</p>
+            <span class="badge">Last Updated: August 25, 2026</span>
+        </header>
+
+        <main>
+            <div class="section">
+                <h2>1. Zero External Data Collection & Tracking</h2>
+                <p><strong>Self Budget</strong> is engineered as a privacy-first, offline-first application. We believe your personal financial records belong exclusively to you.</p>
+                <ul>
+                    <li><strong>No Server Infrastructure:</strong> We do not operate external databases, tracking servers, or remote telemetry systems.</li>
+                    <li><strong>No Third-Party Analytics or Ads:</strong> No advertising IDs, third-party SDKs, tracking cookies, or diagnostic collection tools are embedded in the app.</li>
+                    <li><strong>No Data Monetization:</strong> We never collect, transmit, sell, or rent your personal or financial data to any third party.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>2. On-Device Local Storage</h2>
+                <p>All financial entries created within Self Budget—including transactions, income, expense categories, monthly budgets, savings goals, custom accounts, and exchange rates—are stored locally on your Android device using an encrypted local SQLite database (Android Room Persistence Library).</p>
+                <p>Your data remains entirely on your physical device unless you explicitly choose to backup or export it.</p>
+            </div>
+
+            <div class="section">
+                <h2>3. Google Drive Cloud Sync</h2>
+                <p>Self Budget offers an optional, automated Google Drive Cloud Sync feature:</p>
+                <ul>
+                    <li><strong>Private Sandbox Storage (<code>appDataFolder</code>):</strong> Cloud backups are saved to a hidden, private folder in your personal Google Drive using the official <code>https://www.googleapis.com/auth/drive.appdata</code> OAuth scope.</li>
+                    <li><strong>Isolated File Access:</strong> Backup files (<code>self_budget_cloud_backup.json</code>) are stored strictly within your personal Google Account storage quota. Other Google Drive applications cannot view or access this data.</li>
+                    <li><strong>Zero Developer Access:</strong> DevCalApps has zero access to your Google Account credentials, Google Drive storage, or backup data.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>4. Manual Export & Backup Options</h2>
+                <p>You retain full data portability and can export your records at any time:</p>
+                <ul>
+                    <li><strong>JSON Backup Export:</strong> Creates a structured, cent-safe JSON backup file handed to the Android Share Sheet for local saving or personal storage.</li>
+                    <li><strong>CSV Transaction Export:</strong> Exports your transaction history as a standard CSV spreadsheet file for use in spreadsheet software.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>5. Security & Biometric Protection</h2>
+                <ul>
+                    <li><strong>Biometric Authentication:</strong> If enabled, device-level biometric authentication (Fingerprint, Face Unlock) uses Android’s native <code>BiometricPrompt</code> system framework.</li>
+                    <li><strong>Hardware Security:</strong> Biometric templates remain securely isolated inside your device’s hardware Trusted Execution Environment (TEE) and are never accessed by or transmitted to the app.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>6. User Control & Data Erasure</h2>
+                <p>You maintain 100% control over your data at all times:</p>
+                <ul>
+                    <li><strong>Data Reset:</strong> Erase all local accounts, transactions, and settings at any time using <strong>Clean Sweep / Reset Data</strong> in the app Settings.</li>
+                    <li><strong>Cloud Backup Deletion:</strong> Manage or remove cloud backups directly inside your Google Account settings (<strong>Google Drive Web &rarr; Settings &rarr; Manage Apps &rarr; Self Budget &rarr; Delete hidden app data</strong>).</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>7. Contact & Support</h2>
+                <p>If you have any questions or feedback regarding this Privacy Policy or Self Budget, please feel free to reach out:</p>
+                <div class="contact-box">
+                    <p><strong>Developer Email:</strong> <a href="mailto:dev.cal.apps@gmail.com">dev.cal.apps@gmail.com</a></p>
+                    <p><strong>Application:</strong> Self Budget by DevCalApps</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            &copy; 2026 DevCalApps. All rights reserved. | Self Budget Android App
+        </footer>
+    </div>
+</body>
+</html>
