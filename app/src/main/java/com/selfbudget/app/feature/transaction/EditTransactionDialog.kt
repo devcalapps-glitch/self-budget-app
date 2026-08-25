@@ -29,7 +29,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -186,6 +189,12 @@ fun EditTransactionDialog(
         if (isRecurring || setAsBudget) {
             scrollState.animateScrollTo(scrollState.maxValue)
         }
+    }
+
+    // Clear focus whenever selection modals open or close so Compose never restores focus to the Amount field
+    LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
     }
 
     val availableCategories = remember(categories) {
@@ -435,7 +444,13 @@ fun EditTransactionDialog(
                         value = title,
                         onValueChange = { title = it.replaceFirstChar { char -> char.uppercase() } },
                         label = { Text(if (selectedType == TransactionType.INCOME) "Title / Payer" else "Title / Merchant") },
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        ),
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -484,7 +499,16 @@ fun EditTransactionDialog(
                             value = amountText,
                             onValueChange = { amountText = it },
                             label = { Text("Amount") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                }
+                            ),
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
