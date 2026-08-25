@@ -684,6 +684,60 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // --- Automated Google Drive appDataFolder Background Sync ---
+    val lastDriveSyncTime = MutableStateFlow<String?>(null)
+    val isDriveSyncing = MutableStateFlow(false)
+
+    fun syncToGoogleDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?, onResult: (String) -> Unit) {
+        if (account == null) {
+            onResult("❌ No Google Account connected for Drive Sync")
+            return
+        }
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            isDriveSyncing.value = true
+            try {
+                val json = com.selfbudget.app.core.util.CloudSyncManager.exportToJsonString(user.id, repository.database)
+                val result = com.selfbudget.app.core.util.GoogleDriveSyncManager.uploadToAppDataFolder(context, account, json)
+                result.onSuccess { meta ->
+                    lastDriveSyncTime.value = meta.formattedTime
+                    onResult("✅ Synced to Google Drive appDataFolder (${meta.formattedTime})")
+                }.onFailure { err ->
+                    onResult("❌ Drive Sync failed: ${err.localizedMessage}")
+                }
+            } catch (e: Exception) {
+                onResult("❌ Backup preparation failed: ${e.localizedMessage}")
+            } finally {
+                isDriveSyncing.value = false
+            }
+        }
+    }
+
+    fun restoreFromGoogleDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?, onResult: (String) -> Unit) {
+        if (account == null) {
+            onResult("❌ No Google Account connected for Drive Sync")
+            return
+        }
+        viewModelScope.launch {
+            isDriveSyncing.value = true
+            try {
+                val downloadResult = com.selfbudget.app.core.util.GoogleDriveSyncManager.downloadFromAppDataFolder(context, account)
+                downloadResult.onSuccess { json ->
+                    val restoreResult = com.selfbudget.app.core.util.CloudSyncManager.restoreFromJsonString(json, repository.database)
+                    restoreResult.onSuccess { count ->
+                        onResult("✅ Restored $count items from Google Drive appDataFolder!")
+                    }.onFailure { err ->
+                        onResult("❌ Data restore failed: ${err.localizedMessage}")
+                    }
+                }.onFailure { err ->
+                    onResult("❌ Download failed: ${err.localizedMessage}")
+                }
+            } finally {
+                isDriveSyncing.value = false
+            }
+        }
+    }
+
     fun clearAuthError() {
         _authError.value = null
     }

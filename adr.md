@@ -190,6 +190,14 @@ $$\text{Annual Spending Pace} = \text{Money.round}\left(\frac{\text{YTD Expense 
 
 ---
 
+### 2.7 Automated Google Drive Cloud Sync Engine ([`GoogleDriveSyncManager.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/GoogleDriveSyncManager.kt))
+
+- **Zero Cost to Developer**: Operates directly using the user's personal Google Account and Google Drive storage quota ($0.00 infrastructure cost).
+- **Private Sandbox Scope (`DriveScopes.DRIVE_APPDATA`)**: Backups are written to the user's hidden Google Drive `appDataFolder` (`self_budget_cloud_backup.json`), keeping financial data isolated from standard user Drive files and third-party apps.
+- **On-Demand & Background Restore**: Supports background uploads (`uploadToAppDataFolder`) and cloud restoration (`downloadFromAppDataFolder`) seamlessly across multiple Android devices.
+
+---
+
 ### 2.7 Single Entry Point & Category Budget Auto-Sync Engine ([`MainViewModel.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/ui/MainViewModel.kt))
 
 Two UI surfaces can create or edit a recurring bill — the transaction form's "recurring" toggle and the Recurring tab's own form. Both now route through one private function, `MainViewModel.upsertRecurring`, which is the only code path allowed to create/update a `RecurringTransactionEntity` and trigger the category's budget-ceiling sync. This guarantees the two surfaces can never disagree about what counts as a duplicate bill (matched by `(userId, categoryId, title, frequency)`, per §6) or how the resulting budget suggestion is computed.

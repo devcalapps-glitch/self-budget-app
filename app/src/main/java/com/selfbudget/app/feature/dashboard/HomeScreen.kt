@@ -166,6 +166,8 @@ fun HomeScreen(
     onSetBiometricEnabled: (Boolean) -> Unit,
     onExportBackupJson: ((String) -> Unit, (String) -> Unit) -> Unit = { _, _ -> },
     onRestoreBackupJson: (jsonString: String, onSuccess: (Int) -> Unit, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
+    onDriveSyncClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
+    onDriveRestoreClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
@@ -454,6 +456,8 @@ fun HomeScreen(
                                 onSetExchangeRate = onSetExchangeRate,
                                 onExportBackupJson = onExportBackupJson,
                                 onRestoreBackupJson = onRestoreBackupJson,
+                                onDriveSyncClick = onDriveSyncClick,
+                                onDriveRestoreClick = onDriveRestoreClick,
                                 onResetData = onResetData,
                                 onSignOut = onSignOut
                             )

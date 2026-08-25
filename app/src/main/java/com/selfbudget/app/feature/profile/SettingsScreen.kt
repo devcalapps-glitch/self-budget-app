@@ -79,6 +79,10 @@ import com.selfbudget.app.data.model.ExchangeRateEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.UserEntity
 
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CloudDownload
+
 @Composable
 fun SettingsScreen(
     user: UserEntity?,
@@ -95,6 +99,8 @@ fun SettingsScreen(
     onSetExchangeRate: (fromCurrency: String, toCurrency: String, rate: Double) -> Unit = { _, _, _ -> },
     onExportBackupJson: ((String) -> Unit, (String) -> Unit) -> Unit = { _, _ -> },
     onRestoreBackupJson: (jsonString: String, onSuccess: (Int) -> Unit, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
+    onDriveSyncClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
+    onDriveRestoreClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
@@ -104,6 +110,41 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     var showResetConfirmation by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
+    var pendingDriveAction by remember { mutableStateOf<((com.google.android.gms.auth.api.signin.GoogleSignInAccount) -> Unit)?>(null) }
+
+    val googleDriveSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+            if (account != null) {
+                pendingDriveAction?.invoke(account)
+            } else {
+                syncStatusMessage = "❌ Google Drive Sign-In cancelled."
+            }
+        } catch (e: Exception) {
+            syncStatusMessage = "❌ Google Drive authorization failed: ${e.localizedMessage}"
+        } finally {
+            pendingDriveAction = null
+        }
+    }
+
+    fun requestDriveAccessAndExecute(action: (com.google.android.gms.auth.api.signin.GoogleSignInAccount) -> Unit) {
+        val currentAccount = com.selfbudget.app.core.util.GoogleDriveSyncManager.getLastSignedInAccount(context)
+        val hasPermission = currentAccount != null && com.google.android.gms.auth.api.signin.GoogleSignIn.hasPermissions(
+            currentAccount,
+            com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_APPDATA)
+        )
+
+        if (hasPermission && currentAccount != null) {
+            action(currentAccount)
+        } else {
+            pendingDriveAction = action
+            val intent = com.selfbudget.app.core.util.GoogleDriveSyncManager.getGoogleDriveSignInIntent(context)
+            googleDriveSignInLauncher.launch(intent)
+        }
+    }
 
     val jsonRestorePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -593,6 +634,82 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Automated Google Drive appDataFolder Sync Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Automated Google Drive Sync",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    requestDriveAccessAndExecute { account ->
+                                        onDriveSyncClick(account) { message ->
+                                            syncStatusMessage = message
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "Drive Sync", fontSize = 12.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    requestDriveAccessAndExecute { account ->
+                                        onDriveRestoreClick(account) { message ->
+                                            syncStatusMessage = message
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "Drive Restore", fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))

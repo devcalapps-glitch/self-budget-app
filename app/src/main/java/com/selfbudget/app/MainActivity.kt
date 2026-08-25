@@ -261,6 +261,12 @@ class MainActivity : FragmentActivity() {
                             onRestoreBackupJson = { jsonString, onSuccess, onError ->
                                 viewModel.restoreBackupJson(jsonString, onSuccess, onError)
                             },
+                            onDriveSyncClick = { account, onResult ->
+                                viewModel.syncToGoogleDrive(this@MainActivity, account, onResult)
+                            },
+                            onDriveRestoreClick = { account, onResult ->
+                                viewModel.restoreFromGoogleDrive(this@MainActivity, account, onResult)
+                            },
                             onResetData = {
                                 viewModel.clearAllData()
                             },

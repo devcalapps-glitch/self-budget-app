@@ -86,6 +86,13 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.id)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("com.google.api-client:google-api-client-android:2.6.0") {
+        exclude(group = "org.apache.httpcomponents", module = "httpclient")
+    }
+    implementation("com.google.apis:google-api-services-drive:v3-rev20230822-2.0.0") {
+        exclude(group = "org.apache.httpcomponents", module = "httpclient")
+    }
 
     // Biometrics Security. Stable artifact only - biometric-ktx has never left alpha, and
     // BiometricSecurityManager only uses the base BiometricPrompt/BiometricManager APIs anyway.
