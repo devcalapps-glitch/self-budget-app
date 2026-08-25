@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -61,6 +61,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,9 +98,7 @@ import kotlinx.coroutines.launch
 
 private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
-    THEME("Appearance & Theme"),
-    CURRENCY("Currency & Exchange Rates"),
-    SECURITY("Security & Notifications"),
+    PREFERENCES("General Preferences & Security"),
     BACKUP("Backup & Cloud Sync"),
     DANGER("Data Management"),
     ABOUT("About & Support")
@@ -135,6 +134,11 @@ fun SettingsScreen(
     var showResetConfirmation by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
     var pendingDriveAction by remember { mutableStateOf<((GoogleSignInAccount) -> Unit)?>(null) }
+
+    // Scroll to top when changing sub-screens
+    LaunchedEffect(activeSubScreen) {
+        scrollState.animateScrollTo(0)
+    }
 
     val googleDriveSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -211,8 +215,8 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(scrollState),
+            .verticalScroll(scrollState)
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Top Header Row with Navigation
@@ -253,12 +257,12 @@ fun SettingsScreen(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(54.dp)
+                            .size(50.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
@@ -267,11 +271,11 @@ fun SettingsScreen(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
 
                     Column {
                         Text(
@@ -289,28 +293,14 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // Categorized Clean Navigation Menu Items
+            // 4 Streamlined Merged Category Rows
             SettingsCategoryRow(
-                icon = Icons.Default.DarkMode,
-                title = "Appearance & Theme",
-                subtitle = "Theme mode: ${themeMode.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                onClick = { activeSubScreen = SettingsSubScreen.THEME }
-            )
-
-            SettingsCategoryRow(
-                icon = Icons.Default.AttachMoney,
-                title = "Currency & Exchange Rates",
-                subtitle = "Base currency ($currencySymbol), multi-currency rates",
-                onClick = { activeSubScreen = SettingsSubScreen.CURRENCY }
-            )
-
-            SettingsCategoryRow(
-                icon = Icons.Default.Security,
-                title = "Security & Notifications",
-                subtitle = "Biometric app lock, daily bill alerts",
-                onClick = { activeSubScreen = SettingsSubScreen.SECURITY }
+                icon = Icons.Default.Settings,
+                title = "General Preferences & Security",
+                subtitle = "Theme (${themeMode.name.lowercase()}), Currency ($currencySymbol), Biometrics & Notifications",
+                onClick = { activeSubScreen = SettingsSubScreen.PREFERENCES }
             )
 
             SettingsCategoryRow(
@@ -330,14 +320,14 @@ fun SettingsScreen(
 
             SettingsCategoryRow(
                 icon = Icons.Default.Info,
-                title = "About & Support",
-                subtitle = "Version 1.0.0, developer contact email",
+                title = "About & Developer Support",
+                subtitle = "Version 1.0.0, dev support email",
                 onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Log Out Button
+            // Log Out Button (Prominently Visible & Scrollable)
             OutlinedButton(
                 onClick = onSignOut,
                 modifier = Modifier
@@ -360,8 +350,9 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 1: APPEARANCE & THEME ---
-        if (activeSubScreen == SettingsSubScreen.THEME) {
+        // --- SUB-SCREEN 1: GENERAL PREFERENCES & SECURITY (MERGED) ---
+        if (activeSubScreen == SettingsSubScreen.PREFERENCES) {
+            // Theme Mode Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -429,10 +420,8 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
 
-        // --- SUB-SCREEN 2: CURRENCY & EXCHANGE RATES ---
-        if (activeSubScreen == SettingsSubScreen.CURRENCY) {
+            // Currency Symbol Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -472,6 +461,7 @@ fun SettingsScreen(
                 }
             }
 
+            // Exchange Rates Card (Visible if foreign currency accounts exist)
             val foreignCurrencyCodes = remember(accounts, currencySymbol) {
                 val base = Currencies.codeForSymbol(currencySymbol)
                 accounts.map { it.currencyCode }.distinct().filter { !it.equals(base, ignoreCase = true) }
@@ -542,10 +532,8 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
 
-        // --- SUB-SCREEN 3: SECURITY & NOTIFICATIONS ---
-        if (activeSubScreen == SettingsSubScreen.SECURITY) {
+            // Security & App Lock Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -592,6 +580,7 @@ fun SettingsScreen(
                 }
             }
 
+            // Push Notifications & Alerts Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -665,7 +654,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 4: BACKUP & CLOUD SYNC ---
+        // --- SUB-SCREEN 2: BACKUP & CLOUD SYNC ---
         if (activeSubScreen == SettingsSubScreen.BACKUP) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -852,7 +841,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 5: DATA MANAGEMENT & RESET ---
+        // --- SUB-SCREEN 3: DATA MANAGEMENT & RESET ---
         if (activeSubScreen == SettingsSubScreen.DANGER) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -905,7 +894,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 6: ABOUT & DEVELOPER SUPPORT ---
+        // --- SUB-SCREEN 4: ABOUT & DEVELOPER SUPPORT ---
         if (activeSubScreen == SettingsSubScreen.ABOUT) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
