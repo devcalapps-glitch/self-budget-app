@@ -245,7 +245,7 @@ fun SettingsScreen(
             )
         }
 
-        // --- MAIN CATEGORY MENU PAGE (SUPER CLEAN: 3 CARDS + LOG OUT) ---
+        // --- MAIN CATEGORY MENU PAGE ---
         if (activeSubScreen == SettingsSubScreen.MAIN) {
             // 1. User Profile Card
             Card(
@@ -318,7 +318,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Log Out Button (Prominently Visible & Scrollable)
+            // Log Out Button
             OutlinedButton(
                 onClick = onSignOut,
                 modifier = Modifier
@@ -645,8 +645,93 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC (MERGED BACKUP + RESET DATA) ---
+        // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC (SPLIT INTO 2 DISTINCT SECTIONS) ---
         if (activeSubScreen == SettingsSubScreen.BACKUP) {
+            // SECTION 1: Automated Google Drive Cloud Sync
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Automated Google Drive Cloud Sync",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (syncStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = syncStatusMessage!!,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                requestDriveAccessAndExecute { account ->
+                                    onDriveSyncClick(account) { message ->
+                                        syncStatusMessage = message
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Drive Sync", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                requestDriveAccessAndExecute { account ->
+                                    onDriveRestoreClick(account) { message ->
+                                        syncStatusMessage = message
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Drive Restore", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // SECTION 2: Manual Backup & File Export
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -663,103 +748,19 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Backup & Restore",
+                            text = "Manual Backup & Export",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Export your entire account history, transactions (${transactions.size}), budgets, and goals as a file you can save to Google Drive, email to yourself, or store locally - then restore from it on this or any other device.",
+                        text = "Export or restore your account history (${transactions.size} transactions) using JSON files, or export transactions to CSV.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                     )
-
-                    if (syncStatusMessage != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = syncStatusMessage!!,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Automated Google Drive appDataFolder Sync Card
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudDone,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Automated Google Drive Sync",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        requestDriveAccessAndExecute { account ->
-                                            onDriveSyncClick(account) { message ->
-                                                syncStatusMessage = message
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(text = "Drive Sync", fontSize = 12.sp)
-                                }
-
-                                OutlinedButton(
-                                    onClick = {
-                                        requestDriveAccessAndExecute { account ->
-                                            onDriveRestoreClick(account) { message ->
-                                                syncStatusMessage = message
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(text = "Drive Restore", fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -831,7 +832,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Clean Sweep / Reset Data Card inside Data & Sync sub-page
+            // SECTION 3: Clean Sweep / Reset Data Card inside Data & Sync sub-page
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
