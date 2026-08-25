@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Badge Rounded Square Background with Linear Gradient (#1F5850 to #123A33) -->
+    <path android:pathData="M128,16 H384 A112,112 0 0,1 496,128 V384 A112,112 0 0,1 384,496 H128 A112,112 0 0,1 16,384 V128 A112,112 0 0,1 128,16 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="512"
+                android:endY="512"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF1F5850" />
+                <item android:offset="1.0" android:color="#FF123A33" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Ascending Savings Bar 1 (Mint Teal #9FC4B6) -->
+    <path
+        android:fillColor="#9FC4B6"
+        android:pathData="M192,301 A24,24 0 0,1 216,325 V369 A24,24 0 0,1 192,393 A24,24 0 0,1 168,369 V325 A24,24 0 0,1 192,301 Z" />
+
+    <!-- Ascending Savings Bar 2 (Gold Amber #D9A855) -->
+    <path
+        android:fillColor="#D9A855"
+        android:pathData="M256,251 A24,24 0 0,1 280,275 V369 A24,24 0 0,1 256,393 A24,24 0 0,1 232,369 V275 A24,24 0 0,1 256,251 Z" />
+
+    <!-- Ascending Savings Bar 3 (Warm Off-White #F5EFE2) -->
+    <path
+        android:fillColor="#F5EFE2"
+        android:pathData="M320,193 A24,24 0 0,1 344,217 V369 A24,24 0 0,1 320,393 A24,24 0 0,1 296,369 V217 A24,24 0 0,1 320,193 Z" />
+
+    <!-- Coin Accent Circle -->
+    <path
+        android:fillColor="#F5EFE2"
+        android:strokeColor="#D9A855"
+        android:strokeWidth="6"
+        android:pathData="M320,151 m-32,0 a32,32 0 1,0 64,0 a32,32 0 1,0 -64,0" />
+
+    <!-- Coin Accent Check Arrow -->
+    <path
+        android:strokeColor="#1F5850"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M308,155 L320,141 L332,155" />
+</vector>
