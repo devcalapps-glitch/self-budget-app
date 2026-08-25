@@ -99,9 +99,8 @@ import kotlinx.coroutines.launch
 private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
     PREFERENCES("General Preferences & Security"),
-    BACKUP("Backup & Cloud Sync"),
-    DANGER("Data Management"),
-    ABOUT("About & Support")
+    BACKUP("Data, Backup & Cloud Sync"),
+    ABOUT("About & Developer Support")
 }
 
 @Composable
@@ -246,7 +245,7 @@ fun SettingsScreen(
             )
         }
 
-        // --- MAIN CATEGORY MENU PAGE ---
+        // --- MAIN CATEGORY MENU PAGE (SUPER CLEAN: 3 CARDS + LOG OUT) ---
         if (activeSubScreen == SettingsSubScreen.MAIN) {
             // 1. User Profile Card
             Card(
@@ -295,27 +294,19 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 4 Streamlined Merged Category Rows
+            // 3 Clean Merged Category Rows
             SettingsCategoryRow(
                 icon = Icons.Default.Settings,
                 title = "General Preferences & Security",
-                subtitle = "Theme (${themeMode.name.lowercase()}), Currency ($currencySymbol), Biometrics & Notifications",
+                subtitle = "Theme (${themeMode.name.lowercase()}), Currency ($currencySymbol), Biometrics & Alerts",
                 onClick = { activeSubScreen = SettingsSubScreen.PREFERENCES }
             )
 
             SettingsCategoryRow(
                 icon = Icons.Default.CloudDone,
-                title = "Backup & Cloud Sync",
-                subtitle = "Automated Google Drive sync, JSON & CSV export",
+                title = "Data, Backup & Cloud Sync",
+                subtitle = "Google Drive sync, JSON/CSV export & Reset database",
                 onClick = { activeSubScreen = SettingsSubScreen.BACKUP }
-            )
-
-            SettingsCategoryRow(
-                icon = Icons.Default.CleaningServices,
-                iconTint = ExpenseRed,
-                title = "Data Management",
-                subtitle = "Clean sweep, reset app database",
-                onClick = { activeSubScreen = SettingsSubScreen.DANGER }
             )
 
             SettingsCategoryRow(
@@ -350,7 +341,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 1: GENERAL PREFERENCES & SECURITY (MERGED) ---
+        // --- SUB-SCREEN 1: GENERAL PREFERENCES & SECURITY ---
         if (activeSubScreen == SettingsSubScreen.PREFERENCES) {
             // Theme Mode Card
             Card(
@@ -654,7 +645,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 2: BACKUP & CLOUD SYNC ---
+        // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC (MERGED BACKUP + RESET DATA) ---
         if (activeSubScreen == SettingsSubScreen.BACKUP) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -839,10 +830,8 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
 
-        // --- SUB-SCREEN 3: DATA MANAGEMENT & RESET ---
-        if (activeSubScreen == SettingsSubScreen.DANGER) {
+            // Clean Sweep / Reset Data Card inside Data & Sync sub-page
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -894,7 +883,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 4: ABOUT & DEVELOPER SUPPORT ---
+        // --- SUB-SCREEN 3: ABOUT & DEVELOPER SUPPORT ---
         if (activeSubScreen == SettingsSubScreen.ABOUT) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
