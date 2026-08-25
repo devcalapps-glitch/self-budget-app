@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -439,7 +440,9 @@ fun AddIncomeDialog(
                                     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusProperties { canFocus = false }
                             )
                         }
 
@@ -465,47 +468,61 @@ fun AddIncomeDialog(
                     }
 
                     // Deposit Account Field (Taps to open AccountSelectionModal)
-                    Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                expandedAccountDropdown = true
+                            }
+                    ) {
                         OutlinedTextField(
                             value = selectedAccount?.name ?: "Select Deposit Account",
                             onValueChange = {},
-                            readOnly = true,
+                            enabled = false,
                             label = { Text("Deposit Account") },
                             trailingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
                             shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Box(
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             modifier = Modifier
-                                .matchParentSize()
-                                .clickable {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    expandedAccountDropdown = true
-                                }
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false }
                         )
                     }
 
                     // Category Field (Taps to open CategorySelectionModal)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    expandedCategoryDropdown = true
+                                }
+                        ) {
                             OutlinedTextField(
                                 value = selectedCategory?.name ?: "Select Category",
                                 onValueChange = {},
-                                readOnly = true,
+                                enabled = false,
                                 label = { Text("Category") },
                                 trailingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Box(
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 modifier = Modifier
-                                    .matchParentSize()
-                                    .clickable {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        expandedCategoryDropdown = true
-                                    }
+                                    .fillMaxWidth()
+                                    .focusProperties { canFocus = false }
                             )
                         }
 
