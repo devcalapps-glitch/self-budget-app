@@ -571,7 +571,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Cloud Sync & Data Backups (Zero-Cost)",
+                        text = "Backup & Restore",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -580,7 +580,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Backup your entire account history, transactions (${transactions.size}), budgets, and goals to Google Drive or local storage.",
+                    text = "Export your entire account history, transactions (${transactions.size}), budgets, and goals as a file you can save to Google Drive, email to yourself, or store locally - then restore from it on this or any other device.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                 )

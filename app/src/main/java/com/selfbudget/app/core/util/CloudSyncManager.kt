@@ -14,11 +14,14 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 
 /**
- * 100% Zero-Cost Cloud & File Sync Manager for Self Budget.
- * Enables:
+ * Local backup/restore manager for Self Budget. Enables:
  * 1. Serialization of all Room DB tables into a cent-safe, schema-versioned JSON backup.
  * 2. Deserialization & atomic Room DB upsert restoration across app updates.
- * 3. Export/Import to local file system & Google Drive AppData Folder.
+ * 3. Export to a local file, handed off via the Android Share Sheet (SettingsScreen.kt) so the
+ *    user can save it to Google Drive, email, or any other app of their choosing - and import
+ *    from any file the system document picker can open. There is no dedicated Google Drive API
+ *    integration (no `drive.appdata` scope, no Drive SDK) - "cloud sync" here means "the user
+ *    manually moves a JSON file," not an automatic private Drive AppData Folder sync.
  */
 object CloudSyncManager {
 

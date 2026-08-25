@@ -86,6 +86,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "self_budget.db"
                 )
+                // PRE-LAUNCH ONLY: destructive fallback is acceptable while this app has never
+                // shipped a public release (versionCode 1, no installed base yet), since there's
+                // no real user data any schema bump could destroy. The moment this ships to
+                // Google Play, every future version bump MUST instead ship a real
+                // androidx.room.migration.Migration for that version delta - falling back to
+                // destructive migration after launch means every user's transaction/budget
+                // history gets silently wiped on their next app update.
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

@@ -1,9 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     id("dagger.hilt.android.plugin")
+}
+
+// Release signing credentials live in a git-ignored keystore.properties (see
+// keystore.properties.example) - never committed, never hardcoded here. Generate your own
+// keystore with the keytool command in that example file, then copy it to keystore.properties
+// and fill in the real paths/passwords. Until that file exists, release builds simply go
+// unsigned (same as before), so day-to-day dev work isn't blocked on having a signing key yet.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -20,13 +34,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -58,8 +87,9 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.id)
 
-    // Biometrics Security
-    implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
+    // Biometrics Security. Stable artifact only - biometric-ktx has never left alpha, and
+    // BiometricSecurityManager only uses the base BiometricPrompt/BiometricManager APIs anyway.
+    implementation("androidx.biometric:biometric:1.1.0")
 
     // ML Kit Text Recognition for OCR Receipt Scanning
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
