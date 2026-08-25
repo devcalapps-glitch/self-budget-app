@@ -1,12 +1,13 @@
 package com.selfbudget.app.feature.profile
 
 import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,9 +26,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
@@ -38,17 +44,19 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -58,19 +66,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.compose.ui.window.Dialog
-import com.selfbudget.app.ui.theme.ExpenseRed
+import androidx.core.content.ContextCompat
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.common.api.Scope
+import com.google.api.services.drive.DriveScopes
+import com.selfbudget.app.core.util.CloudSyncManager
 import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.core.util.Currencies
+import com.selfbudget.app.core.util.GoogleDriveSyncManager
 import com.selfbudget.app.core.util.NotificationHelper
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AppThemeMode
@@ -78,10 +92,18 @@ import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.ExchangeRateEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.UserEntity
+import com.selfbudget.app.ui.theme.ExpenseRed
+import kotlinx.coroutines.launch
 
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.CloudDownload
+private enum class SettingsSubScreen(val title: String) {
+    MAIN("Settings"),
+    THEME("Appearance & Theme"),
+    CURRENCY("Currency & Exchange Rates"),
+    SECURITY("Security & Notifications"),
+    BACKUP("Backup & Cloud Sync"),
+    DANGER("Data Management"),
+    ABOUT("About & Support")
+}
 
 @Composable
 fun SettingsScreen(
@@ -99,8 +121,8 @@ fun SettingsScreen(
     onSetExchangeRate: (fromCurrency: String, toCurrency: String, rate: Double) -> Unit = { _, _, _ -> },
     onExportBackupJson: ((String) -> Unit, (String) -> Unit) -> Unit = { _, _ -> },
     onRestoreBackupJson: (jsonString: String, onSuccess: (Int) -> Unit, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
-    onDriveSyncClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
-    onDriveRestoreClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
+    onDriveSyncClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
+    onDriveRestoreClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
@@ -108,14 +130,16 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val currencies = listOf("$", "€", "£", "₹", "¥", "A$")
     val scrollState = rememberScrollState()
+    
+    var activeSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
     var showResetConfirmation by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
-    var pendingDriveAction by remember { mutableStateOf<((com.google.android.gms.auth.api.signin.GoogleSignInAccount) -> Unit)?>(null) }
+    var pendingDriveAction by remember { mutableStateOf<((GoogleSignInAccount) -> Unit)?>(null) }
 
     val googleDriveSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
             if (account != null) {
@@ -130,18 +154,18 @@ fun SettingsScreen(
         }
     }
 
-    fun requestDriveAccessAndExecute(action: (com.google.android.gms.auth.api.signin.GoogleSignInAccount) -> Unit) {
-        val currentAccount = com.selfbudget.app.core.util.GoogleDriveSyncManager.getLastSignedInAccount(context)
-        val hasPermission = currentAccount != null && com.google.android.gms.auth.api.signin.GoogleSignIn.hasPermissions(
+    fun requestDriveAccessAndExecute(action: (GoogleSignInAccount) -> Unit) {
+        val currentAccount = GoogleDriveSyncManager.getLastSignedInAccount(context)
+        val hasPermission = currentAccount != null && GoogleSignIn.hasPermissions(
             currentAccount,
-            com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_APPDATA)
+            Scope(DriveScopes.DRIVE_APPDATA)
         )
 
         if (hasPermission && currentAccount != null) {
             action(currentAccount)
         } else {
             pendingDriveAction = action
-            val intent = com.selfbudget.app.core.util.GoogleDriveSyncManager.getGoogleDriveSignInIntent(context)
+            val intent = GoogleDriveSyncManager.getGoogleDriveSignInIntent(context)
             googleDriveSignInLauncher.launch(intent)
         }
     }
@@ -152,7 +176,7 @@ fun SettingsScreen(
         if (uri != null) {
             coroutineScope.launch {
                 try {
-                    val jsonString = com.selfbudget.app.core.util.CloudSyncManager.readJsonFromUri(context, uri)
+                    val jsonString = CloudSyncManager.readJsonFromUri(context, uri)
                     onRestoreBackupJson(jsonString, { count ->
                         syncStatusMessage = "✅ Restored $count items successfully!"
                     }, { error ->
@@ -191,204 +215,224 @@ fun SettingsScreen(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Settings & Profile",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        // 1. User Account Header Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+        // Top Header Row with Navigation
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+            if (activeSubScreen != SettingsSubScreen.MAIN) {
+                IconButton(
+                    onClick = { activeSubScreen = SettingsSubScreen.MAIN },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
+            Text(
+                text = activeSubScreen.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // --- MAIN CATEGORY MENU PAGE ---
+        if (activeSubScreen == SettingsSubScreen.MAIN) {
+            // 1. User Profile Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
 
-                Column {
-                    Text(
-                        text = user?.displayName ?: "User",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = user?.email ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
+                    Column {
+                        Text(
+                            text = user?.displayName ?: "User",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = user?.email ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Categorized Clean Navigation Menu Items
+            SettingsCategoryRow(
+                icon = Icons.Default.DarkMode,
+                title = "Appearance & Theme",
+                subtitle = "Theme mode: ${themeMode.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                onClick = { activeSubScreen = SettingsSubScreen.THEME }
+            )
+
+            SettingsCategoryRow(
+                icon = Icons.Default.AttachMoney,
+                title = "Currency & Exchange Rates",
+                subtitle = "Base currency ($currencySymbol), multi-currency rates",
+                onClick = { activeSubScreen = SettingsSubScreen.CURRENCY }
+            )
+
+            SettingsCategoryRow(
+                icon = Icons.Default.Security,
+                title = "Security & Notifications",
+                subtitle = "Biometric app lock, daily bill alerts",
+                onClick = { activeSubScreen = SettingsSubScreen.SECURITY }
+            )
+
+            SettingsCategoryRow(
+                icon = Icons.Default.CloudDone,
+                title = "Backup & Cloud Sync",
+                subtitle = "Automated Google Drive sync, JSON & CSV export",
+                onClick = { activeSubScreen = SettingsSubScreen.BACKUP }
+            )
+
+            SettingsCategoryRow(
+                icon = Icons.Default.CleaningServices,
+                iconTint = ExpenseRed,
+                title = "Data Management",
+                subtitle = "Clean sweep, reset app database",
+                onClick = { activeSubScreen = SettingsSubScreen.DANGER }
+            )
+
+            SettingsCategoryRow(
+                icon = Icons.Default.Info,
+                title = "About & Support",
+                subtitle = "Version 1.0.0, developer contact email",
+                onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Log Out Button
+            OutlinedButton(
+                onClick = onSignOut,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.06f),
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
 
-        // Log Out Button (Right above Preferences)
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.06f),
-                contentColor = MaterialTheme.colorScheme.error
-            )
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Logout,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        }
+        // --- SUB-SCREEN 1: APPEARANCE & THEME ---
+        if (activeSubScreen == SettingsSubScreen.THEME) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DarkMode,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "App Theme / Appearance",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
-        // --- GROUP 1: PREFERENCES ---
-        Text(
-            text = "PREFERENCES",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-        // Appearance / Theme Mode Preference Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.DarkMode,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "App Theme / Appearance",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = themeMode == AppThemeMode.SYSTEM,
-                        onClick = { onSetThemeMode(AppThemeMode.SYSTEM) },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.SettingsSuggest, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("System")
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = themeMode == AppThemeMode.LIGHT,
-                        onClick = { onSetThemeMode(AppThemeMode.LIGHT) },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LightMode, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Light")
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = themeMode == AppThemeMode.DARK,
-                        onClick = { onSetThemeMode(AppThemeMode.DARK) },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.DarkMode, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Dark")
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        // Currency Preference Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.AttachMoney,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Preferred Currency Symbol",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    currencies.forEach { symbol ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         FilterChip(
-                            selected = currencySymbol == symbol,
-                            onClick = { onSetCurrency(symbol) },
-                            label = { Text(symbol, fontWeight = FontWeight.Bold) }
+                            selected = themeMode == AppThemeMode.SYSTEM,
+                            onClick = { onSetThemeMode(AppThemeMode.SYSTEM) },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.SettingsSuggest, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("System")
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = themeMode == AppThemeMode.LIGHT,
+                            onClick = { onSetThemeMode(AppThemeMode.LIGHT) },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.LightMode, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Light")
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = themeMode == AppThemeMode.DARK,
+                            onClick = { onSetThemeMode(AppThemeMode.DARK) },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.DarkMode, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Dark")
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
         }
 
-        // Exchange Rates Card (Visible if foreign currency accounts exist)
-        val foreignCurrencyCodes = remember(accounts, currencySymbol) {
-            val base = Currencies.codeForSymbol(currencySymbol)
-            accounts.map { it.currencyCode }.distinct().filter { !it.equals(base, ignoreCase = true) }
-        }
-        if (foreignCurrencyCodes.isNotEmpty()) {
+        // --- SUB-SCREEN 2: CURRENCY & EXCHANGE RATES ---
+        if (activeSubScreen == SettingsSubScreen.CURRENCY) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -405,124 +449,114 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Exchange Rates",
+                            text = "Preferred Currency Symbol",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Self Budget is offline-first, so rates aren't fetched automatically — enter them yourself to include foreign-currency accounts in your net worth total.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    val baseCode = Currencies.codeForSymbol(currencySymbol)
-                    foreignCurrencyCodes.forEach { foreignCode ->
-                        val existingRate = exchangeRates.firstOrNull {
-                            it.fromCurrency.equals(foreignCode, ignoreCase = true) && it.toCurrency.equals(baseCode, ignoreCase = true)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        currencies.forEach { symbol ->
+                            FilterChip(
+                                selected = currencySymbol == symbol,
+                                onClick = { onSetCurrency(symbol) },
+                                label = { Text(symbol, fontWeight = FontWeight.Bold) }
+                            )
                         }
-                        var rateText by remember(foreignCode, existingRate?.rate) {
-                            mutableStateOf(existingRate?.rate?.toString() ?: "")
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    }
+                }
+            }
+
+            val foreignCurrencyCodes = remember(accounts, currencySymbol) {
+                val base = Currencies.codeForSymbol(currencySymbol)
+                accounts.map { it.currencyCode }.distinct().filter { !it.equals(base, ignoreCase = true) }
+            }
+            if (foreignCurrencyCodes.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AttachMoney,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "1 ${Currencies.symbolFor(foreignCode)} $foreignCode =",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
+                                text = "Exchange Rates",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
                             )
-                            androidx.compose.material3.OutlinedTextField(
-                                value = rateText,
-                                onValueChange = { input ->
-                                    if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,6}$"))) {
-                                        rateText = input
-                                        input.toDoubleOrNull()?.let { rate ->
-                                            if (rate > 0.0) onSetExchangeRate(foreignCode, baseCode, rate)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Self Budget is offline-first, so rates aren't fetched automatically — enter them yourself to include foreign-currency accounts in your net worth total.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val baseCode = Currencies.codeForSymbol(currencySymbol)
+                        foreignCurrencyCodes.forEach { foreignCode ->
+                            val existingRate = exchangeRates.firstOrNull {
+                                it.fromCurrency.equals(foreignCode, ignoreCase = true) && it.toCurrency.equals(baseCode, ignoreCase = true)
+                            }
+                            var rateText by remember(foreignCode, existingRate?.rate) {
+                                mutableStateOf(existingRate?.rate?.toString() ?: "")
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "1 ${Currencies.symbolFor(foreignCode)} $foreignCode =",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = rateText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,6}$"))) {
+                                            rateText = input
+                                            input.toDoubleOrNull()?.let { rate ->
+                                                if (rate > 0.0) onSetExchangeRate(foreignCode, baseCode, rate)
+                                            }
                                         }
-                                    }
-                                },
-                                singleLine = true,
-                                label = { Text(baseCode) },
-                                modifier = Modifier.width(120.dp)
-                            )
+                                    },
+                                    singleLine = true,
+                                    label = { Text(baseCode) },
+                                    modifier = Modifier.width(120.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // --- GROUP 2: SECURITY & NOTIFICATIONS ---
-        Text(
-            text = "SECURITY & NOTIFICATIONS",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-
-        // Security & App Lock Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // --- SUB-SCREEN 3: SECURITY & NOTIFICATIONS ---
+        if (activeSubScreen == SettingsSubScreen.SECURITY) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Fingerprint,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Security & App Lock",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Biometric lock on launch",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                        )
-                    }
-                }
-
-                Switch(
-                    checked = isBiometricEnabled,
-                    onCheckedChange = onSetBiometricEnabled
-                )
-            }
-        }
-
-        // Push Notifications & Bill Alerts Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -531,7 +565,7 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Notifications,
+                            imageVector = Icons.Default.Fingerprint,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
@@ -539,409 +573,423 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Push Notifications & Alerts",
+                                text = "Security & App Lock",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (hasNotificationPermission) "Daily bill & budget alerts active" else "Tap to enable local notifications",
+                                text = "Biometric lock on launch",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                             )
                         }
                     }
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
-                        Button(
-                            onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
-                        ) {
-                            Text("Enable")
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedButton(
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            NotificationHelper.sendNotification(
-                                context,
-                                777,
-                                "🔔 Test Notification Received",
-                                "Your local Push Notifications and Bill Reminders are working perfectly!"
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Send Test Notification 🔔")
+                    Switch(
+                        checked = isBiometricEnabled,
+                        onCheckedChange = onSetBiometricEnabled
+                    )
                 }
             }
-        }
 
-        // --- GROUP 3: CLOUD SYNC & DATA BACKUPS ---
-        Text(
-            text = "CLOUD SYNC & DATA BACKUPS",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-
-        // Data Export, Cloud Sync & Backup Card (100% Zero-Cost)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.FileDownload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Backup & Restore",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Export your entire account history, transactions (${transactions.size}), budgets, and goals as a file you can save to Google Drive, email to yourself, or store locally - then restore from it on this or any other device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 )
-
-                if (syncStatusMessage != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = syncStatusMessage!!,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Automated Google Drive appDataFolder Sync Card
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDone,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Automated Google Drive Sync",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    requestDriveAccessAndExecute { account ->
-                                        onDriveSyncClick(account) { message ->
-                                            syncStatusMessage = message
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "Drive Sync", fontSize = 12.sp)
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    requestDriveAccessAndExecute { account ->
-                                        onDriveRestoreClick(account) { message ->
-                                            syncStatusMessage = message
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "Drive Restore", fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            onExportBackupJson({ jsonString ->
-                                coroutineScope.launch {
-                                    try {
-                                        val backupFile = com.selfbudget.app.core.util.CloudSyncManager.saveBackupToLocalFile(context, jsonString)
-                                        val fileUri = androidx.core.content.FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            backupFile
-                                        )
-                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "application/json"
-                                            putExtra(Intent.EXTRA_STREAM, fileUri)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(Intent.createChooser(shareIntent, "Backup Self Budget Data (Google Drive / Local Storage)"))
-                                        syncStatusMessage = "✅ Exported backup JSON successfully!"
-                                    } catch (e: Exception) {
-                                        syncStatusMessage = "❌ Export failed: ${e.localizedMessage}"
-                                    }
-                                }
-                            }, { error ->
-                                syncStatusMessage = "❌ Export failed: $error"
-                            })
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Backup JSON", fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Push Notifications & Alerts",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (hasNotificationPermission) "Daily bill & budget alerts active" else "Tap to enable local notifications",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                )
+                            }
+                        }
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                            Button(
+                                onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                            ) {
+                                Text("Enable")
+                            }
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedButton(
                         onClick = {
-                            jsonRestorePickerLauncher.launch("*/*")
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                NotificationHelper.sendNotification(
+                                    context,
+                                    777,
+                                    "🔔 Test Notification Received",
+                                    "Your local Push Notifications and Bill Reminders are working perfectly!"
+                                )
+                            }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Restore JSON", fontSize = 12.sp)
+                        Icon(imageVector = Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Send Test Notification 🔔")
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = {
-                        CsvExporter.exportAndShareTransactions(context, transactions, categories)
-                    },
-                    enabled = transactions.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Export Transactions to CSV")
-                }
             }
         }
 
-        // --- GROUP 4: SYSTEM & DANGER ZONE ---
-        Text(
-            text = "SYSTEM & DANGER ZONE",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = ExpenseRed,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-
-        // Clean Sweep / Reset All Data Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = ExpenseRed.copy(alpha = 0.08f)
-            ),
-            border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CleaningServices,
-                        contentDescription = null,
-                        tint = ExpenseRed
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Clean Sweep / Reset Data",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = ExpenseRed
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Wipe all transactions, budgets, and accounts.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+        // --- SUB-SCREEN 4: BACKUP & CLOUD SYNC ---
+        if (activeSubScreen == SettingsSubScreen.BACKUP) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = { showResetConfirmation = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ExpenseRed,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Reset All App Data", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        // About Developer Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "About Developer",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "Self Budget v1.0.0",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Offline-first & private local storage.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                        .clickable {
-                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = Uri.parse("mailto:dev.cal.apps@gmail.com")
-                                putExtra(Intent.EXTRA_SUBJECT, "Self Budget App Support & Feedback")
-                            }
-                            try {
-                                context.startActivity(Intent.createChooser(intent, "Contact Developer"))
-                            } catch (e: Exception) {
-                                // fallback
-                            }
-                        }
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "Developer Support & Feedback",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "dev.cal.apps@gmail.com ✉️",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Backup & Restore",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Export your entire account history, transactions (${transactions.size}), budgets, and goals as a file you can save to Google Drive, email to yourself, or store locally - then restore from it on this or any other device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+
+                    if (syncStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = syncStatusMessage!!,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Automated Google Drive appDataFolder Sync Card
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Automated Google Drive Sync",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        requestDriveAccessAndExecute { account ->
+                                            onDriveSyncClick(account) { message ->
+                                                syncStatusMessage = message
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Drive Sync", fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        requestDriveAccessAndExecute { account ->
+                                            onDriveRestoreClick(account) { message ->
+                                                syncStatusMessage = message
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Drive Restore", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                onExportBackupJson({ jsonString ->
+                                    coroutineScope.launch {
+                                        try {
+                                            val backupFile = CloudSyncManager.saveBackupToLocalFile(context, jsonString)
+                                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                backupFile
+                                            )
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/json"
+                                                putExtra(Intent.EXTRA_STREAM, fileUri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "Backup Self Budget Data (Google Drive / Local Storage)"))
+                                            syncStatusMessage = "✅ Exported backup JSON successfully!"
+                                        } catch (e: Exception) {
+                                            syncStatusMessage = "❌ Export failed: ${e.localizedMessage}"
+                                        }
+                                    }
+                                }, { error ->
+                                    syncStatusMessage = "❌ Export failed: $error"
+                                })
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Backup JSON", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                jsonRestorePickerLauncher.launch("*/*")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Restore JSON", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            CsvExporter.exportAndShareTransactions(context, transactions, categories)
+                        },
+                        enabled = transactions.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Export Transactions to CSV")
+                    }
                 }
             }
         }
 
-        // Sign Out Button
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
-            )
-        ) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Sign Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        // --- SUB-SCREEN 5: DATA MANAGEMENT & RESET ---
+        if (activeSubScreen == SettingsSubScreen.DANGER) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = ExpenseRed.copy(alpha = 0.08f)
+                ),
+                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CleaningServices,
+                            contentDescription = null,
+                            tint = ExpenseRed
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Clean Sweep / Reset Data",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = ExpenseRed
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Wipe all transactions, budgets, and accounts.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showResetConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ExpenseRed,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Reset All App Data", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // --- SUB-SCREEN 6: ABOUT & DEVELOPER SUPPORT ---
+        if (activeSubScreen == SettingsSubScreen.ABOUT) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "About Developer",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Self Budget v1.0.0",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Offline-first & private local storage.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:dev.cal.apps@gmail.com")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Self Budget App Support & Feedback")
+                                }
+                                try {
+                                    context.startActivity(Intent.createChooser(intent, "Contact Developer"))
+                                } catch (e: Exception) {
+                                    // fallback
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Developer Support & Feedback",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "dev.cal.apps@gmail.com ✉️",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1012,7 +1060,7 @@ fun SettingsScreen(
                                 showResetConfirmation = false
                             },
                             shape = RoundedCornerShape(12.dp),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(46.dp)
@@ -1022,6 +1070,70 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsCategoryRow(
+    icon: ImageVector,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = iconTint.copy(alpha = 0.12f),
+                modifier = Modifier.size(42.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
