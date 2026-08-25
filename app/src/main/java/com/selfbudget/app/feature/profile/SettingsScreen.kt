@@ -1127,7 +1127,7 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/devcalapps-glitch/self-budget-app/blob/main/PRIVACY.md"))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app"))
                             try {
                                 context.startActivity(intent)
                             } catch (e: Exception) {
@@ -1139,7 +1139,7 @@ fun SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("View Online Privacy Policy (GitHub)")
+                        Text("View Online Privacy Policy")
                     }
                 }
             }
