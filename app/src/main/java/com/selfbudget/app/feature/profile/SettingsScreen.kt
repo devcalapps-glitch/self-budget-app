@@ -223,12 +223,12 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top Header Row with Navigation
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (activeSubScreen != SettingsSubScreen.MAIN) {
+        // Top Navigation Header Row (Shown on Sub-Screens only)
+        if (activeSubScreen != SettingsSubScreen.MAIN) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 IconButton(
                     onClick = { activeSubScreen = SettingsSubScreen.MAIN },
                     modifier = Modifier.size(40.dp)
@@ -240,14 +240,13 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = activeSubScreen.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
-
-            Text(
-                text = activeSubScreen.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
         }
 
         // --- MAIN CATEGORY MENU PAGE ---

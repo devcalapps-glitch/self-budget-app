@@ -60,7 +60,7 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Profile & Settings",
+            text = "Settings",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
