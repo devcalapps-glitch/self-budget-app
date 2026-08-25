@@ -148,12 +148,6 @@ fun AddIncomeDialog(
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(isRecurring) {
-        if (isRecurring) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
-
     // Clear focus whenever selection modals open or close so Compose never restores focus to the Amount field
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal) {
         focusManager.clearFocus(force = true)

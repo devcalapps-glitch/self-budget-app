@@ -192,12 +192,6 @@ fun AddExpenseDialog(
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(isRecurring, setAsBudget) {
-        if (isRecurring || setAsBudget) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
-
     // Clear focus whenever selection modals open or close so Compose never restores focus to the Amount field
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
         focusManager.clearFocus(force = true)
