@@ -43,7 +43,10 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
@@ -100,7 +103,8 @@ private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
     PREFERENCES("General Preferences & Security"),
     BACKUP("Data, Backup & Cloud Sync"),
-    ABOUT("About & Developer Support")
+    ABOUT("About & Developer Support"),
+    PRIVACY("Privacy Policy")
 }
 
 @Composable
@@ -294,7 +298,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 3 Clean Merged Category Rows
+            // Clean Category Rows
             SettingsCategoryRow(
                 icon = Icons.Default.Settings,
                 title = "General Preferences & Security",
@@ -312,7 +316,7 @@ fun SettingsScreen(
             SettingsCategoryRow(
                 icon = Icons.Default.Info,
                 title = "About & Developer Support",
-                subtitle = "Version 1.0.0, dev support email",
+                subtitle = "Version 1.0.0, dev support email, Privacy Policy",
                 onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
             )
 
@@ -645,7 +649,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC (SPLIT INTO 2 DISTINCT SECTIONS) ---
+        // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC ---
         if (activeSubScreen == SettingsSubScreen.BACKUP) {
             // SECTION 1: Automated Google Drive Cloud Sync
             Card(
@@ -832,7 +836,7 @@ fun SettingsScreen(
                 }
             }
 
-            // SECTION 3: Clean Sweep / Reset Data Card inside Data & Sync sub-page
+            // SECTION 3: Clean Sweep / Reset Data Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -927,6 +931,46 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Privacy Policy Button Row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .clickable { activeSubScreen = SettingsSubScreen.PRIVACY }
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PrivacyTip,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Privacy Policy",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Read our 100% offline & zero-data collection policy",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -966,6 +1010,116 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // --- SUB-SCREEN 4: PRIVACY POLICY PAGE ---
+        if (activeSubScreen == SettingsSubScreen.PRIVACY) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PrivacyTip,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Privacy & Data Protection",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Last Updated: August 25, 2026",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "1. Zero Server Data Collection",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Self Budget operates completely offline and has no external tracking servers or third-party telemetry. We do not collect, transmit, sell, or rent your personal or financial data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "2. On-Device Local Storage",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "All accounts, transactions, budgets, goals, and recurring items are stored locally in an encrypted Room SQLite database on your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "3. Google Drive Private Sandbox",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Automated Cloud Sync uses the private appDataFolder scope. Backups are stored in your own Google Account. Third parties and developers have zero access to your backup files.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "4. Biometric Protection",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Fingerprint and Face Unlock authentication uses native Android BiometricPrompt hardware security (TEE). Biometric data never leaves your device's secure enclave.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/devcalapps-glitch/self-budget-app/blob/main/PRIVACY.md"))
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                // fallback
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("View Online Privacy Policy (GitHub)")
                     }
                 }
             }
