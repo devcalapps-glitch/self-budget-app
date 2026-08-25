@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudDone
@@ -36,17 +37,17 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
@@ -104,8 +105,10 @@ private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
     PREFERENCES("General Preferences & Security"),
     BACKUP("Data, Backup & Cloud Sync"),
-    ABOUT("About & Developer Support"),
-    PRIVACY("Privacy Policy")
+    LEGAL("Legal & Privacy"),
+    PRIVACY("Privacy Policy"),
+    TERMS("Terms of Service"),
+    ABOUT("About Developer & Support")
 }
 
 @Composable
@@ -230,7 +233,12 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 IconButton(
-                    onClick = { activeSubScreen = SettingsSubScreen.MAIN },
+                    onClick = {
+                        activeSubScreen = when (activeSubScreen) {
+                            SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+                            else -> SettingsSubScreen.MAIN
+                        }
+                    },
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
@@ -251,7 +259,7 @@ fun SettingsScreen(
 
         // --- MAIN CATEGORY MENU PAGE ---
         if (activeSubScreen == SettingsSubScreen.MAIN) {
-            // 1. Centered User Profile Card (Matching Settings Card Container Theme)
+            // 1. Centered User Profile Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -318,7 +326,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Clean Category Rows
+            // 4 Distinct Categorized Menu Rows
             SettingsCategoryRow(
                 icon = Icons.Default.Settings,
                 title = "General Preferences & Security",
@@ -334,9 +342,16 @@ fun SettingsScreen(
             )
 
             SettingsCategoryRow(
+                icon = Icons.Default.Gavel,
+                title = "Legal & Privacy",
+                subtitle = "Privacy Policy & Terms of Service",
+                onClick = { activeSubScreen = SettingsSubScreen.LEGAL }
+            )
+
+            SettingsCategoryRow(
                 icon = Icons.Default.Info,
-                title = "About & Developer Support",
-                subtitle = "Version 1.0.0, dev support email, Privacy Policy",
+                title = "About Developer & Support",
+                subtitle = "Version 1.0.0, dev contact email",
                 onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
             )
 
@@ -476,7 +491,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Exchange Rates Card (Visible if foreign currency accounts exist)
+            // Exchange Rates Card
             val foreignCurrencyCodes = remember(accounts, currencySymbol) {
                 val base = Currencies.codeForSymbol(currencySymbol)
                 accounts.map { it.currencyCode }.distinct().filter { !it.equals(base, ignoreCase = true) }
@@ -908,131 +923,23 @@ fun SettingsScreen(
             }
         }
 
-        // --- SUB-SCREEN 3: ABOUT & DEVELOPER SUPPORT ---
-        if (activeSubScreen == SettingsSubScreen.ABOUT) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "About Developer",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+        // --- SUB-SCREEN 3: LEGAL & PRIVACY (CATEGORY PAGE WITH PRIVACY POLICY & TERMS OF SERVICE) ---
+        if (activeSubScreen == SettingsSubScreen.LEGAL) {
+            SettingsCategoryRow(
+                icon = Icons.Default.PrivacyTip,
+                title = "Privacy Policy",
+                subtitle = "Read our 100% offline & zero-data collection policy",
+                onClick = { activeSubScreen = SettingsSubScreen.PRIVACY }
+            )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-                    Text(
-                        text = "Self Budget v1.0.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Offline-first & private local storage.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Privacy Policy Button Row
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .clickable { activeSubScreen = SettingsSubScreen.PRIVACY }
-                            .padding(horizontal = 12.dp, vertical = 12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PrivacyTip,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Privacy Policy",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Read our 100% offline & zero-data collection policy",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:dev.cal.apps@gmail.com")
-                                    putExtra(Intent.EXTRA_SUBJECT, "Self Budget App Support & Feedback")
-                                }
-                                try {
-                                    context.startActivity(Intent.createChooser(intent, "Contact Developer"))
-                                } catch (e: Exception) {
-                                    // fallback
-                                }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Developer Support & Feedback",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "dev.cal.apps@gmail.com ✉️",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
+            SettingsCategoryRow(
+                icon = Icons.Default.Description,
+                title = "Terms of Service",
+                subtitle = "Read app usage terms, personal license & disclaimer",
+                onClick = { activeSubScreen = SettingsSubScreen.TERMS }
+            )
         }
 
         // --- SUB-SCREEN 4: PRIVACY POLICY PAGE ---
@@ -1127,7 +1034,7 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app"))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app#privacy"))
                             try {
                                 context.startActivity(intent)
                             } catch (e: Exception) {
@@ -1140,6 +1047,203 @@ fun SettingsScreen(
                         Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("View Online Privacy Policy")
+                    }
+                }
+            }
+        }
+
+        // --- SUB-SCREEN 5: TERMS OF SERVICE PAGE ---
+        if (activeSubScreen == SettingsSubScreen.TERMS) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Terms of Service",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Last Updated: August 25, 2026",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "1. Acceptance of Terms",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "By installing or using Self Budget provided by DevCalApps, you agree to be bound by these Terms of Service.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "2. License & Personal Use",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "DevCalApps grants you a personal, non-exclusive license to use Self Budget strictly for personal financial and budget management.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "3. Offline Data Control & Responsibility",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Because Self Budget is an offline-first app, you are responsible for maintaining local backups. DevCalApps is not liable for data loss caused by device damage, unbacked resets, or forgotten passcodes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "4. Financial Advice Disclaimer",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Self Budget is a personal expense logging tool. The app does not provide accounting, tax, or legal financial advice.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app#terms"))
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                // fallback
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("View Online Terms of Service")
+                    }
+                }
+            }
+        }
+
+        // --- SUB-SCREEN 6: ABOUT DEVELOPER & SUPPORT ---
+        if (activeSubScreen == SettingsSubScreen.ABOUT) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "About Developer & Support",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Self Budget v1.0.0",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Offline-first & private local storage architecture.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:dev.cal.apps@gmail.com")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Self Budget App Support & Feedback")
+                                }
+                                try {
+                                    context.startActivity(Intent.createChooser(intent, "Contact Developer"))
+                                } catch (e: Exception) {
+                                    // fallback
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Developer Support & Feedback",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "dev.cal.apps@gmail.com ✉️",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
