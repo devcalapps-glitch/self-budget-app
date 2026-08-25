@@ -56,10 +56,9 @@ You retain 100% control over your data:
 
 ---
 
-## 7. Contact Information
+## 7. Contact & Support
 
 If you have questions regarding this Privacy Policy or Self Budget, please contact us:
 
-* **GitHub Repository**: [https://github.com/devcalapps-glitch/self-budget-app](https://github.com/devcalapps-glitch/self-budget-app)
-* **Privacy Policy URL**: [https://github.com/devcalapps-glitch/self-budget-app/blob/main/PRIVACY.md](https://github.com/devcalapps-glitch/self-budget-app/blob/main/PRIVACY.md)
-* **Developer Email**: `devcalapps@gmail.com`
+* **Developer Email**: `dev.cal.apps@gmail.com`
+* **Application**: Self Budget by DevCalApps
