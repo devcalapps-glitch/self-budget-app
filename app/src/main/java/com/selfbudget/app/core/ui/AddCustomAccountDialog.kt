@@ -27,21 +27,30 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,9 +63,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -72,6 +84,7 @@ internal data class AccountTypeOption(
     val icon: ImageVector
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCustomAccountDialog(
     currencySymbol: String = "$",
@@ -81,6 +94,7 @@ fun AddCustomAccountDialog(
     var accountName by remember { mutableStateOf("") }
     var initialBalanceText by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(AccountType.CHECKING) }
+    var accountTypeExpanded by remember { mutableStateOf(false) }
     // New accounts just inherit the app's currency preference (Settings) - no separate picker
     // here. EditCustomAccountDialog still lets you change an individual account's currency later
     // for the rare case of a genuinely foreign-currency account.
@@ -191,7 +205,302 @@ fun AddCustomAccountDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // Real-Time Account Card Preview
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "STARTING BALANCE ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 50.0)
+                                    initialBalanceText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Balance",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = initialBalanceText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            initialBalanceText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = accColor.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = accColor
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = accColor,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 50.0
+                                    initialBalanceText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = accColor.copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Balance",
+                                        tint = accColor
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($100, $500, $1000, $5000)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(100, 500, 1000, 5000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                        initialBalanceText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Account Type Dropdown List
+                    ExposedDropdownMenuBox(
+                        expanded = accountTypeExpanded,
+                        onExpandedChange = { accountTypeExpanded = !accountTypeExpanded },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = selectedOption.label,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Account Type") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = selectedOption.icon,
+                                    contentDescription = null,
+                                    tint = accColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountTypeExpanded)
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accColor,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                                .fillMaxWidth()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = accountTypeExpanded,
+                            onDismissRequest = { accountTypeExpanded = false }
+                        ) {
+                            accountTypes.forEach { option ->
+                                val isSelected = selectedType == option.type
+                                val optionColorHex = when (option.type) {
+                                    AccountType.CREDIT_CARD -> "#E91E63"
+                                    AccountType.CASH -> "#4CAF50"
+                                    AccountType.SAVINGS -> "#9C27B0"
+                                    AccountType.INVESTMENT -> "#FF9800"
+                                    AccountType.LOAN -> "#795548"
+                                    else -> "#2196F3"
+                                }
+                                val optionColor = try { Color(android.graphics.Color.parseColor(optionColorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = option.label,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) optionColor else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = option.icon,
+                                            contentDescription = null,
+                                            tint = optionColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedType = option.type
+                                        accountTypeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Account Name Field
+                    val accountNamePlaceholder = when (selectedType) {
+                        AccountType.CREDIT_CARD -> "e.g. Credit Card"
+                        AccountType.CASH -> "e.g. Cash Wallet"
+                        AccountType.SAVINGS -> "e.g. Savings Account"
+                        AccountType.INVESTMENT -> "e.g. Investment"
+                        AccountType.LOAN -> "e.g. Car Loan"
+                        else -> "e.g. Checking Account"
+                    }
+
+                    OutlinedTextField(
+                        value = accountName,
+                        onValueChange = { input ->
+                            accountName = input.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        },
+                        label = { Text("Account Name") },
+                        placeholder = { Text(accountNamePlaceholder) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 4. Optional Debt / Credit Details (Moved before Hero Card, side-by-side Credit Limit & APR)
+                    if (isDebtType) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "Debt / Credit Details (optional)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // Side-by-Side Credit Limit & APR % fields
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = creditLimitText,
+                                    onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) creditLimitText = input },
+                                    label = { Text("Credit Limit ($currencySymbol)") },
+                                    placeholder = { Text("0.00") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                OutlinedTextField(
+                                    value = aprText,
+                                    onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) aprText = input },
+                                    label = { Text("APR (%)") },
+                                    placeholder = { Text("24.99") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            OutlinedTextField(
+                                value = minPaymentText,
+                                onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) minPaymentText = input },
+                                label = { Text("Minimum Monthly Payment ($currencySymbol)") },
+                                placeholder = { Text("0.00") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    // 5. Real-Time Account Card Preview (Hero Card)
                     Text(
                         text = "Live Account Card Preview",
                         style = MaterialTheme.typography.labelMedium,
@@ -263,126 +572,6 @@ fun AddCustomAccountDialog(
                             )
                         }
                     }
-
-                    // Account Type Selector Horizontal Chips
-                    Text(
-                        text = "Account Type",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    // Non-scrolling 3-row, 2-column grid layout so all 6 Account Types are cleanly visible at once with no text cut-off
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        accountTypes.chunked(2).forEach { rowOptions ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                rowOptions.forEach { option ->
-                                    val isSelected = selectedType == option.type
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { selectedType = option.type },
-                                        label = {
-                                            Text(
-                                                text = option.label,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                maxLines = 1
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(imageVector = option.icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
-                                            selected = isSelected,
-                                            borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Account Name Field
-                    val accountNamePlaceholder = when (selectedType) {
-                        AccountType.CREDIT_CARD -> "e.g. Credit Card"
-                        AccountType.CASH -> "e.g. Cash Wallet"
-                        AccountType.SAVINGS -> "e.g. Savings Account"
-                        AccountType.INVESTMENT -> "e.g. Investment"
-                        AccountType.LOAN -> "e.g. Car Loan"
-                        else -> "e.g. Checking Account"
-                    }
-
-                    OutlinedTextField(
-                        value = accountName,
-                        onValueChange = { input ->
-                            accountName = input.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                        },
-                        label = { Text("Account Name") },
-                        placeholder = { Text(accountNamePlaceholder) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Initial Balance Field
-                    OutlinedTextField(
-                        value = initialBalanceText,
-                        onValueChange = { input ->
-                            if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                                initialBalanceText = input
-                            }
-                        },
-                        label = { Text("Starting Balance") },
-                        placeholder = { Text("0.00") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (isDebtType) {
-                        Text(
-                            text = "Debt Details (optional)",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedTextField(
-                            value = creditLimitText,
-                            onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) creditLimitText = input },
-                            label = { Text("Credit Limit") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = aprText,
-                            onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) aprText = input },
-                            label = { Text("Interest Rate / APR (%)") },
-                            placeholder = { Text("e.g. 24.99") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = minPaymentText,
-                            onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) minPaymentText = input },
-                            label = { Text("Minimum Monthly Payment") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
                 }
 
                 // Sticky Bottom Action Bar
@@ -405,6 +594,8 @@ fun AddCustomAccountDialog(
                         OutlinedButton(
                             onClick = onDismiss,
                             shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)

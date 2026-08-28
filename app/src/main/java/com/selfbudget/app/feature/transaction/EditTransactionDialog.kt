@@ -31,8 +31,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,6 +45,7 @@ import com.selfbudget.app.core.ui.CategorySelectionModal
 import com.selfbudget.app.core.ui.getCategoryIcon
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -53,6 +57,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -185,10 +191,14 @@ fun EditTransactionDialog(
 
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val scrollState = rememberScrollState()
+    val focusAnchor = remember { FocusRequester() }
 
-    // Clear focus whenever selection modals open or close so Compose never restores focus to the Amount field
+    // Move focus to an inert anchor (not just clear it) whenever selection modals open or close.
+    // Dismissing the nested picker Dialog hands window focus back to this dialog's window, and
+    // Android will restore focus onto the last real field (e.g. Amount) unless something else
+    // already holds it — clearFocus() alone loses that race.
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
-        focusManager.clearFocus(force = true)
+        focusAnchor.requestFocus()
         keyboardController?.hide()
     }
 
@@ -253,7 +263,6 @@ fun EditTransactionDialog(
                 if (parsed != null) {
                     title = parsed.title
                     amountText = "%.2f".format(parsed.amount)
-                    selectedType = parsed.type
                 } else {
                     title = spokenText
                 }
@@ -352,8 +361,8 @@ fun EditTransactionDialog(
                             onClick = { submitForm() },
                             enabled = title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.padding(end = 12.dp)
@@ -371,66 +380,185 @@ fun EditTransactionDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Segmented Toggle Switch Pill (Expense vs Income)
+                    // Inert focus target used to steal focus away from real fields when a
+                    // selection modal opens/closes (see focusAnchor LaunchedEffect above).
+                    Box(
+                        modifier = Modifier
+                            .size(0.dp)
+                            .focusRequester(focusAnchor)
+                            .focusable()
+                    )
+
+                    val themeColor = if (selectedType == TransactionType.INCOME) IncomeGreen else ExpenseRed
+
+                    // Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 5.0)
+                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Amount",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = amountText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            amountText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = themeColor.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = themeColor
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = themeColor,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 5.0
+                                    amountText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = themeColor.copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Amount",
+                                        tint = themeColor
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val presets = if (selectedType == TransactionType.EXPENSE) listOf(5, 10, 25, 50, 100) else listOf(50, 100, 250, 500, 1000)
+                            presets.forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                                        amountText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Transaction Type Badge
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        color = themeColor.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, themeColor.copy(alpha = 0.3f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selectedType == TransactionType.EXPENSE) ExpenseRed.copy(alpha = 0.25f) else Color.Transparent
-                                    )
-                                    .clickable {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        selectedType = TransactionType.EXPENSE
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Expense 🔴",
-                                    fontWeight = if (selectedType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selectedType == TransactionType.INCOME) IncomeGreen.copy(alpha = 0.25f) else Color.Transparent
-                                    )
-                                    .clickable {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        selectedType = TransactionType.INCOME
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Income 🟢",
-                                    fontWeight = if (selectedType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
-                                )
-                            }
+                            Text(
+                                text = if (selectedType == TransactionType.EXPENSE) "Expense 🔴" else "Income 🟢",
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor,
+                                fontSize = 14.sp
+                            )
                         }
                     }
 
@@ -451,64 +579,39 @@ fun EditTransactionDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Date & Amount Selector Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    // Date Picker Input Box (Full-width non-focusable surface)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                showDatePickerModal = true
+                            }
                     ) {
-                        // Date Picker Input Box (Non-focusable, clean clickable surface)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    showDatePickerModal = true
-                                }
-                        ) {
-                            OutlinedTextField(
-                                value = dateFormatter.format(Date(selectedTimestamp)),
-                                onValueChange = {},
-                                enabled = false,
-                                label = { Text("Date") },
-                                trailingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = "Pick Date",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                    disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusProperties { canFocus = false }
-                            )
-                        }
-
                         OutlinedTextField(
-                            value = amountText,
-                            onValueChange = { amountText = it },
-                            label = { Text("Amount") },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Decimal,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                }
-                            ),
+                            value = dateFormatter.format(Date(selectedTimestamp)),
+                            onValueChange = {},
+                            enabled = false,
+                            label = { Text("Date") },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Pick Date",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false }
                         )
                     }
 
@@ -527,12 +630,14 @@ fun EditTransactionDialog(
                             onValueChange = {},
                             enabled = false,
                             label = { Text(if (selectedType == TransactionType.INCOME) "Deposit Account" else "Payment Account") },
-                            trailingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                             shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             modifier = Modifier
@@ -556,12 +661,14 @@ fun EditTransactionDialog(
                             onValueChange = {},
                             enabled = false,
                             label = { Text("Category") },
-                            trailingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                            leadingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                             shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             modifier = Modifier
@@ -590,7 +697,8 @@ fun EditTransactionDialog(
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Apply Payment Toward Debt (Optional)") },
-                                    trailingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                                     shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -879,7 +987,7 @@ fun EditTransactionDialog(
                                     .weight(1f)
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -889,15 +997,15 @@ fun EditTransactionDialog(
                                 onClick = { submitForm() },
                                 enabled = title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = IncomeGreen,
-                                    contentColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
@@ -912,11 +1020,9 @@ fun EditTransactionDialog(
                                     .fillMaxWidth()
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.5.dp, ExpenseRed),
+                                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Text("Delete Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }

@@ -28,7 +28,13 @@
 * **On-Device Receipt OCR**: Uses Google ML Kit Text Recognition to extract merchant name, date, and total transaction amounts from receipt photos.
 * **Natural Language Voice Input**: Voice parser for spoken transaction logging.
 
-### 6. 🔒 Biometric Security & High-Contrast Themes
+### 6. 📅 Universal Month Navigation & Recurring Manager
+* **Unified Month Header (`MonthYearHeader`)**: Consistent top month selector header (`< Month Year >`) across all main tabs (Dashboard, Plan, Recurring, Analytics).
+* **Start / Next Due Date Picker**: Select custom start and due dates for recurring bills & paychecks without forcing immediate activity transactions.
+* **Archived Bill Safeguards & Styled Cards**: Disable posting on archived bills with muted semi-transparent containers, soft borders, and Archived 📦 status badges.
+* **Calibrated Preset Chips**: Quick amount preset chips (`+$50`, `+$100`, `+$250`, `+$500`, `+$1000`) matching the Budget page.
+
+### 7. 🔒 Biometric Security & High-Contrast Themes
 * **Native Android Biometrics**: Fingerprint & Face Unlock protection using `BiometricPrompt`.
 * **Adaptive Dark & Light Themes**: Accessible Material 3 design system with WCAG AA compliant text contrast in both light and dark modes.
 

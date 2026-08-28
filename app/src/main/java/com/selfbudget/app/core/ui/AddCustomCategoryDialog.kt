@@ -142,8 +142,8 @@ fun AddCustomCategoryDialog(
                             enabled = categoryName.isNotBlank(),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             )
                         ) {
                             Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -351,6 +351,8 @@ fun AddCustomCategoryDialog(
                         OutlinedButton(
                             onClick = onDismiss,
                             shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -375,8 +377,8 @@ fun AddCustomCategoryDialog(
                             enabled = categoryName.isNotBlank(),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             modifier = Modifier
                                 .weight(1.3f)

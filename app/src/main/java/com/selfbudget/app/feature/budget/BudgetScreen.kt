@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.getCategoryIcon
+import com.selfbudget.app.core.ui.MonthYearHeader
 import com.selfbudget.app.core.util.BudgetRollover
 import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.data.model.AccountEntity
@@ -89,6 +90,10 @@ fun BudgetScreen(
     currencySymbol: String = "$",
     previousMonthBudgets: List<BudgetEntity> = emptyList(),
     previousMonthSpentByCategory: Map<String, Double> = emptyMap(),
+    selectedMonthYear: String = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault()).format(java.util.Date()),
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
+    onSelectMonthYear: ((String) -> Unit)? = null,
     onSetBudget: (categoryId: String, limit: Double, rolloverEnabled: Boolean) -> Unit,
     onDeleteBudget: (categoryId: String) -> Unit = {},
     goals: List<GoalEntity> = emptyList(),
@@ -130,6 +135,16 @@ fun BudgetScreen(
     }
     val expenseTransactions = remember(transactions) {
         transactions.filter { it.type == TransactionType.EXPENSE }
+    }
+    
+    val currentMonthName = remember(selectedMonthYear) {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
+        val monthSdf = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
+        try {
+            monthSdf.format(sdf.parse(selectedMonthYear) ?: java.util.Date())
+        } catch (e: Exception) {
+            selectedMonthYear
+        }
     }
 
     val budgetModels = remember(budgets, expenseCategories, expenseTransactions, recurringList, previousMonthBudgets, previousMonthSpentByCategory) {
@@ -219,6 +234,16 @@ fun BudgetScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            if (onPreviousMonth != null && onNextMonth != null && onSelectMonthYear != null) {
+                MonthYearHeader(
+                    currentMonthYear = selectedMonthYear,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onSelectMonthYear = onSelectMonthYear
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // Segmented View Toggle Pill (Monthly Budget vs Savings Goals)
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -300,7 +325,7 @@ fun BudgetScreen(
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "Total Monthly Budget",
+                            text = "Total Monthly Budget ($currentMonthName)",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -452,8 +477,8 @@ fun BudgetScreen(
                                 onClick = { showSetDialog = true },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = IncomeGreen,
-                                    contentColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             ) {
                                 Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))

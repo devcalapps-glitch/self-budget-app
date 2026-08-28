@@ -204,8 +204,8 @@ class MainActivity : FragmentActivity() {
                             onDeleteBudget = { categoryId ->
                                 viewModel.deleteCategoryBudget(categoryId)
                             },
-                            onAddRecurring = { title, amount, type, categoryId, frequency, remainingOccurrences ->
-                                viewModel.addRecurringTransaction(title, amount, type, categoryId, frequency, remainingOccurrences)
+                            onAddRecurring = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate ->
+                                viewModel.addRecurringTransaction(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate)
                             },
                             onDeleteRecurring = { recurring ->
                                 viewModel.deleteRecurringTransaction(recurring)

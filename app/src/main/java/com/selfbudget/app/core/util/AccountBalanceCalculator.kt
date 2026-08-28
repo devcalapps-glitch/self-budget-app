@@ -64,8 +64,88 @@ object AccountBalanceCalculator {
     ): Double {
         val perAccount = accounts.map { acc ->
             val balance = computeBalance(acc, allTransactions)
-            CurrencyConverter.convert(balance, acc.currencyCode, baseCurrency, rates)
+            val converted = CurrencyConverter.convert(balance, acc.currencyCode, baseCurrency, rates)
+            if (isLiability(acc.type)) -kotlin.math.abs(converted) else converted
         }
         return Money.sum(perAccount)
+    }
+
+    /**
+     * Computes accurate historical monthly net worth snapshots up to the current wall-clock month.
+     * Ensures that months with no new transactions maintain a 100% stable net worth baseline.
+     */
+    fun computeHistoricalSnapshots(
+        userId: String,
+        accounts: List<AccountEntity>,
+        allTransactions: List<TransactionEntity>,
+        baseCurrency: String,
+        rates: List<com.selfbudget.app.data.model.ExchangeRateEntity>
+    ): List<com.selfbudget.app.data.model.NetWorthSnapshotEntity> {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
+        val currentMonthKey = sdf.format(java.util.Date())
+        val prevCal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, -1) }
+        val prevMonthKey = sdf.format(prevCal.time)
+
+        val txMonths = allTransactions.map { sdf.format(java.util.Date(it.timestamp)) }
+        val allMonths = (txMonths + listOf(prevMonthKey, currentMonthKey)).distinct().sorted()
+
+        if (allMonths.isEmpty()) return emptyList()
+
+        val earliestMonthStr = allMonths.first()
+        val startCal = java.util.Calendar.getInstance().apply {
+            val d = try { sdf.parse(earliestMonthStr) } catch (_: Exception) { null }
+            if (d != null) time = d
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+        }
+        val nowCal = java.util.Calendar.getInstance()
+
+        val result = mutableListOf<com.selfbudget.app.data.model.NetWorthSnapshotEntity>()
+        val currCal = startCal.clone() as java.util.Calendar
+
+        while (!currCal.after(nowCal)) {
+            val monthKey = sdf.format(currCal.time)
+
+            val cutoffCal = currCal.clone() as java.util.Calendar
+            cutoffCal.set(java.util.Calendar.DAY_OF_MONTH, cutoffCal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
+            cutoffCal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+            cutoffCal.set(java.util.Calendar.MINUTE, 59)
+            cutoffCal.set(java.util.Calendar.SECOND, 59)
+            cutoffCal.set(java.util.Calendar.MILLISECOND, 999)
+
+            val txsUpToMonth = allTransactions.filter { it.timestamp <= cutoffCal.timeInMillis }
+            val netWorthAtMonth = computeTotalInBaseCurrency(
+                accounts = accounts,
+                allTransactions = txsUpToMonth,
+                baseCurrency = baseCurrency,
+                rates = rates
+            )
+
+            val monthBalances = accounts.associate { acc ->
+                acc.id to computeBalance(acc, txsUpToMonth)
+            }
+            val assets = accounts.sumOf { acc ->
+                val b = monthBalances[acc.id] ?: 0.0
+                if (!isLiability(acc.type)) b else 0.0
+            }
+            val liabilities = accounts.sumOf { acc ->
+                val b = monthBalances[acc.id] ?: 0.0
+                if (isLiability(acc.type)) kotlin.math.abs(b) else 0.0
+            }
+
+            result.add(
+                com.selfbudget.app.data.model.NetWorthSnapshotEntity(
+                    id = "$userId-$monthKey",
+                    userId = userId,
+                    monthYear = monthKey,
+                    totalAssets = Money.round(assets),
+                    totalLiabilities = Money.round(liabilities),
+                    netWorth = netWorthAtMonth
+                )
+            )
+
+            currCal.add(java.util.Calendar.MONTH, 1)
+        }
+
+        return result
     }
 }

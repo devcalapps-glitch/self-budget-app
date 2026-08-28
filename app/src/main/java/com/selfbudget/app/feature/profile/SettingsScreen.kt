@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -65,6 +67,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -130,7 +133,8 @@ fun SettingsScreen(
     onDriveSyncClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onDriveRestoreClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onDismiss: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -141,6 +145,14 @@ fun SettingsScreen(
     var showResetConfirmation by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
     var pendingDriveAction by remember { mutableStateOf<((GoogleSignInAccount) -> Unit)?>(null) }
+
+    // Intercept back presses when on a sub-screen
+    BackHandler(enabled = activeSubScreen != SettingsSubScreen.MAIN) {
+        activeSubScreen = when (activeSubScreen) {
+            SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+            else -> SettingsSubScreen.MAIN
+        }
+    }
 
     // Scroll to top when changing sub-screens
     LaunchedEffect(activeSubScreen) {
@@ -158,6 +170,14 @@ fun SettingsScreen(
             } else {
                 syncStatusMessage = "❌ Google Drive Sign-In cancelled."
             }
+        } catch (e: com.google.android.gms.common.api.ApiException) {
+            val detail = when (e.statusCode) {
+                10 -> "OAuth Developer Configuration Error (Check SHA-1 in Google Cloud Console)"
+                12500 -> "Sign-in cancelled or Play Services error"
+                4 -> "Sign-in required"
+                else -> e.localizedMessage ?: "Status Code ${e.statusCode}"
+            }
+            syncStatusMessage = "❌ Google Drive authorization failed: $detail"
         } catch (e: Exception) {
             syncStatusMessage = "❌ Google Drive authorization failed: ${e.localizedMessage}"
         } finally {
@@ -167,7 +187,11 @@ fun SettingsScreen(
 
     fun requestDriveAccessAndExecute(action: (GoogleSignInAccount) -> Unit) {
         val currentAccount = GoogleDriveSyncManager.getLastSignedInAccount(context)
-        val hasPermission = currentAccount != null && GoogleSignIn.hasPermissions(
+        val isFailedState = syncStatusMessage?.contains("expired", ignoreCase = true) == true ||
+                            syncStatusMessage?.contains("failed", ignoreCase = true) == true ||
+                            syncStatusMessage?.contains("Error", ignoreCase = true) == true
+
+        val hasPermission = !isFailedState && currentAccount != null && GoogleSignIn.hasPermissions(
             currentAccount,
             Scope(DriveScopes.DRIVE_APPDATA)
         )
@@ -219,43 +243,79 @@ fun SettingsScreen(
         hasNotificationPermission = isGranted
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Top Navigation Header Row (Shown on Sub-Screens only)
-        if (activeSubScreen != SettingsSubScreen.MAIN) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Unified Top Navigation Header Bar
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            shadowElevation = 4.dp
+        ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = {
-                        activeSubScreen = when (activeSubScreen) {
-                            SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
-                            else -> SettingsSubScreen.MAIN
-                        }
-                    },
-                    modifier = Modifier.size(40.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.primary
+                    if (activeSubScreen != SettingsSubScreen.MAIN) {
+                        IconButton(
+                            onClick = {
+                                activeSubScreen = when (activeSubScreen) {
+                                    SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+                                    else -> SettingsSubScreen.MAIN
+                                }
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else if (onDismiss != null) {
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Settings",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = activeSubScreen.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = activeSubScreen.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+
+                if (onDismiss != null) {
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = "Done",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // --- MAIN CATEGORY MENU PAGE ---
         if (activeSubScreen == SettingsSubScreen.MAIN) {
@@ -1329,6 +1389,7 @@ fun SettingsScreen(
             }
         }
     }
+}
 }
 
 @Composable

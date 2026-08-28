@@ -32,12 +32,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CameraAlt
@@ -46,6 +50,7 @@ import com.selfbudget.app.core.ui.CategorySelectionModal
 import com.selfbudget.app.core.ui.getCategoryIcon
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -94,9 +99,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -191,10 +198,14 @@ fun AddExpenseDialog(
 
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val scrollState = rememberScrollState()
+    val focusAnchor = remember { FocusRequester() }
 
-    // Clear focus whenever selection modals open or close so Compose never restores focus to the Amount field
+    // Move focus to an inert anchor (not just clear it) whenever selection modals open or close.
+    // Dismissing the nested picker Dialog hands window focus back to this dialog's window, and
+    // Android will restore focus onto the last real field (e.g. Amount) unless something else
+    // already holds it — clearFocus() alone loses that race.
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
-        focusManager.clearFocus(force = true)
+        focusAnchor.requestFocus()
         keyboardController?.hide()
     }
 
@@ -408,8 +419,8 @@ fun AddExpenseDialog(
                                       selectedAccount != null &&
                                       selectedCategory != null,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.padding(end = 12.dp)
@@ -427,7 +438,167 @@ fun AddExpenseDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Title
+                    // Inert focus target used to steal focus away from real fields when a
+                    // selection modal opens/closes (see focusAnchor LaunchedEffect above).
+                    Box(
+                        modifier = Modifier
+                            .size(0.dp)
+                            .focusRequester(focusAnchor)
+                            .focusable()
+                    )
+
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "EXPENSE AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 1.0)
+                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Amount",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = amountText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            amountText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = com.selfbudget.app.ui.theme.getExpenseColor()
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = com.selfbudget.app.ui.theme.getExpenseColor(),
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 1.0
+                                    amountText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Amount",
+                                        tint = com.selfbudget.app.ui.theme.getExpenseColor()
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($5, $10, $25, $50, $100)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(5, 10, 25, 50, 100).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                                        amountText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Title / Merchant
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it.replaceFirstChar { char -> char.uppercase() } },
@@ -509,65 +680,39 @@ fun AddExpenseDialog(
                         }
                     }
 
-                    // Date & Amount Selector Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    // 3. Date Picker Input Box (Full Width)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                showDatePickerModal = true
+                            }
                     ) {
-                        // Date Picker Input Box (Non-focusable, clean clickable surface)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    showDatePickerModal = true
-                                }
-                        ) {
-                            OutlinedTextField(
-                                value = dateFormatter.format(Date(selectedTimestamp)),
-                                onValueChange = {},
-                                enabled = false,
-                                label = { Text("Date") },
-                                trailingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = "Pick Date",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                    disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusProperties { canFocus = false }
-                            )
-                        }
-
                         OutlinedTextField(
-                            value = amountText,
-                            onValueChange = { amountText = it },
-                            label = { Text("Amount ($currencySymbol)") },
-                            placeholder = { Text("0.00") },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Decimal,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                }
-                            ),
+                            value = dateFormatter.format(Date(selectedTimestamp)),
+                            onValueChange = {},
+                            enabled = false,
+                            label = { Text("Date") },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Pick Date",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false }
                         )
                     }
 
@@ -586,12 +731,14 @@ fun AddExpenseDialog(
                             onValueChange = {},
                             enabled = false,
                             label = { Text("Payment Account") },
-                            trailingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                             shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             modifier = Modifier
@@ -616,12 +763,14 @@ fun AddExpenseDialog(
                                 onValueChange = {},
                                 enabled = false,
                                 label = { Text("Category") },
-                                trailingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                                leadingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                     disabledBorderColor = MaterialTheme.colorScheme.outline,
                                     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 modifier = Modifier
@@ -679,12 +828,14 @@ fun AddExpenseDialog(
                                     onValueChange = {},
                                     enabled = false,
                                     label = { Text("Apply Payment Toward Debt (Optional)") },
-                                    trailingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                                     shape = RoundedCornerShape(14.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                         disabledBorderColor = MaterialTheme.colorScheme.outline,
                                         disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                         disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
                                     modifier = Modifier
@@ -1055,7 +1206,7 @@ fun AddExpenseDialog(
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -1068,15 +1219,15 @@ fun AddExpenseDialog(
                                       selectedAccount != null &&
                                       selectedCategory != null,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Save", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
 

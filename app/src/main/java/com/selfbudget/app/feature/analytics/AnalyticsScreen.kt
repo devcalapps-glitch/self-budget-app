@@ -1,5 +1,6 @@
 package com.selfbudget.app.feature.analytics
 
+import com.selfbudget.app.core.ui.MonthYearHeader
 import com.selfbudget.app.core.util.Money
 
 import androidx.compose.foundation.BorderStroke
@@ -45,7 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,6 +82,9 @@ fun AnalyticsScreen(
     allTransactions: List<TransactionEntity>,
     categories: List<CategoryEntity>,
     selectedMonthYear: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date()),
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
+    onSelectMonthYear: ((String) -> Unit)? = null,
     currencySymbol: String = "$",
     netWorthHistory: List<NetWorthSnapshotEntity> = emptyList(),
     accounts: List<AccountEntity> = emptyList(),
@@ -185,6 +192,17 @@ fun AnalyticsScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (onPreviousMonth != null && onNextMonth != null && onSelectMonthYear != null) {
+            item {
+                MonthYearHeader(
+                    currentMonthYear = selectedMonthYear,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onSelectMonthYear = onSelectMonthYear
+                )
+            }
+        }
+
         // Segmented Timeframe Toggle Pill (Monthly vs Annual YTD)
         item {
             Surface(
@@ -378,7 +396,7 @@ fun AnalyticsScreen(
                 accounts.filter {
                     it.type == AccountType.CREDIT_CARD ||
                     it.type == AccountType.LOAN
-                }.sumOf { accountBalances[it.id] ?: it.initialBalance }
+                }.sumOf { kotlin.math.abs(accountBalances[it.id] ?: it.initialBalance) }
             }
             val liveNetWorth = totalAssets - totalDebts
             val latestSnapshot = netWorthHistory.lastOrNull()
@@ -444,13 +462,71 @@ fun AnalyticsScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Mini Sparkline Graph Preview
+                    val sparklinePoints = remember(netWorthHistory, liveNetWorth) {
+                        val points = netWorthHistory.map { it.netWorth }.toMutableList()
+                        if (points.isEmpty()) points.add(liveNetWorth)
+                        if (points.size == 1) points.add(0, points.first())
+                        points
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            val minV = (sparklinePoints.minOrNull() ?: 0.0).coerceAtMost(0.0)
+                            val maxV = (sparklinePoints.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
+                            val rangeV = (maxV - minV).coerceAtLeast(1.0)
+
+                            val path = Path()
+                            val areaPath = Path()
+                            val stepX = w / (sparklinePoints.size - 1).coerceAtLeast(1)
+
+                            sparklinePoints.forEachIndexed { i, valPt ->
+                                val x = i * stepX
+                                val normY = (valPt - minV) / rangeV
+                                val y = h - (normY * (h - 6f) + 3f).toFloat()
+                                if (i == 0) {
+                                    path.moveTo(x, y)
+                                    areaPath.moveTo(x, h)
+                                    areaPath.lineTo(x, y)
+                                } else {
+                                    path.lineTo(x, y)
+                                    areaPath.lineTo(x, y)
+                                }
+                            }
+                            areaPath.lineTo(w, h)
+                            areaPath.close()
+
+                            val strokeColor = if (trendUp) IncomeGreen else ExpenseRed
+
+                            drawPath(
+                                path = areaPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(strokeColor.copy(alpha = 0.35f), strokeColor.copy(alpha = 0.05f))
+                                )
+                            )
+                            drawPath(
+                                path = path,
+                                color = strokeColor,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = if (netWorthHistory.size > 1) {
-                            "Tracking ${netWorthHistory.size} month(s) • Tap to view monthly breakdown & asset split"
+                            "Tracking ${netWorthHistory.size} month(s) • Tap to view interactive progress chart & asset split"
                         } else {
-                            "Tap to view detailed asset & debt breakdown"
+                            "Tap to view interactive progress chart & asset split"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

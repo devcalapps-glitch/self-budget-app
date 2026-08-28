@@ -182,6 +182,15 @@ class MainViewModel @Inject constructor(
                     .groupBy { it.categoryId }
                     .mapValues { entry -> Money.sum(entry.value.map { it.amount }) }
 
+                val accurateHistory = AccountBalanceCalculator.computeHistoricalSnapshots(
+                    userId = user.id,
+                    accounts = base.accs,
+                    allTransactions = base.txs,
+                    baseCurrency = baseCurrencyCode,
+                    rates = extra.rates
+                )
+                val netWorthHistory = if (accurateHistory.isNotEmpty()) accurateHistory else extra.netWorthHistory
+
                 HomeUiState(
                     totalBalance = bal,
                     totalExpense = exp,
@@ -202,7 +211,7 @@ class MainViewModel @Inject constructor(
                     netWorth = netWorth,
                     goals = extra.goals,
                     exchangeRates = extra.rates,
-                    netWorthHistory = extra.netWorthHistory,
+                    netWorthHistory = netWorthHistory,
                     previousMonthBudgets = extra.prevBudgets,
                     previousMonthSpentByCategory = previousMonthSpentByCategory
                 )
@@ -215,23 +224,29 @@ class MainViewModel @Inject constructor(
     )
 
     init {
-        // Keep a lightweight net-worth history: one row per user per month, upserted as the
-        // current month's numbers move. Past months are left untouched once they're no longer
-        // "current", which is enough to show a real (if coarse) trend without a full ledger.
+        // Keep net-worth history for current month only, upserted as the current month's numbers move.
+        // Past months remain fixed and calculated from transaction ledger timestamps.
         viewModelScope.launch {
             uiState
-                .map { Triple(it.user?.id, it.selectedMonthYear, it.netWorth) }
+                .map { Triple(it.user?.id, it.netWorth, it.accountBalances) }
                 .distinctUntilChanged()
-                .onEach { (userId, monthYear, netWorth) ->
+                .onEach { (userId, netWorth, accountBalances) ->
                     if (userId == null) return@onEach
+                    val currentRealMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
                     val state = uiState.value
-                    val assets = state.accountBalances.values.filter { it > 0 }.sum()
-                    val liabilities = state.accountBalances.values.filter { it < 0 }.sum()
+                    val assets = state.accounts.sumOf { acc ->
+                        val b = accountBalances[acc.id] ?: 0.0
+                        if (b > 0) b else 0.0
+                    }
+                    val liabilities = state.accounts.sumOf { acc ->
+                        val b = accountBalances[acc.id] ?: 0.0
+                        if (b < 0) kotlin.math.abs(b) else 0.0
+                    }
                     repository.upsertNetWorthSnapshot(
                         NetWorthSnapshotEntity(
-                            id = "$userId-$monthYear",
+                            id = "$userId-$currentRealMonth",
                             userId = userId,
-                            monthYear = monthYear,
+                            monthYear = currentRealMonth,
                             totalAssets = Money.round(assets),
                             totalLiabilities = Money.round(liabilities),
                             netWorth = netWorth
@@ -467,7 +482,8 @@ class MainViewModel @Inject constructor(
         frequency: RecurringFrequency,
         // Optional finite lifespan, e.g. "12 more payments on this loan and I'm done." Null means
         // it recurs indefinitely until manually archived or deleted.
-        remainingOccurrences: Int? = null
+        remainingOccurrences: Int? = null,
+        nextDueDate: Long? = null
     ) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
@@ -479,7 +495,8 @@ class MainViewModel @Inject constructor(
                 categoryId = categoryId,
                 accountId = "acc_checking",
                 frequency = frequency,
-                remainingOccurrences = remainingOccurrences
+                remainingOccurrences = remainingOccurrences,
+                nextDueDate = nextDueDate
             )
         }
     }
@@ -703,10 +720,12 @@ class MainViewModel @Inject constructor(
                     lastDriveSyncTime.value = meta.formattedTime
                     onResult("✅ Synced to Google Drive appDataFolder (${meta.formattedTime})")
                 }.onFailure { err ->
-                    onResult("❌ Drive Sync failed: ${err.localizedMessage}")
+                    val errorMsg = err.extractCleanErrorMessage()
+                    onResult("❌ Drive Sync failed: $errorMsg")
                 }
             } catch (e: Exception) {
-                onResult("❌ Backup preparation failed: ${e.localizedMessage}")
+                val msg = e.extractCleanErrorMessage()
+                onResult("❌ Backup preparation failed: $msg")
             } finally {
                 isDriveSyncing.value = false
             }
@@ -727,15 +746,24 @@ class MainViewModel @Inject constructor(
                     restoreResult.onSuccess { count ->
                         onResult("✅ Restored $count items from Google Drive appDataFolder!")
                     }.onFailure { err ->
-                        onResult("❌ Data restore failed: ${err.localizedMessage}")
+                        val msg = err.extractCleanErrorMessage()
+                        onResult("❌ Data restore failed: $msg")
                     }
                 }.onFailure { err ->
-                    onResult("❌ Download failed: ${err.localizedMessage}")
+                    val msg = err.extractCleanErrorMessage()
+                    onResult("❌ Download failed: $msg")
                 }
             } finally {
                 isDriveSyncing.value = false
             }
         }
+    }
+
+    private fun Throwable.extractCleanErrorMessage(): String {
+        return message?.takeIf { it.isNotBlank() && it != "null" }
+            ?: cause?.message?.takeIf { it.isNotBlank() && it != "null" }
+            ?: cause?.toString()?.takeIf { it.isNotBlank() }
+            ?: javaClass.simpleName
     }
 
     fun clearAuthError() {

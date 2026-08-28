@@ -75,15 +75,12 @@ fun AccountsViewAllModal(
     onAddAccount: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val filteredAccounts = remember(accounts, searchQuery, selectedTypeFilter) {
+    val filteredAccounts = remember(accounts, searchQuery) {
         accounts.filter { acc ->
-            val matchesSearch = searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
-            val matchesType = selectedTypeFilter == null || acc.type == selectedTypeFilter
-            matchesSearch && matchesType
+            searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -183,57 +180,6 @@ fun AccountsViewAllModal(
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true
                     )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Filter Chips - Non-scrolling 2-row grid layout so all filter options are visible simultaneously
-                    val typeFilterOptions = remember(accounts.size) {
-                        listOf(
-                            null to "All (${accounts.size})",
-                            AccountType.CHECKING to "Checking",
-                            AccountType.CREDIT_CARD to "Credit",
-                            AccountType.SAVINGS to "Savings",
-                            AccountType.CASH to "Cash",
-                            AccountType.INVESTMENT to "Invest",
-                            AccountType.LOAN to "Loans"
-                        )
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        typeFilterOptions.chunked(4).forEach { rowOptions ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                rowOptions.forEach { (type, label) ->
-                                    val isSelected = (selectedTypeFilter == type && type != null) || (selectedTypeFilter == null && type == null)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedTypeFilter = if (type == null || selectedTypeFilter == type) null else type
-                                        },
-                                        label = {
-                                            Text(
-                                                text = label,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                maxLines = 1,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
-                                            selected = isSelected,
-                                            borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 

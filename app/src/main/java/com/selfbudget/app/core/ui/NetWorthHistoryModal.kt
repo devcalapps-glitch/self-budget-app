@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -89,7 +90,7 @@ fun NetWorthHistoryModal(
         assetAccounts.sumOf { acc -> accountBalances[acc.id] ?: acc.initialBalance }
     }
     val totalDebts = remember(debtAccounts, accountBalances) {
-        debtAccounts.sumOf { acc -> accountBalances[acc.id] ?: acc.initialBalance }
+        debtAccounts.sumOf { acc -> kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance) }
     }
     val currentNetWorth = totalAssets - totalDebts
 
@@ -161,7 +162,8 @@ fun NetWorthHistoryModal(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(20.dp),
+                        .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 48.dp)
+                        .navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     // 1. Live Net Worth Hero Card
@@ -229,6 +231,15 @@ fun NetWorthHistoryModal(
                             )
                         }
                     }
+
+                    // 2. Financial Progress & Breakdown Graph
+                    NetWorthProgressChart(
+                        history = history,
+                        currentNetWorth = currentNetWorth,
+                        totalAssets = totalAssets,
+                        totalDebts = totalDebts,
+                        currencySymbol = currencySymbol
+                    )
 
                     // 2. Assets vs. Liabilities Split Cards
                     Row(
@@ -412,6 +423,9 @@ fun NetWorthHistoryModal(
                             }
                         }
                     }
+
+                    // Generous bottom spacer for comfortable scrolling
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
         }

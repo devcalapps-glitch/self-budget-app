@@ -52,7 +52,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,7 +82,7 @@ fun AccountsScreen(
     onAddTransfer: (fromId: String, toId: String, amount: Double, note: String?) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
+
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
@@ -109,11 +112,9 @@ fun AccountsScreen(
 
     val totalNetWorth = totalAssets - totalLiabilities
 
-    val filteredAccounts = remember(accounts, searchQuery, selectedTypeFilter) {
+    val filteredAccounts = remember(accounts, searchQuery) {
         accounts.filter { acc ->
-            val matchesSearch = searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
-            val matchesType = selectedTypeFilter == null || acc.type == selectedTypeFilter
-            matchesSearch && matchesType
+            searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -191,7 +192,67 @@ fun AccountsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Mini Net Worth Progress Sparkline Preview
+                val sparklinePoints = remember(netWorthHistory, totalNetWorth) {
+                    val points = netWorthHistory.map { it.netWorth }.toMutableList()
+                    if (points.isEmpty()) points.add(totalNetWorth)
+                    if (points.size == 1) points.add(0, points.first())
+                    points
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showNetWorthModal = true }
+                ) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val h = size.height
+                        val minV = (sparklinePoints.minOrNull() ?: 0.0).coerceAtMost(0.0)
+                        val maxV = (sparklinePoints.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
+                        val rangeV = (maxV - minV).coerceAtLeast(1.0)
+
+                        val path = Path()
+                        val areaPath = Path()
+                        val stepX = w / (sparklinePoints.size - 1).coerceAtLeast(1)
+
+                        sparklinePoints.forEachIndexed { i, valPt ->
+                            val x = i * stepX
+                            val normY = (valPt - minV) / rangeV
+                            val y = h - (normY * (h - 8f) + 4f).toFloat()
+                            if (i == 0) {
+                                path.moveTo(x, y)
+                                areaPath.moveTo(x, h)
+                                areaPath.lineTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                                areaPath.lineTo(x, y)
+                            }
+                        }
+                        areaPath.lineTo(w, h)
+                        areaPath.close()
+
+                        val isPos = (sparklinePoints.lastOrNull() ?: 0.0) >= 0
+                        val strokeColor = if (isPos) IncomeGreen else ExpenseRed
+
+                        drawPath(
+                            path = areaPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(strokeColor.copy(alpha = 0.35f), strokeColor.copy(alpha = 0.05f))
+                            )
+                        )
+                        drawPath(
+                            path = path,
+                            color = strokeColor,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -288,56 +349,7 @@ fun AccountsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Type Filter Chips - Non-scrolling 2-row grid layout so all filter options are visible simultaneously
-        val typeFilterOptions = remember(accounts.size) {
-            listOf(
-                null to "All (${accounts.size})",
-                AccountType.CHECKING to "Checking",
-                AccountType.CREDIT_CARD to "Credit",
-                AccountType.SAVINGS to "Savings",
-                AccountType.CASH to "Cash",
-                AccountType.INVESTMENT to "Invest",
-                AccountType.LOAN to "Loans"
-            )
-        }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            typeFilterOptions.chunked(4).forEach { rowOptions ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    rowOptions.forEach { (type, label) ->
-                        val isSelected = (selectedTypeFilter == type && type != null) || (selectedTypeFilter == null && type == null)
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                selectedTypeFilter = if (type == null || selectedTypeFilter == type) null else type
-                            },
-                            label = {
-                                Text(
-                                    text = label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    maxLines = 1,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isSelected,
-                                borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Accounts List
         if (filteredAccounts.isEmpty()) {

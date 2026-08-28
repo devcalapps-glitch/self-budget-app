@@ -12,6 +12,7 @@ import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.DriveScopes
+import com.selfbudget.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -44,10 +45,16 @@ object GoogleDriveSyncManager {
     }
 
     fun getGoogleDriveSignInIntent(context: Context): Intent {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestScopes(Scope(DriveScopes.DRIVE_APPDATA))
+        val webClientId = context.getString(R.string.web_client_id)
+        val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .build()
+            .requestScopes(Scope(DriveScopes.DRIVE_APPDATA))
+
+        if (webClientId.isNotBlank()) {
+            builder.requestIdToken(webClientId)
+        }
+
+        val gso = builder.build()
         val client = GoogleSignIn.getClient(context, gso)
         return client.signInIntent
     }
@@ -56,8 +63,17 @@ object GoogleDriveSyncManager {
      * Obtains a thread-safe Google Drive API service client for the current Google user account.
      */
     private fun getDriveService(context: Context, account: GoogleSignInAccount): Drive {
-        val credential = GoogleAccountCredential.usingOAuth2(context, SCOPES)
-            .setSelectedAccount(account.account)
+        val googleAccount = account.account
+        val credential = if (googleAccount != null) {
+            GoogleAccountCredential.usingOAuth2(context, SCOPES)
+                .setSelectedAccount(googleAccount)
+        } else {
+            val accountName = account.email
+                ?: GoogleSignIn.getLastSignedInAccount(context)?.email
+                ?: throw IllegalStateException("No Google Account email found. Please re-authenticate.")
+            GoogleAccountCredential.usingOAuth2(context, SCOPES)
+                .setSelectedAccountName(accountName)
+        }
         
         return Drive.Builder(
             NetHttpTransport(),
@@ -107,8 +123,19 @@ object GoogleDriveSyncManager {
             val formatted = sdf.format(Date(nowMillis))
 
             Result.success(DriveSyncMetadata(fileId, nowMillis, formatted))
-        } catch (e: Exception) {
-            Result.failure(e)
+        } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException) {
+            Result.failure(Exception("Google Drive permission required. Re-granting access in progress...", e))
+        } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAuthIOException) {
+            val detail = e.cause?.message ?: e.message ?: e.javaClass.simpleName
+            Result.failure(Exception("Google Auth Error: $detail", e))
+        } catch (e: com.google.api.client.googleapis.json.GoogleJsonResponseException) {
+            val details = e.details?.message ?: e.message ?: e.localizedMessage ?: "Status Code ${e.statusCode}"
+            Result.failure(Exception("Drive API Error (${e.statusCode}): $details", e))
+        } catch (e: Throwable) {
+            val msg = e.message?.takeIf { it.isNotBlank() && it != "null" }
+                ?: e.cause?.message?.takeIf { it.isNotBlank() && it != "null" }
+                ?: e.javaClass.simpleName
+            Result.failure(Exception("Cloud sync failed: $msg", e))
         }
     }
 
@@ -129,8 +156,19 @@ object GoogleDriveSyncManager {
             val jsonString = outputStream.toString("UTF-8")
 
             Result.success(jsonString)
-        } catch (e: Exception) {
-            Result.failure(e)
+        } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException) {
+            Result.failure(Exception("Google Drive permission required. Re-granting access in progress...", e))
+        } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAuthIOException) {
+            val detail = e.cause?.message ?: e.message ?: e.javaClass.simpleName
+            Result.failure(Exception("Google Auth Error: $detail", e))
+        } catch (e: com.google.api.client.googleapis.json.GoogleJsonResponseException) {
+            val details = e.details?.message ?: e.message ?: e.localizedMessage ?: "Status Code ${e.statusCode}"
+            Result.failure(Exception("Drive API Error (${e.statusCode}): $details", e))
+        } catch (e: Throwable) {
+            val msg = e.message?.takeIf { it.isNotBlank() && it != "null" }
+                ?: e.cause?.message?.takeIf { it.isNotBlank() && it != "null" }
+                ?: e.javaClass.simpleName
+            Result.failure(Exception("Download failed: $msg", e))
         }
     }
 

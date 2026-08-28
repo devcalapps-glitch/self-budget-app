@@ -48,8 +48,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -202,8 +207,8 @@ fun SetBudgetDialog(
                             },
                             enabled = selectedCategory != null && (limitText.toDoubleOrNull() ?: 0.0) > 0.0,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.padding(end = 12.dp)
@@ -221,7 +226,155 @@ fun SetBudgetDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Category Field (Taps to open CategorySelectionModal)
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "MONTHLY BUDGET LIMIT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = limitText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 25.0)
+                                    limitText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Limit",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = limitText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            limitText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = limitText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 25.0
+                                    limitText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Limit",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($50, $100, $250, $500, $1000)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(50, 100, 250, 500, 1000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = limitText.toDoubleOrNull() ?: 0.0
+                                        limitText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Category Field (Taps to open CategorySelectionModal)
                     Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = selectedCategory?.name ?: "Select Expense Category",
@@ -271,18 +424,6 @@ fun SetBudgetDialog(
                             )
                         }
                     }
-
-                    // Monthly Limit Input Field
-                    OutlinedTextField(
-                        value = limitText,
-                        onValueChange = { limitText = it },
-                        label = { Text("Monthly Budget Limit ($currencySymbol)") },
-                        placeholder = { Text("e.g. 500.00") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -413,7 +554,7 @@ fun SetBudgetDialog(
                                 Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
 
-                            Button(
+                             Button(
                                 onClick = {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
@@ -425,15 +566,15 @@ fun SetBudgetDialog(
                                 },
                                 enabled = selectedCategory != null && (limitText.toDoubleOrNull() ?: 0.0) > 0.0,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = IncomeGreen,
-                                    contentColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text(if (isEditing) "Save Budget Changes" else "Save Budget", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(if (isEditing) "Save Changes" else "Save Budget", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
@@ -448,10 +589,10 @@ fun SetBudgetDialog(
                                     .fillMaxWidth()
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.5.dp, ExpenseRed),
+                                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
                             ) {
-                                Text("🗑️ Delete Category Budget", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Delete Category Budget", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
                     }

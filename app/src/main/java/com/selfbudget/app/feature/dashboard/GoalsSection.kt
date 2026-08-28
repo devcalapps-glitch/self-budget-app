@@ -29,10 +29,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -49,6 +52,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +64,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -157,11 +163,11 @@ fun GoalsSection(
                             onClick = { showAddDialog = true },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             )
                         ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(text = "Add Savings Goal", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
@@ -195,7 +201,7 @@ fun GoalsSection(
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(onClick = { contributingGoal = goal }, modifier = Modifier.size(28.dp)) {
-                                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add or Withdraw Contribution", modifier = Modifier.size(18.dp))
+                                        Icon(imageVector = Icons.Default.Savings, contentDescription = "Add or Withdraw Contribution", modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -226,17 +232,6 @@ fun GoalsSection(
                     }
                 }
             }
-        }
-
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            containerColor = IncomeGreen,
-            contentColor = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Savings Goal")
         }
     }
 
@@ -484,7 +479,7 @@ private fun ContributeDialog(
 // scrollable form with a live preview card, and a sticky bottom action bar - kept consistent so
 // every "add X" flow in the app looks and behaves the same way.
 @Composable
-private fun AddGoalDialog(
+internal fun AddGoalDialog(
     accounts: List<AccountEntity>,
     accountBalances: Map<String, Double>,
     currencySymbol: String = "$",
@@ -603,6 +598,165 @@ private fun AddGoalDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "TARGET SAVINGS AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = targetText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 50.0)
+                                    targetText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Target",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = targetText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            targetText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = targetText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 50.0
+                                    targetText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Target",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($100, $500, $1000, $5000)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(100, 500, 1000, 5000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = targetText.toDoubleOrNull() ?: 0.0
+                                        targetText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Goal Name Field
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Goal Name") },
+                        placeholder = { Text("e.g. Emergency Fund, Vacation") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     // Live Goal Card Preview
                     Text(
                         text = "Live Goal Preview",
@@ -666,29 +820,6 @@ private fun AddGoalDialog(
                         }
                     }
 
-                    // Goal Name Field
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Goal Name") },
-                        placeholder = { Text("e.g. Emergency Fund, Vacation") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Target Amount Field
-                    OutlinedTextField(
-                        value = targetText,
-                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) targetText = input },
-                        label = { Text("Target Amount") },
-                        placeholder = { Text("0.00") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
                     // Linked Account Field (Taps to open AccountSelectionModal)
                     Text(
                         text = "Track Progress From (Checking / Savings / Cash)",
@@ -703,12 +834,33 @@ private fun AddGoalDialog(
                             .fillMaxWidth()
                             .clickable { pickingAccount = true }
                     ) {
-                        Text(
-                            text = linkedAccount?.name ?: "No account (manual goal)",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(14.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = linkedAccount?.name ?: "No account (manual goal)",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -770,7 +922,7 @@ private fun AddGoalDialog(
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -780,15 +932,15 @@ private fun AddGoalDialog(
                             onClick = { save() },
                             enabled = isValid,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("Save Goal", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Add Goal", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
 
@@ -917,7 +1069,209 @@ private fun EditGoalDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // Live Goal Preview
+                    // 1. Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "TARGET AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = targetText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 50.0)
+                                    targetText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Target",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = targetText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            targetText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = IncomeGreen.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = IncomeGreen
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = IncomeGreen,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = targetText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 50.0
+                                    targetText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = IncomeGreen.copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Target",
+                                        tint = IncomeGreen
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(100, 500, 1000, 5000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = targetText.toDoubleOrNull() ?: 0.0
+                                        targetText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Goal Name Field
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Goal Name") },
+                        placeholder = { Text("e.g. Emergency Fund, Vacation") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 3. Linked Account Field
+                    Text(
+                        text = "Track Progress From (Checking / Savings / Cash)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pickingAccount = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = linkedAccount?.name ?: "No account (manual goal)",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // 4. Live Goal Preview (Hero Card)
                     Text(
                         text = "Live Goal Preview",
                         style = MaterialTheme.typography.labelMedium,
@@ -980,51 +1334,6 @@ private fun EditGoalDialog(
                         }
                     }
 
-                    // Goal Name Field
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Goal Name") },
-                        placeholder = { Text("e.g. Emergency Fund, Vacation") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Target Amount Field
-                    OutlinedTextField(
-                        value = targetText,
-                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) targetText = input },
-                        label = { Text("Target Amount") },
-                        placeholder = { Text("0.00") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Linked Account Field
-                    Text(
-                        text = "Track Progress From (Checking / Savings / Cash)",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Card(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { pickingAccount = true }
-                    ) {
-                        Text(
-                            text = linkedAccount?.name ?: "No account (manual goal)",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(14.dp)
-                        )
-                    }
-
                     // Action Buttons Layout:
                     // Row 1: [ Cancel ] | [ Save Goal Changes ]
                     // Row 2: [ 🗑️ Delete Savings Goal ]
@@ -1043,7 +1352,9 @@ private fun EditGoalDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp),
-                                shape = RoundedCornerShape(14.dp)
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
@@ -1052,15 +1363,15 @@ private fun EditGoalDialog(
                                 onClick = { save() },
                                 enabled = isValid,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = IncomeGreen,
-                                    contentColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text("Save Goal Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
@@ -1070,10 +1381,10 @@ private fun EditGoalDialog(
                                 .fillMaxWidth()
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, ExpenseRed),
+                            border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
                         ) {
-                            Text("🗑️ Delete Savings Goal", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("Delete Savings Goal", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }

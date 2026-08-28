@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
 import com.selfbudget.app.core.ui.getCategoryIcon
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -39,6 +40,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -49,27 +55,41 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.text.SimpleDateFormat
+import java.util.Date
+import androidx.compose.material.icons.filled.CalendarToday
 import com.selfbudget.app.core.util.VoiceParser
 import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.model.CategoryEntity
@@ -77,7 +97,6 @@ import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
 import com.selfbudget.app.ui.theme.IncomeGreen
-import java.util.Locale
 import androidx.compose.material3.Switch
 import androidx.compose.material.icons.filled.Autorenew
 
@@ -87,7 +106,7 @@ fun SetRecurringDialog(
     categories: List<CategoryEntity>,
     currencySymbol: String = "$",
     onDismiss: () -> Unit,
-    onConfirm: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?) -> Unit,
+    onConfirm: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?) -> Unit,
     onAddCustomCategory: ((CategoryEntity) -> Unit)? = null
 ) {
     val focusManager = LocalFocusManager.current
@@ -112,7 +131,21 @@ fun SetRecurringDialog(
 
     var expandedCategory by remember { mutableStateOf(false) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
+    var showDatePickerModal by remember { mutableStateOf(false) }
+    var selectedTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()) }
+    
     val scrollState = rememberScrollState()
+    val focusAnchor = remember { FocusRequester() }
+
+    // Move focus to an inert anchor (not just clear it) whenever the category modal opens or
+    // closes. Dismissing the nested picker Dialog hands window focus back to this dialog's
+    // window, and Android will restore focus onto the last real field (e.g. Amount) unless
+    // something else already holds it — clearFocus() alone loses that race.
+    LaunchedEffect(expandedCategory) {
+        focusAnchor.requestFocus()
+        keyboardController?.hide()
+    }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -181,15 +214,15 @@ fun SetRecurringDialog(
                                 val categoryId = selectedCategory?.id ?: "cat_other"
                                 if (title.isNotBlank() && amount > 0.0) {
                                     val remainingOccurrences = if (hasLimitedOccurrences) occurrencesText.toIntOrNull() else null
-                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences)
+                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp)
                                 }
                             },
                             enabled = title.isNotBlank() &&
                                       (amountText.toDoubleOrNull() ?: 0.0) > 0.0 &&
                                       selectedCategory != null,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.padding(end = 12.dp)
@@ -207,6 +240,165 @@ fun SetRecurringDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Inert focus target used to steal focus away from real fields when the
+                    // category modal opens/closes (see focusAnchor LaunchedEffect above).
+                    Box(
+                        modifier = Modifier
+                            .size(0.dp)
+                            .focusRequester(focusAnchor)
+                            .focusable()
+                    )
+
+                    val currentAccentColor = if (selectedType == TransactionType.INCOME) com.selfbudget.app.ui.theme.getIncomeColor() else ExpenseRed
+
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (selectedType == TransactionType.INCOME) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING BILL AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 1.0)
+                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Amount",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = amountText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            amountText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = currentAccentColor.copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = currentAccentColor
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = currentAccentColor,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 1.0
+                                    amountText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = currentAccentColor.copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Amount",
+                                        tint = currentAccentColor
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($50, $100, $250, $500, $1000)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(50, 100, 250, 500, 1000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                                        amountText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Segmented Toggle Switch Pill (Bill/Expense vs Income)
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -280,16 +472,6 @@ fun SetRecurringDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Amount
-                    OutlinedTextField(
-                        value = amountText,
-                        onValueChange = { amountText = it },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
                     // Repeat Frequency Segmented Container
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
@@ -355,9 +537,12 @@ fun SetRecurringDialog(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Category") },
-                            trailingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                            leadingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                             shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false }
                         )
                         Box(
                             modifier = Modifier
@@ -366,6 +551,37 @@ fun SetRecurringDialog(
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                     expandedCategory = true
+                                }
+                        )
+                    }
+
+                    // Start/Next Due Date
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = dateFormatter.format(Date(selectedTimestamp)),
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            label = { Text("Start / Next Due Date") },
+                            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false }
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable {
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    showDatePickerModal = true
                                 }
                         )
                     }
@@ -427,7 +643,7 @@ fun SetRecurringDialog(
                                     keyboardController?.hide()
                                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
                                         putExtra(
                                             RecognizerIntent.EXTRA_PROMPT,
                                             if (selectedType == TransactionType.INCOME) "e.g. 'Paycheck 2500 dollars biweekly'" else "e.g. 'Netflix 15 dollars monthly'"
@@ -468,7 +684,7 @@ fun SetRecurringDialog(
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -482,22 +698,22 @@ fun SetRecurringDialog(
                                 val categoryId = selectedCategory?.id ?: "cat_other"
                                 if (title.isNotBlank() && amount > 0.0) {
                                     val remainingOccurrences = if (hasLimitedOccurrences) occurrencesText.toIntOrNull() else null
-                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences)
+                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp)
                                 }
                             },
                             enabled = title.isNotBlank() &&
                                       (amountText.toDoubleOrNull() ?: 0.0) > 0.0 &&
                                       selectedCategory != null,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text(if (selectedType == TransactionType.INCOME) "Save Income" else "Save Bills", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Save Recurring", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
 
@@ -534,5 +750,46 @@ fun SetRecurringDialog(
                 showNewCategoryDialog = true
             }
         )
+    }
+
+    if (showDatePickerModal) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedTimestamp
+        )
+
+        DatePickerDialog(
+            onDismissRequest = {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                showDatePickerModal = false
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedTimestamp = millis
+                        }
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        showDatePickerModal = false
+                    }
+                ) {
+                    Text("OK", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        showDatePickerModal = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }

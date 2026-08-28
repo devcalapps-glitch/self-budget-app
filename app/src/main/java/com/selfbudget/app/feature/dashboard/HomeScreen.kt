@@ -3,6 +3,8 @@ package com.selfbudget.app.feature.dashboard
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -147,7 +149,7 @@ fun HomeScreen(
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onSetBudget: (categoryId: String, limit: Double, rolloverEnabled: Boolean) -> Unit,
     onDeleteBudget: (categoryId: String) -> Unit = {},
-    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?) -> Unit,
+    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?) -> Unit,
     onDeleteRecurring: (RecurringTransactionEntity) -> Unit,
     onPostRecurring: (RecurringTransactionEntity) -> Unit,
     onUpdateRecurring: (RecurringTransactionEntity) -> Unit = {},
@@ -181,6 +183,7 @@ fun HomeScreen(
 
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showAddIncomeDialog by remember { mutableStateOf(false) }
+    var showAddGoalDialog by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var pendingNewBudget by remember { mutableStateOf(false) }
     var pendingNewRecurring by remember { mutableStateOf(false) }
@@ -214,27 +217,6 @@ fun HomeScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            val pageTitle = when (selectedTab) {
-                                0 -> "Dashboard"
-                                1 -> "Plan"
-                                2 -> "Recurring"
-                                3 -> "Analytics"
-                                4 -> "Activity"
-                                else -> ""
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                            ) {
-                                Text(
-                                    text = pageTitle,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
                         }
 
                         // Profile / Settings Top-Right Avatar Button
@@ -353,6 +335,10 @@ fun HomeScreen(
                     currencySymbol = uiState.currencySymbol,
                     previousMonthBudgets = uiState.previousMonthBudgets,
                     previousMonthSpentByCategory = uiState.previousMonthSpentByCategory,
+                    selectedMonthYear = uiState.selectedMonthYear,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onSelectMonthYear = onSelectMonthYear,
                     onSetBudget = onSetBudget,
                     onDeleteBudget = onDeleteBudget,
                     goals = uiState.goals,
@@ -370,6 +356,10 @@ fun HomeScreen(
                     recurringList = uiState.recurringList,
                     categories = uiState.categories,
                     allTransactions = uiState.transactions,
+                    selectedMonthYear = uiState.selectedMonthYear,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onSelectMonthYear = onSelectMonthYear,
                     currencySymbol = uiState.currencySymbol,
                     onAddRecurring = onAddRecurring,
                     onDeleteRecurring = onDeleteRecurring,
@@ -383,6 +373,9 @@ fun HomeScreen(
                     allTransactions = uiState.transactions,
                     categories = uiState.categories,
                     selectedMonthYear = uiState.selectedMonthYear,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onSelectMonthYear = onSelectMonthYear,
                     currencySymbol = uiState.currencySymbol,
                     netWorthHistory = uiState.netWorthHistory,
                     accounts = uiState.accounts,
@@ -414,55 +407,30 @@ fun HomeScreen(
                         .navigationBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 2.dp,
-                            shadowElevation = 4.dp
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Settings",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                IconButton(onClick = { showProfileSettings = false }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close Settings")
-                                }
-                            }
-                        }
-
-                        Box(modifier = Modifier.weight(1f)) {
-                            SettingsScreen(
-                                user = uiState.user,
-                                currencySymbol = uiState.currencySymbol,
-                                themeMode = uiState.themeMode,
-                                isBiometricEnabled = uiState.isBiometricEnabled,
-                                transactions = uiState.transactions,
-                                categories = uiState.categories,
-                                accounts = uiState.accounts,
-                                exchangeRates = uiState.exchangeRates,
-                                onSetCurrency = onSetCurrency,
-                                onSetThemeMode = onSetThemeMode,
-                                onSetBiometricEnabled = onSetBiometricEnabled,
-                                onSetExchangeRate = onSetExchangeRate,
-                                onExportBackupJson = onExportBackupJson,
-                                onRestoreBackupJson = onRestoreBackupJson,
-                                onDriveSyncClick = onDriveSyncClick,
-                                onDriveRestoreClick = onDriveRestoreClick,
-                                onResetData = onResetData,
-                                onSignOut = onSignOut
-                            )
-                        }
-                    }
+                    SettingsScreen(
+                        user = uiState.user,
+                        currencySymbol = uiState.currencySymbol,
+                        themeMode = uiState.themeMode,
+                        isBiometricEnabled = uiState.isBiometricEnabled,
+                        transactions = uiState.transactions,
+                        categories = uiState.categories,
+                        accounts = uiState.accounts,
+                        exchangeRates = uiState.exchangeRates,
+                        onSetCurrency = onSetCurrency,
+                        onSetThemeMode = onSetThemeMode,
+                        onSetBiometricEnabled = onSetBiometricEnabled,
+                        onSetExchangeRate = onSetExchangeRate,
+                        onExportBackupJson = onExportBackupJson,
+                        onRestoreBackupJson = onRestoreBackupJson,
+                        onDriveSyncClick = onDriveSyncClick,
+                        onDriveRestoreClick = onDriveRestoreClick,
+                        onResetData = onResetData,
+                        onSignOut = {
+                            showProfileSettings = false
+                            onSignOut()
+                        },
+                        onDismiss = { showProfileSettings = false }
+                    )
                 }
             }
         }
@@ -496,9 +464,26 @@ fun HomeScreen(
                         selectedTab = 2
                         coroutineScope.launch { pagerState.animateScrollToPage(2) }
                         pendingNewRecurring = true
+                    },
+                    onPickGoal = {
+                        showAddMenu = false
+                        showAddGoalDialog = true
                     }
                 )
             }
+        }
+
+        if (showAddGoalDialog) {
+            com.selfbudget.app.feature.dashboard.AddGoalDialog(
+                accounts = uiState.accounts,
+                accountBalances = uiState.accountBalances,
+                currencySymbol = uiState.currencySymbol,
+                onDismiss = { showAddGoalDialog = false },
+                onConfirm = { name, targetAmount, linkedAccountId ->
+                    showAddGoalDialog = false
+                    onAddGoal(name, targetAmount, linkedAccountId)
+                }
+            )
         }
 
         if (showAddExpenseDialog) {
@@ -557,7 +542,7 @@ fun HomeScreen(
                     editingTransaction = null
                 },
                 onAddRecurring = { title, amount, type, categoryId, frequency ->
-                    onAddRecurring(title, amount, type, categoryId, frequency, null)
+                    onAddRecurring(title, amount, type, categoryId, frequency, null, null)
                 },
                 onDeleteRecurring = { rec ->
                     onDeleteRecurring(rec)
@@ -710,7 +695,8 @@ private fun AddEntryPointScreen(
     onPickIncome: () -> Unit,
     onPickExpense: () -> Unit,
     onPickBudget: () -> Unit,
-    onPickRecurring: () -> Unit
+    onPickRecurring: () -> Unit,
+    onPickGoal: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -723,24 +709,25 @@ private fun AddEntryPointScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "What do you want to add?",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
-                }
             }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -762,6 +749,14 @@ private fun AddEntryPointScreen(
                     onClick = onPickExpense
                 )
                 AddEntryPointCard(
+                    title = "Create a Savings Goal",
+                    subtitle = "Set a target for an emergency fund, vacation, or purchase",
+                    icon = Icons.Default.Savings,
+                    iconBadgeColor = MaterialTheme.colorScheme.primaryContainer,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    onClick = onPickGoal
+                )
+                AddEntryPointCard(
                     title = "Create a Budget",
                     subtitle = "Set a monthly spending limit for a category",
                     icon = Icons.Default.PieChart,
@@ -770,13 +765,15 @@ private fun AddEntryPointScreen(
                     onClick = onPickBudget
                 )
                 AddEntryPointCard(
-                    title = "Add a Recurring Bill",
-                    subtitle = "Track a subscription, bill, or paycheck",
+                    title = "Add a Recurring Item",
+                    subtitle = "Track a subscription, bill, or recurring paycheck",
                     icon = Icons.Default.Repeat,
                     iconBadgeColor = MaterialTheme.colorScheme.tertiaryContainer,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     onClick = onPickRecurring
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -1035,7 +1032,7 @@ fun DashboardContent(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (!hasIncomeLogged) MaterialTheme.colorScheme.primary
-                        else if (unallocatedFreeCash >= 0) IncomeGreen
+                        else if (unallocatedFreeCash >= 0) com.selfbudget.app.ui.theme.getIncomeColor()
                         else ExpenseRed
                     )
 
@@ -1067,7 +1064,7 @@ fun DashboardContent(
                                 letterSpacing = (-0.3).sp,
                                 maxLines = 1,
                                 softWrap = false,
-                                color = IncomeGreen
+                                color = com.selfbudget.app.ui.theme.getIncomeColor()
                             )
                         }
                         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1093,7 +1090,7 @@ fun DashboardContent(
                                 letterSpacing = (-0.3).sp,
                                 maxLines = 1,
                                 softWrap = false,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.tertiary
                             )
                         }
                         val expectedCommitments = totalCategoryBudgets + unbudgetedBillsAndExpenses
@@ -1367,8 +1364,8 @@ fun DashboardContent(
                             onClick = onAddTransactionClick,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = IncomeGreen,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             )
                         ) {
                             Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
