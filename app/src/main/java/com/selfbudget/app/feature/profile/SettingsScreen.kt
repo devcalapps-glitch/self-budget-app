@@ -31,7 +31,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
@@ -39,9 +41,11 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
@@ -49,10 +53,13 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,15 +97,23 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.common.api.Scope
 import com.google.api.services.drive.DriveScopes
+import com.selfbudget.app.core.ui.DataExportModal
+import com.selfbudget.app.core.ui.DataImportPreviewModal
 import com.selfbudget.app.core.util.CloudSyncManager
 import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.core.util.Currencies
+import com.selfbudget.app.core.util.DataImporter
 import com.selfbudget.app.core.util.GoogleDriveSyncManager
 import com.selfbudget.app.core.util.NotificationHelper
+import com.selfbudget.app.core.util.ParsedImportData
+import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AppThemeMode
+import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.ExchangeRateEntity
+import com.selfbudget.app.data.model.GoalEntity
+import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.UserEntity
 import com.selfbudget.app.ui.theme.ExpenseRed
@@ -107,11 +122,12 @@ import kotlinx.coroutines.launch
 private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
     PREFERENCES("General Preferences & Security"),
-    BACKUP("Data, Backup & Cloud Sync"),
+    BACKUP("Data & Account Management"),
     LEGAL("Legal & Privacy"),
     PRIVACY("Privacy Policy"),
     TERMS("Terms of Service"),
-    ABOUT("About Developer & Support")
+    ABOUT("About Developer & Support"),
+    DELETE_ACCOUNT("Delete Account & Data")
 }
 
 @Composable
@@ -123,6 +139,10 @@ fun SettingsScreen(
     transactions: List<TransactionEntity>,
     categories: List<CategoryEntity>,
     accounts: List<AccountEntity> = emptyList(),
+    recurringList: List<RecurringTransactionEntity> = emptyList(),
+    budgets: List<BudgetEntity> = emptyList(),
+    goals: List<GoalEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
     exchangeRates: List<ExchangeRateEntity> = emptyList(),
     onSetCurrency: (String) -> Unit,
     onSetThemeMode: (AppThemeMode) -> Unit,
@@ -130,9 +150,12 @@ fun SettingsScreen(
     onSetExchangeRate: (fromCurrency: String, toCurrency: String, rate: Double) -> Unit = { _, _, _ -> },
     onExportBackupJson: ((String) -> Unit, (String) -> Unit) -> Unit = { _, _ -> },
     onRestoreBackupJson: (jsonString: String, onSuccess: (Int) -> Unit, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
+    onImportData: ((ParsedImportData, (Int) -> Unit, (String) -> Unit) -> Unit)? = null,
     onDriveSyncClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onDriveRestoreClick: (account: GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
+    onResetTransactionsOnly: () -> Unit = {},
+    onToggleCategoryArchive: ((CategoryEntity) -> Unit)? = null,
     onSignOut: () -> Unit,
     onDismiss: (() -> Unit)? = null
 ) {
@@ -142,7 +165,12 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     
     var activeSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
+    var showManageCategoriesModal by remember { mutableStateOf(false) }
+    var showDataExportModal by remember { mutableStateOf(false) }
+    var pendingImportData by remember { mutableStateOf<ParsedImportData?>(null) }
     var showResetConfirmation by remember { mutableStateOf(false) }
+    var showResetActivityConfirmation by remember { mutableStateOf(false) }
+    var showAccountDeletionDialog by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
     var pendingDriveAction by remember { mutableStateOf<((GoogleSignInAccount) -> Unit)?>(null) }
 
@@ -150,6 +178,7 @@ fun SettingsScreen(
     BackHandler(enabled = activeSubScreen != SettingsSubScreen.MAIN) {
         activeSubScreen = when (activeSubScreen) {
             SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+            SettingsSubScreen.DELETE_ACCOUNT -> SettingsSubScreen.BACKUP
             else -> SettingsSubScreen.MAIN
         }
     }
@@ -202,6 +231,29 @@ fun SettingsScreen(
             pendingDriveAction = action
             val intent = GoogleDriveSyncManager.getGoogleDriveSignInIntent(context)
             googleDriveSignInLauncher.launch(intent)
+        }
+    }
+
+    val dataImportPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                try {
+                    val parseResult = DataImporter.parseFromUri(context, uri, user?.id ?: "local_user")
+                    parseResult.onSuccess { data ->
+                        if (data.totalCount > 0) {
+                            pendingImportData = data
+                        } else {
+                            syncStatusMessage = "⚠️ No valid financial records could be parsed from ${data.fileName}."
+                        }
+                    }.onFailure { error ->
+                        syncStatusMessage = "❌ Could not parse file: ${error.localizedMessage}"
+                    }
+                } catch (e: Exception) {
+                    syncStatusMessage = "❌ Could not read file: ${e.localizedMessage}"
+                }
+            }
         }
     }
 
@@ -267,6 +319,7 @@ fun SettingsScreen(
                             onClick = {
                                 activeSubScreen = when (activeSubScreen) {
                                     SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+                                    SettingsSubScreen.DELETE_ACCOUNT -> SettingsSubScreen.BACKUP
                                     else -> SettingsSubScreen.MAIN
                                 }
                             },
@@ -290,7 +343,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = activeSubScreen.title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -386,7 +439,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 4 Distinct Categorized Menu Rows
+            // 5 Distinct Categorized Menu Rows
             SettingsCategoryRow(
                 icon = Icons.Default.Settings,
                 title = "General Preferences & Security",
@@ -395,9 +448,16 @@ fun SettingsScreen(
             )
 
             SettingsCategoryRow(
+                icon = Icons.Default.Category,
+                title = "Manage Custom Categories",
+                subtitle = "View, archive, or restore custom categories",
+                onClick = { showManageCategoriesModal = true }
+            )
+
+            SettingsCategoryRow(
                 icon = Icons.Default.CloudDone,
-                title = "Data, Backup & Cloud Sync",
-                subtitle = "Google Drive sync, JSON/CSV export & Reset database",
+                title = "Data & Account Management",
+                subtitle = "Google Drive sync, JSON/CSV backup, data reset & account deletion",
                 onClick = { activeSubScreen = SettingsSubScreen.BACKUP }
             )
 
@@ -417,17 +477,15 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Log Out Button
             OutlinedButton(
                 onClick = onSignOut,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.06f),
-                    contentColor = MaterialTheme.colorScheme.error
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
                 Icon(
@@ -436,8 +494,10 @@ fun SettingsScreen(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 1: GENERAL PREFERENCES & SECURITY ---
@@ -742,6 +802,8 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC ---
@@ -856,7 +918,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Export or restore your account history (${transactions.size} transactions) using JSON files, or export transactions to CSV.",
+                        text = "Export or restore your full account history using JSON, or selectively export transactions, recurring bills, budget plans, savings goals, and accounts to multi-tab Excel (.xlsx) or CSV.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                     )
@@ -868,6 +930,41 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
+                            onClick = { showDataExportModal = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Export Data", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = { dataImportPickerLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(imageVector = Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Import Data...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
                             onClick = {
                                 onExportBackupJson({ jsonString ->
                                     coroutineScope.launch {
@@ -896,37 +993,22 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Backup JSON", fontSize = 12.sp)
+                            Text(text = "Backup JSON", fontSize = 11.sp)
                         }
 
                         OutlinedButton(
                             onClick = {
-                                jsonRestorePickerLauncher.launch("*/*")
+                                dataImportPickerLauncher.launch("*/*")
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Restore JSON", fontSize = 12.sp)
+                            Text(text = "Restore JSON", fontSize = 11.sp)
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            CsvExporter.exportAndShareTransactions(context, transactions, categories)
-                        },
-                        enabled = transactions.isNotEmpty(),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Export Transactions to CSV")
                     }
                 }
             }
@@ -959,13 +1041,37 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Wipe all transactions, budgets, and accounts.",
+                        text = "Reset your transaction ledger only, or wipe all app records and start completely fresh.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
+                    // Option 1: Reset Activity Only (Transactions)
+                    OutlinedButton(
+                        onClick = { showResetActivityConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Reset Activity Only (Transactions)", fontWeight = FontWeight.Bold)
+                    }
+
+                    Text(
+                        text = "• Wipes transaction history only\n• Keeps all Accounts, Wallets, Budgets, Recurring rules, and Goals intact",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
+                    )
+
+                    // Option 2: Reset All App Data
                     Button(
                         onClick = { showResetConfirmation = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -975,12 +1081,78 @@ fun SettingsScreen(
                             contentColor = Color.White
                         )
                     ) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = "Reset All App Data", fontWeight = FontWeight.Bold)
                     }
+
+                    Text(
+                        text = "• Permanently deletes all records (transactions, accounts, budgets, goals, recurring)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
                 }
             }
+
+            // SECTION 4: Delete Account & Cloud Erasure Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ),
+                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PersonRemove,
+                            contentDescription = null,
+                            tint = ExpenseRed
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Delete Account & User Data",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = ExpenseRed
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Request cloud data deletion or permanently wipe on-device data & sign out.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = { activeSubScreen = SettingsSubScreen.DELETE_ACCOUNT },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.4f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = ExpenseRed.copy(alpha = 0.06f),
+                            contentColor = ExpenseRed
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete Account Options", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 3: LEGAL & PRIVACY (CATEGORY PAGE WITH PRIVACY POLICY & TERMS OF SERVICE) ---
@@ -1308,6 +1480,249 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // --- SUB-SCREEN 7: DELETE ACCOUNT & DATA FULL PAGE ---
+        if (activeSubScreen == SettingsSubScreen.DELETE_ACCOUNT) {
+            // Header Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonRemove,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Delete Account & User Data",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Data deletion options & Play Policy compliance",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Section 1: Cloud & Web Account Data Erasure Request
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Public,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Account & Cloud Data Deletion",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Pursuant to Google Play Data Safety policies, you have the right to request deletion of your account and associated data stored across Google Drive or cloud backups.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app/#delete-account"))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Open Web Erasure Form 🌐", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+            }
+
+            // Section 2: On-Device Data Wipe & Sign Out
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = ExpenseRed.copy(alpha = 0.08f)
+                ),
+                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = null,
+                            tint = ExpenseRed
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "On-Device Data Wipe & Sign Out",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = ExpenseRed
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "This action immediately performs the following:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "• Erases all local database records (transactions, income, expense categories, budgets, and recurring items)\n• Resets all app preferences and biometric security credentials\n• Revokes and signs out of your active Google session",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = { showAccountDeletionDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ExpenseRed,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Wipe Local Data & Sign Out 🗑️", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(150.dp))
+        }
+    }
+
+    if (showResetActivityConfirmation) {
+        Dialog(onDismissRequest = { showResetActivityConfirmation = false }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth(0.92f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Reset Activity Only?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Are you sure you want to delete ALL transaction activity (expenses, income, transfers)?\n\n✅ Kept: Accounts, Wallets, Budgets, Recurring rules, and Goals remain safe.\n\n❌ Deleted: Transaction history only.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showResetActivityConfirmation = false },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                onResetTransactionsOnly()
+                                showResetActivityConfirmation = false
+                                syncStatusMessage = "✅ Transaction activity wiped. Accounts, wallets & goals preserved!"
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(46.dp)
+                        ) {
+                            Text("Reset Activity", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showResetConfirmation) {
@@ -1341,9 +1756,10 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Clean Sweep / Reset Data?",
+                        text = "Reset All App Data?",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1388,6 +1804,147 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (showAccountDeletionDialog) {
+        Dialog(onDismissRequest = { showAccountDeletionDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth(0.92f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = ExpenseRed.copy(alpha = 0.15f),
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                tint = ExpenseRed,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Wipe Data & Sign Out?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Are you sure you want to permanently erase all local budget data, transactions, and sign out of your Google session? This action cannot be undone.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                showAccountDeletionDialog = false
+                                onResetData()
+                                onSignOut()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ExpenseRed,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Confirm Wipe & Sign Out", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showAccountDeletionDialog = false },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showManageCategoriesModal) {
+        com.selfbudget.app.core.ui.ManageCategoriesModal(
+            categories = categories,
+            onDismiss = { showManageCategoriesModal = false },
+            onToggleCategoryArchive = { cat -> onToggleCategoryArchive?.invoke(cat) }
+        )
+    }
+
+    if (showDataExportModal) {
+        DataExportModal(
+            transactions = transactions,
+            categories = categories,
+            accounts = accounts,
+            recurringList = recurringList,
+            budgets = budgets,
+            goals = goals,
+            accountBalances = accountBalances,
+            onDismiss = { showDataExportModal = false },
+            onExportComplete = { _, message ->
+                syncStatusMessage = message
+            }
+        )
+    }
+
+    pendingImportData?.let { importData ->
+        DataImportPreviewModal(
+            data = importData,
+            onDismiss = { pendingImportData = null },
+            onConfirmImport = {
+                val dataToCommit = importData
+                pendingImportData = null
+                if (onImportData != null) {
+                    onImportData(dataToCommit, { count ->
+                        syncStatusMessage = "✅ Successfully imported $count items from ${dataToCommit.fileName}!"
+                    }, { error ->
+                        syncStatusMessage = "❌ Import failed: $error"
+                    })
+                } else {
+                    coroutineScope.launch {
+                        val result = DataImporter.commitImportToDatabase(
+                            AppDatabase.getInstance(context),
+                            dataToCommit
+                        )
+                        result.onSuccess { count ->
+                            syncStatusMessage = "✅ Successfully imported $count items from ${dataToCommit.fileName}!"
+                        }.onFailure { error ->
+                            syncStatusMessage = "❌ Import failed: ${error.localizedMessage}"
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 }

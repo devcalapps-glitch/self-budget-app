@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.selfbudget.app.core.auth.AuthManager
 import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.BudgetCalculator
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.core.util.RecurringFrequencyNormalizer
@@ -75,13 +76,12 @@ data class HomeUiState(
 private data class BaseCombined(
     val txs: List<TransactionEntity>,
     val cats: List<CategoryEntity>,
-    val bdgts: List<BudgetEntity>,
+    val allBudgets: List<BudgetEntity>,
     val recurrings: List<RecurringTransactionEntity>,
     val accs: List<AccountEntity>
 )
 
 private data class ExtraCombined(
-    val prevBudgets: List<BudgetEntity>,
     val goals: List<GoalEntity>,
     val rates: List<ExchangeRateEntity>,
     val netWorthHistory: List<NetWorthSnapshotEntity>
@@ -106,6 +106,7 @@ class MainViewModel @Inject constructor(
     private val _selectedMonthYear = MutableStateFlow(
         SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     )
+    val selectedMonthYear: StateFlow<String> = _selectedMonthYear.asStateFlow()
 
     private fun shiftMonth(monthYear: String, deltaMonths: Int): String {
         val sdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
@@ -124,24 +125,21 @@ class MainViewModel @Inject constructor(
             flowOf(HomeUiState(isLoading = false))
         } else {
             _selectedMonthYear.flatMapLatest { selectedMonth ->
-                val previousMonth = shiftMonth(selectedMonth, -1)
-
                 combine(
                     repository.getTransactions(user.id),
                     repository.getCategories(),
-                    repository.getBudgets(user.id, selectedMonth),
+                    repository.getAllBudgets(user.id),
                     repository.getRecurringTransactions(user.id),
                     repository.getAccounts(user.id)
-                ) { txs, cats, bdgts, recurrings, accs ->
-                    BaseCombined(txs, cats, bdgts, recurrings, accs)
+                ) { txs, cats, allBudgets, recurrings, accs ->
+                    BaseCombined(txs, cats, allBudgets, recurrings, accs)
                 }.flatMapLatest { base ->
                     combine(
-                        repository.getBudgets(user.id, previousMonth),
                         repository.getGoals(user.id),
                         repository.getExchangeRates(user.id),
                         repository.getNetWorthSnapshots(user.id)
-                    ) { prevBudgets, goals, rates, netWorthHistory ->
-                        ExtraCombined(prevBudgets, goals, rates, netWorthHistory)
+                    ) { goals, rates, netWorthHistory ->
+                        ExtraCombined(goals, rates, netWorthHistory)
                     }.map { extra -> Triple(base, extra, selectedMonth) }
                 }
             }.map { (base, extra, selectedMonth) ->
@@ -154,6 +152,9 @@ class MainViewModel @Inject constructor(
                     formatter.format(Date(it.timestamp)) == previousMonth
                 }
 
+                val currentMonthBudgets = BudgetCalculator.computeBudgetsForMonth(base.allBudgets, selectedMonth)
+                val previousMonthBudgets = BudgetCalculator.computeBudgetsForMonth(base.allBudgets, previousMonth)
+
                 val exp = Money.sum(monthTxs.filter { it.type == TransactionType.EXPENSE }.map { it.amount })
                 val inc = Money.sum(monthTxs.filter { it.type == TransactionType.INCOME }.map { it.amount })
                 val bal = Money.subtract(inc, exp)
@@ -165,9 +166,11 @@ class MainViewModel @Inject constructor(
                     AppThemeMode.SYSTEM
                 }
 
-                val accountBalances = base.accs.associate { acc ->
-                    acc.id to AccountBalanceCalculator.computeBalance(acc, base.txs)
-                }
+                val accountBalances = AccountBalanceCalculator.computeBalancesAsOfMonth(
+                    accounts = base.accs,
+                    allTransactions = base.txs,
+                    monthYear = selectedMonth
+                )
 
                 val baseCurrencyCode = Currencies.codeForSymbol(userCurrency)
                 val netWorth = AccountBalanceCalculator.computeTotalInBaseCurrency(
@@ -198,7 +201,7 @@ class MainViewModel @Inject constructor(
                     transactions = base.txs,
                     monthTransactions = monthTxs,
                     categories = base.cats,
-                    budgets = base.bdgts,
+                    budgets = currentMonthBudgets,
                     recurringList = base.recurrings,
                     accounts = base.accs,
                     user = user,
@@ -212,7 +215,7 @@ class MainViewModel @Inject constructor(
                     goals = extra.goals,
                     exchangeRates = extra.rates,
                     netWorthHistory = netWorthHistory,
-                    previousMonthBudgets = extra.prevBudgets,
+                    previousMonthBudgets = previousMonthBudgets,
                     previousMonthSpentByCategory = previousMonthSpentByCategory
                 )
             }
@@ -296,20 +299,29 @@ class MainViewModel @Inject constructor(
     ) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            val transaction = TransactionEntity(
-                userId = user.id,
-                title = title,
-                amount = Money.round(amount),
-                type = type,
-                categoryId = categoryId,
-                accountId = accountId,
-                timestamp = timestamp,
-                note = note,
-                paymentMethod = paymentMethod ?: "Cash",
-                receiptImageUri = receiptUri,
-                transferAccountId = transferAccountId
-            )
-            repository.addTransaction(transaction)
+            // A recurring item dated in the future (e.g. next payday) is a schedule, not a
+            // realized transaction yet - don't post it to the ledger until its due date actually
+            // arrives (via "Post Now" in RecurringScreen), consistent with how every other
+            // recurring item behaves. A non-recurring or already-due entry posts immediately as
+            // before.
+            val isFutureDatedRecurring = isRecurring && timestamp > System.currentTimeMillis()
+
+            if (!isFutureDatedRecurring) {
+                val transaction = TransactionEntity(
+                    userId = user.id,
+                    title = title,
+                    amount = Money.round(amount),
+                    type = type,
+                    categoryId = categoryId,
+                    accountId = accountId,
+                    timestamp = timestamp,
+                    note = note,
+                    paymentMethod = paymentMethod ?: "Cash",
+                    receiptImageUri = receiptUri,
+                    transferAccountId = transferAccountId
+                )
+                repository.addTransaction(transaction)
+            }
 
             if (isRecurring) {
                 upsertRecurring(
@@ -322,7 +334,9 @@ class MainViewModel @Inject constructor(
                     frequency = recurringFrequency,
                     note = note,
                     paymentMethod = paymentMethod ?: "Credit Card",
-                    nextDueDate = RecurringScheduler.computeNextDueDate(timestamp, recurringFrequency)
+                    nextDueDate = if (isFutureDatedRecurring) timestamp
+                        else RecurringScheduler.computeNextDueDate(timestamp, recurringFrequency),
+                    transferAccountId = transferAccountId
                 )
             }
         }
@@ -345,7 +359,8 @@ class MainViewModel @Inject constructor(
         note: String? = null,
         paymentMethod: String? = null,
         remainingOccurrences: Int? = null,
-        nextDueDate: Long? = null
+        nextDueDate: Long? = null,
+        transferAccountId: String? = null
     ) {
         val trimmedTitle = title.trim()
         val existing = uiState.value.recurringList.firstOrNull {
@@ -358,7 +373,8 @@ class MainViewModel @Inject constructor(
             title = trimmedTitle,
             amount = Money.round(amount),
             type = type,
-            isArchived = false
+            isArchived = false,
+            transferAccountId = transferAccountId
         ) ?: RecurringTransactionEntity(
             userId = userId,
             title = trimmedTitle,
@@ -370,7 +386,8 @@ class MainViewModel @Inject constructor(
             nextDueDate = nextDueDate ?: RecurringScheduler.computeNextDueDate(System.currentTimeMillis(), frequency),
             note = note,
             paymentMethod = paymentMethod,
-            remainingOccurrences = remainingOccurrences
+            remainingOccurrences = remainingOccurrences,
+            transferAccountId = transferAccountId
         )
         if (existing != null) {
             repository.updateRecurringTransaction(recurring)
@@ -398,7 +415,7 @@ class MainViewModel @Inject constructor(
                 title = "Account Transfer",
                 amount = Money.round(amount),
                 type = TransactionType.TRANSFER,
-                categoryId = "cat_other",
+                categoryId = "cat_transfer",
                 accountId = fromAccountId,
                 transferAccountId = toAccountId,
                 timestamp = timestamp,
@@ -483,7 +500,8 @@ class MainViewModel @Inject constructor(
         // Optional finite lifespan, e.g. "12 more payments on this loan and I'm done." Null means
         // it recurs indefinitely until manually archived or deleted.
         remainingOccurrences: Int? = null,
-        nextDueDate: Long? = null
+        nextDueDate: Long? = null,
+        transferAccountId: String? = null
     ) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
@@ -496,7 +514,8 @@ class MainViewModel @Inject constructor(
                 accountId = "acc_checking",
                 frequency = frequency,
                 remainingOccurrences = remainingOccurrences,
-                nextDueDate = nextDueDate
+                nextDueDate = nextDueDate,
+                transferAccountId = transferAccountId
             )
         }
     }
@@ -522,7 +541,8 @@ class MainViewModel @Inject constructor(
                 categoryId = recurring.categoryId,
                 accountId = recurring.accountId,
                 note = "Recurring (${recurring.frequency.name.lowercase().replace('_', '-')})",
-                paymentMethod = recurring.paymentMethod
+                paymentMethod = recurring.paymentMethod,
+                transferAccountId = recurring.transferAccountId
             )
 
             val postedDueDate = recurring.nextDueDate
@@ -564,6 +584,12 @@ class MainViewModel @Inject constructor(
     fun addCustomCategory(category: CategoryEntity) {
         viewModelScope.launch {
             repository.addCategory(category)
+        }
+    }
+
+    fun toggleCategoryArchive(category: CategoryEntity) {
+        viewModelScope.launch {
+            repository.addCategory(category.copy(isArchived = !category.isArchived))
         }
     }
 
@@ -672,6 +698,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun clearTransactionsOnly() {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            repository.clearTransactionsOnly(user.id)
+        }
+    }
+
     fun clearAllData() {
         val user = currentUser.value ?: return
         viewModelScope.launch {
@@ -698,6 +731,14 @@ class MainViewModel @Inject constructor(
             val result = com.selfbudget.app.core.util.CloudSyncManager.restoreFromJsonString(jsonString, repository.database)
             result.onSuccess { count -> onSuccess(count) }
                 .onFailure { error -> onError(error.message ?: "Failed to restore backup JSON") }
+        }
+    }
+
+    fun importData(data: com.selfbudget.app.core.util.ParsedImportData, onSuccess: (Int) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val result = com.selfbudget.app.core.util.DataImporter.commitImportToDatabase(repository.database, data)
+            result.onSuccess { count -> onSuccess(count) }
+                .onFailure { error -> onError(error.message ?: "Failed to import data") }
         }
     }
 

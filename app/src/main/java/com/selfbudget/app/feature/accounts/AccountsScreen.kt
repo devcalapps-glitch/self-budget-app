@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CreditCard
@@ -68,7 +69,7 @@ import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
 import com.selfbudget.app.feature.transaction.TransferDialog
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 
 @Composable
 fun AccountsScreen(
@@ -87,6 +88,7 @@ fun AccountsScreen(
     var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
     var showNetWorthModal by remember { mutableStateOf(false) }
+    var payoffCalculatorAccount by remember { mutableStateOf<AccountEntity?>(null) }
 
     // Calculate totals
     val totalAssets = remember(accounts, accountBalances) {
@@ -201,6 +203,7 @@ fun AccountsScreen(
                     if (points.size == 1) points.add(0, points.first())
                     points
                 }
+                val posIncomeColor = com.selfbudget.app.ui.theme.getIncomeColor()
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -236,7 +239,7 @@ fun AccountsScreen(
                         areaPath.close()
 
                         val isPos = (sparklinePoints.lastOrNull() ?: 0.0) >= 0
-                        val strokeColor = if (isPos) IncomeGreen else ExpenseRed
+                        val strokeColor = if (isPos) posIncomeColor else ExpenseRed
 
                         drawPath(
                             path = areaPath,
@@ -268,7 +271,7 @@ fun AccountsScreen(
                             text = "$currencySymbol%.2f".format(totalAssets),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = IncomeGreen
+                            color = com.selfbudget.app.ui.theme.getIncomeColor()
                         )
                     }
 
@@ -379,13 +382,7 @@ fun AccountsScreen(
                         MaterialTheme.colorScheme.primary
                     }
 
-                    val icon = when (acc.type) {
-                        AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-                        AccountType.CASH -> Icons.Default.Payments
-                        AccountType.SAVINGS -> Icons.Default.Savings
-                        AccountType.LOAN -> Icons.Default.Wallet
-                        else -> Icons.Default.AccountBalance
-                    }
+                    val icon = com.selfbudget.app.core.ui.getAccountIcon(acc.type)
 
                     val typeLabel = when (acc.type) {
                         AccountType.CHECKING -> "Checking"
@@ -394,10 +391,12 @@ fun AccountsScreen(
                         AccountType.CASH -> "Cash Wallet"
                         AccountType.INVESTMENT -> "Investment"
                         AccountType.LOAN -> "Loan / Mortgage"
+                        AccountType.RETIREMENT -> "Retirement (Non-Liquid)"
                     }
 
                     val rawBalance = accountBalances[acc.id] ?: acc.initialBalance
-                    val currentBalance = if (acc.type == AccountType.CREDIT_CARD || acc.type == AccountType.LOAN) -kotlin.math.abs(rawBalance) else rawBalance
+                    val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                    val displayBalance = if (isLiability) kotlin.math.abs(rawBalance) else rawBalance
                     val sym = if (acc.currencyCode.isNotBlank()) Currencies.symbolFor(acc.currencyCode) else currencySymbol
 
                     Card(
@@ -456,12 +455,26 @@ fun AccountsScreen(
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = if (currentBalance < 0) "-$sym%.2f".format(-currentBalance) else "$sym%.2f".format(currentBalance),
+                                    text = "$sym%.2f".format(displayBalance),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (currentBalance < 0) ExpenseRed else IncomeGreen
+                                    color = if (isLiability) MaterialTheme.colorScheme.onSurface else if (displayBalance >= 0) com.selfbudget.app.ui.theme.getIncomeColor() else ExpenseRed
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                if (isLiability) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { payoffCalculatorAccount = acc },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Calculate,
+                                            contentDescription = "Payoff Calculator",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = "Edit Account",
@@ -492,6 +505,7 @@ fun AccountsScreen(
     editingAccount?.let { acc ->
         EditCustomAccountDialog(
             account = acc,
+            currentBalance = accountBalances[acc.id],
             currencySymbol = currencySymbol,
             onDismiss = { editingAccount = null },
             onConfirm = { updatedAcc ->
@@ -505,15 +519,27 @@ fun AccountsScreen(
         )
     }
 
+    payoffCalculatorAccount?.let { acc ->
+        com.selfbudget.app.core.ui.DebtPayoffCalculatorDialog(
+            accounts = accounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            preselectedAccount = acc,
+            onDismiss = { payoffCalculatorAccount = null }
+        )
+    }
+
     if (showTransferDialog) {
         TransferDialog(
             accounts = accounts,
             accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
             onDismiss = { showTransferDialog = false },
             onConfirm = { fromId, toId, amount, note ->
                 onAddTransfer(fromId, toId, amount, note)
                 showTransferDialog = false
-            }
+            },
+            onAddCustomAccount = onAddAccount
         )
     }
 

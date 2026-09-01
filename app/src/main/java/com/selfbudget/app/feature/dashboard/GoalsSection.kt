@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.ui.platform.LocalFocusManager
@@ -74,11 +75,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AccountSelectionModal
+import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.GoalEntity
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 
 /**
  * Savings goals: a goal is tied to an account (usually a savings account/wallet) and its
@@ -92,18 +94,149 @@ fun GoalsSection(
     accounts: List<AccountEntity>,
     accountBalances: Map<String, Double>,
     currencySymbol: String,
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?) -> Unit,
+    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit,
     onDeleteGoal: (GoalEntity) -> Unit,
     onContributeToGoal: (GoalEntity, Double) -> Unit = { _, _ -> },
-    onUpdateGoal: (GoalEntity) -> Unit = {}
+    onUpdateGoal: (GoalEntity) -> Unit = {},
+    onAddCustomAccount: (AccountEntity) -> Unit = {}
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingGoal by remember { mutableStateOf<GoalEntity?>(null) }
     var contributingGoal by remember { mutableStateOf<GoalEntity?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(text = "Savings Goals", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            if (goals.isNotEmpty()) {
+                val totalGoals = goals.size
+                val goalsMetCount = goals.count { goal ->
+                    val linkedAccount = accounts.firstOrNull { it.id == goal.linkedAccountId }
+                    val accountAmount = linkedAccount?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0
+                    val currentAmount = accountAmount + goal.savedAmount
+                    currentAmount >= goal.targetAmount && goal.targetAmount > 0
+                }
+                val totalTargetAmount = goals.sumOf { it.targetAmount }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Savings,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Goals Overview",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Column 1: Number of Goals
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = "Active Goals",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "$totalGoals",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "$currencySymbol%.2f Target".format(totalTargetAmount),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            // Vertical Divider
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(48.dp)
+                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                            )
+
+                            // Column 2: Goals Met
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 16.dp),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = "Goals Met",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "$goalsMetCount",
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = getIncomeColor()
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "/ $totalGoals",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (totalGoals > 0) "%.0f%% Completed".format((goalsMetCount.toDouble() / totalGoals) * 100) else "0% Completed",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = getIncomeColor(),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             if (goals.isEmpty()) {
                 Card(
@@ -201,7 +334,12 @@ fun GoalsSection(
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(onClick = { contributingGoal = goal }, modifier = Modifier.size(28.dp)) {
-                                        Icon(imageVector = Icons.Default.Savings, contentDescription = "Add or Withdraw Contribution", modifier = Modifier.size(18.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Payments,
+                                            contentDescription = "Add or Withdraw Contribution",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
                             }
@@ -212,7 +350,7 @@ fun GoalsSection(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = IncomeGreen
+                                color = getIncomeColor()
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -228,6 +366,27 @@ fun GoalsSection(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                             }
+                            if (goal.targetDate != null && goal.targetDate > System.currentTimeMillis() && currentAmount < goal.targetAmount) {
+                                val calNow = java.util.Calendar.getInstance()
+                                val calTarget = java.util.Calendar.getInstance().apply { timeInMillis = goal.targetDate }
+                                val monthsLeft = ((calTarget.get(java.util.Calendar.YEAR) - calNow.get(java.util.Calendar.YEAR)) * 12 +
+                                        (calTarget.get(java.util.Calendar.MONTH) - calNow.get(java.util.Calendar.MONTH))).coerceAtLeast(1)
+                                val remaining = (goal.targetAmount - currentAmount).coerceAtLeast(0.0)
+                                val monthlyPace = remaining / monthsLeft
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = getIncomeColor().copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "🎯 Save $currencySymbol%.2f/mo (%d mos left)".format(monthlyPace, monthsLeft),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = getIncomeColor()
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -241,10 +400,11 @@ fun GoalsSection(
             accountBalances = accountBalances,
             currencySymbol = currencySymbol,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, target, accountId ->
-                onAddGoal(name, target, accountId)
+            onConfirm = { name, target, accountId, targetDate ->
+                onAddGoal(name, target, accountId, targetDate)
                 showAddDialog = false
-            }
+            },
+            onAddCustomAccount = onAddCustomAccount
         )
     }
 
@@ -262,7 +422,8 @@ fun GoalsSection(
             onDelete = { goalToDelete ->
                 onDeleteGoal(goalToDelete)
                 editingGoal = null
-            }
+            },
+            onAddCustomAccount = onAddCustomAccount
         )
     }
 
@@ -363,9 +524,186 @@ private fun ContributeDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // Live Preview
+                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isAdding) "CONTRIBUTION AMOUNT ($currencySymbol)" else "WITHDRAWAL AMOUNT ($currencySymbol)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Minus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = maxOf(0.0, current - 1.0)
+                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Subtract Amount",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Centered Big Amount Field (44.sp ExtraBold)
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                OutlinedTextField(
+                                    value = amountText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
+                                            amountText = input
+                                        }
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            style = TextStyle(
+                                                fontSize = 44.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = (if (isAdding) getIncomeColor() else ExpenseRed).copy(alpha = 0.35f),
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = currencySymbol,
+                                            style = TextStyle(
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isAdding) getIncomeColor() else ExpenseRed
+                                            ),
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 44.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isAdding) getIncomeColor() else ExpenseRed,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Plus Button
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    val next = current + 1.0
+                                    amountText = "%.2f".format(next)
+                                },
+                                shape = CircleShape,
+                                color = (if (isAdding) getIncomeColor() else ExpenseRed).copy(alpha = 0.15f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Amount",
+                                        tint = if (isAdding) getIncomeColor() else ExpenseRed
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Preset Amount Chips ($5, $10, $25, $50, $100)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(5, 10, 25, 50, 100).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                                        amountText = "%.2f".format(currentVal + preset)
+                                    }
+                                ) {
+                                    Text(
+                                        text = "+$currencySymbol$preset",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Action Segmented Chips (Add vs Withdraw) below Amount
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "ACTION TYPE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            FilterChip(
+                                selected = isAdding,
+                                onClick = { isAdding = true },
+                                label = { Text("➕ Add Contribution", fontWeight = FontWeight.Bold) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = !isAdding,
+                                onClick = { isAdding = false },
+                                label = { Text("➖ Withdraw", fontWeight = FontWeight.Bold) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // 3. Live Balance Progression Preview Card
                     Text(
-                        text = "Manual Contribution Total",
+                        text = "Projected Saved Total",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -381,54 +719,44 @@ private fun ContributeDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
-                            Text(
-                                text = "$currencySymbol%.2f".format(goal.savedAmount),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "→ $currencySymbol%.2f".format(projectedAmount.coerceAtLeast(0.0)),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (isAdding) IncomeGreen else MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Current Saved",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "$currencySymbol%.2f".format(goal.savedAmount),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "New Total After Action",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "$currencySymbol%.2f".format(projectedAmount.coerceAtLeast(0.0)),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isAdding) getIncomeColor() else com.selfbudget.app.ui.theme.ExpenseRed
+                                )
+                            }
                         }
                     }
-
-                    // Add / Withdraw Toggle
-                    Text(
-                        text = "Action",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        FilterChip(
-                            selected = isAdding,
-                            onClick = { isAdding = true },
-                            label = { Text("Add") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = !isAdding,
-                            onClick = { isAdding = false },
-                            label = { Text("Withdraw") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Amount Field
-                    OutlinedTextField(
-                        value = amountText,
-                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) amountText = input },
-                        label = { Text("Amount") },
-                        placeholder = { Text("0.00") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
 
                 // Sticky Bottom Action Bar
@@ -484,20 +812,23 @@ internal fun AddGoalDialog(
     accountBalances: Map<String, Double>,
     currencySymbol: String = "$",
     onDismiss: () -> Unit,
-    onConfirm: (name: String, targetAmount: Double, linkedAccountId: String?) -> Unit
+    onConfirm: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit,
+    onAddCustomAccount: (AccountEntity) -> Unit = {}
 ) {
     val assetAccounts = remember(accounts) {
         accounts.filter {
             it.type == AccountType.CHECKING ||
             it.type == AccountType.SAVINGS ||
-            it.type == AccountType.CASH ||
-            it.type == AccountType.INVESTMENT
+            it.type == AccountType.CASH
         }
     }
     var name by remember { mutableStateOf("") }
     var targetText by remember { mutableStateOf("") }
     var linkedAccount by remember(assetAccounts) { mutableStateOf<AccountEntity?>(assetAccounts.firstOrNull()) }
+    var selectedMonths by remember { mutableStateOf<Int?>(null) }
+    var targetDate by remember { mutableStateOf<Long?>(null) }
     var pickingAccount by remember { mutableStateOf(false) }
+    var showAddAccountDialog by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -531,7 +862,7 @@ internal fun AddGoalDialog(
     val progress = if (target > 0.0) (currentAmount / target).toFloat().coerceIn(0f, 1f) else 0f
 
     fun save() {
-        if (isValid) onConfirm(name.trim(), target, linkedAccount?.id)
+        if (isValid) onConfirm(name.trim(), target, linkedAccount?.id, targetDate)
     }
 
     Dialog(
@@ -757,6 +1088,56 @@ internal fun AddGoalDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // Target Timeline (Optional Pacing)
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "TARGET TIMELINE (OPTIONAL)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(
+                                "No Deadline" to null,
+                                "3 Mos" to 3,
+                                "6 Mos" to 6,
+                                "1 Yr" to 12,
+                                "2 Yrs" to 24
+                            ).forEach { (label, months) ->
+                                val isSelected = if (months == null) targetDate == null else selectedMonths == months
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.clickable {
+                                        if (months == null) {
+                                            targetDate = null
+                                            selectedMonths = null
+                                        } else {
+                                            selectedMonths = months
+                                            val cal = java.util.Calendar.getInstance()
+                                            cal.add(java.util.Calendar.MONTH, months)
+                                            targetDate = cal.timeInMillis
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Live Goal Card Preview
                     Text(
                         text = "Live Goal Preview",
@@ -807,7 +1188,7 @@ internal fun AddGoalDialog(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = IncomeGreen
+                                color = getIncomeColor()
                             )
 
                             Spacer(modifier = Modifier.height(6.dp))
@@ -957,10 +1338,27 @@ internal fun AddGoalDialog(
             accountBalances = accountBalances,
             onDismiss = { pickingAccount = false },
             onSelectAccount = { acc -> linkedAccount = acc; pickingAccount = false },
-            onAddCustomAccount = { pickingAccount = false }
+            onAddCustomAccount = { pickingAccount = false; showAddAccountDialog = true }
+        )
+    }
+
+    if (showAddAccountDialog) {
+        AddCustomAccountDialog(
+            onDismiss = { showAddAccountDialog = false },
+            onConfirm = { newAcc ->
+                showAddAccountDialog = false
+                onAddCustomAccount(newAcc)
+                linkedAccount = newAcc
+            }
         )
     }
 }
+
+private data class GoalEditSnapshot(
+    val name: String,
+    val targetText: String,
+    val linkedAccountId: String?
+)
 
 @Composable
 private fun EditGoalDialog(
@@ -970,14 +1368,14 @@ private fun EditGoalDialog(
     currencySymbol: String = "$",
     onDismiss: () -> Unit,
     onSave: (GoalEntity) -> Unit,
-    onDelete: (GoalEntity) -> Unit
+    onDelete: (GoalEntity) -> Unit,
+    onAddCustomAccount: (AccountEntity) -> Unit = {}
 ) {
     val assetAccounts = remember(accounts) {
         accounts.filter {
             it.type == AccountType.CHECKING ||
             it.type == AccountType.SAVINGS ||
-            it.type == AccountType.CASH ||
-            it.type == AccountType.INVESTMENT
+            it.type == AccountType.CASH
         }
     }
     var name by remember(goal.id) { mutableStateOf(goal.name) }
@@ -986,12 +1384,30 @@ private fun EditGoalDialog(
         mutableStateOf(assetAccounts.firstOrNull { it.id == goal.linkedAccountId })
     }
     var pickingAccount by remember { mutableStateOf(false) }
+    var showAddAccountDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmationModal by remember { mutableStateOf(false) }
 
     val target = targetText.toDoubleOrNull() ?: 0.0
     val isValid = name.isNotBlank() && target > 0.0
     val currentAmount = (linkedAccount?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0) + goal.savedAmount
     val progress = if (target > 0.0) (currentAmount / target).toFloat().coerceIn(0f, 1f) else 0f
+
+    // Dialog opens read-only; tapping "Edit" is the deliberate action that unlocks the form.
+    var isEditMode by remember { mutableStateOf(false) }
+    var editBaseline by remember { mutableStateOf<GoalEditSnapshot?>(null) }
+
+    fun captureEditSnapshot() = GoalEditSnapshot(
+        name = name,
+        targetText = targetText,
+        linkedAccountId = linkedAccount?.id
+    )
+
+    val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
+
+    fun enterEditMode() {
+        editBaseline = captureEditSnapshot()
+        isEditMode = true
+    }
 
     fun save() {
         if (isValid) {
@@ -1045,18 +1461,24 @@ private fun EditGoalDialog(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Edit Savings Goal",
+                                text = if (isEditMode) "Edit Savings Goal" else "Savings Goal Details",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
                         Button(
-                            onClick = { save() },
-                            enabled = isValid,
+                            onClick = {
+                                if (isEditMode) {
+                                    save()
+                                } else {
+                                    enterEditMode()
+                                }
+                            },
+                            enabled = !isEditMode || (isDirty && isValid),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -1069,6 +1491,15 @@ private fun EditGoalDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
+                    if (!isEditMode) {
+                        GoalViewModeSummary(
+                            name = name,
+                            targetText = targetText,
+                            currencySymbol = currencySymbol,
+                            linkedAccountName = linkedAccount?.name
+                        )
+                    } else {
+
                     // 1. Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
                     Column(
                         modifier = Modifier
@@ -1129,7 +1560,7 @@ private fun EditGoalDialog(
                                             style = TextStyle(
                                                 fontSize = 44.sp,
                                                 fontWeight = FontWeight.ExtraBold,
-                                                color = IncomeGreen.copy(alpha = 0.35f),
+                                                color = getIncomeColor().copy(alpha = 0.35f),
                                                 textAlign = TextAlign.Center
                                             ),
                                             modifier = Modifier.fillMaxWidth()
@@ -1141,7 +1572,7 @@ private fun EditGoalDialog(
                                             style = TextStyle(
                                                 fontSize = 32.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = IncomeGreen
+                                                color = getIncomeColor()
                                             ),
                                             modifier = Modifier.padding(end = 2.dp)
                                         )
@@ -1149,7 +1580,7 @@ private fun EditGoalDialog(
                                     textStyle = TextStyle(
                                         fontSize = 44.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = IncomeGreen,
+                                        color = getIncomeColor(),
                                         textAlign = TextAlign.Center
                                     ),
                                     keyboardOptions = KeyboardOptions(
@@ -1175,14 +1606,14 @@ private fun EditGoalDialog(
                                     targetText = "%.2f".format(next)
                                 },
                                 shape = CircleShape,
-                                color = IncomeGreen.copy(alpha = 0.15f),
+                                color = getIncomeColor().copy(alpha = 0.15f),
                                 modifier = Modifier.size(44.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
                                         contentDescription = "Add Target",
-                                        tint = IncomeGreen
+                                        tint = getIncomeColor()
                                     )
                                 }
                             }
@@ -1271,6 +1702,8 @@ private fun EditGoalDialog(
                         }
                     }
 
+                    } // end isEditMode form fields
+
                     // 4. Live Goal Preview (Hero Card)
                     Text(
                         text = "Live Goal Preview",
@@ -1321,7 +1754,7 @@ private fun EditGoalDialog(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = IncomeGreen
+                                color = getIncomeColor()
                             )
 
                             Spacer(modifier = Modifier.height(6.dp))
@@ -1356,12 +1789,18 @@ private fun EditGoalDialog(
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
-                                Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(if (isEditMode) "Cancel" else "Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
 
                             Button(
-                                onClick = { save() },
-                                enabled = isValid,
+                                onClick = {
+                                    if (isEditMode) {
+                                        save()
+                                    } else {
+                                        enterEditMode()
+                                    }
+                                },
+                                enabled = !isEditMode || (isDirty && isValid),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -1371,7 +1810,7 @@ private fun EditGoalDialog(
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(if (isEditMode) "Save Changes" else "Edit Goal", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
@@ -1399,7 +1838,18 @@ private fun EditGoalDialog(
             accountBalances = accountBalances,
             onDismiss = { pickingAccount = false },
             onSelectAccount = { acc -> linkedAccount = acc; pickingAccount = false },
-            onAddCustomAccount = { pickingAccount = false }
+            onAddCustomAccount = { pickingAccount = false; showAddAccountDialog = true }
+        )
+    }
+
+    if (showAddAccountDialog) {
+        AddCustomAccountDialog(
+            onDismiss = { showAddAccountDialog = false },
+            onConfirm = { newAcc ->
+                showAddAccountDialog = false
+                onAddCustomAccount(newAcc)
+                linkedAccount = newAcc
+            }
         )
     }
 
@@ -1484,6 +1934,89 @@ private fun EditGoalDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoalViewModeSummary(
+    name: String,
+    targetText: String,
+    currencySymbol: String,
+    linkedAccountName: String?
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "TARGET AMOUNT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$currencySymbol${targetText.ifBlank { "0.00" }}",
+                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = getIncomeColor())
+            )
+        }
+
+        GoalInfoRow(icon = Icons.Default.Savings, label = "Goal Name", value = name)
+        GoalInfoRow(
+            icon = Icons.Default.AccountBalance,
+            label = "Track Progress From",
+            value = linkedAccountName ?: "No account (manual goal)"
+        )
+    }
+}
+
+@Composable
+private fun GoalInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor
+                )
             }
         }
     }

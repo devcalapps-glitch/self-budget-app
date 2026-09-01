@@ -109,7 +109,8 @@ fun AddCustomAccountDialog(
         AccountTypeOption(AccountType.CASH, "Cash Wallet", Icons.Default.Payments),
         AccountTypeOption(AccountType.SAVINGS, "Savings", Icons.Default.Savings),
         AccountTypeOption(AccountType.INVESTMENT, "Investment", Icons.Default.Wallet),
-        AccountTypeOption(AccountType.LOAN, "Loan / Debt", Icons.Default.AccountBalance)
+        AccountTypeOption(AccountType.LOAN, "Loan / Debt", Icons.Default.AccountBalance),
+        AccountTypeOption(AccountType.RETIREMENT, "Retirement (Non-Liquid)", RetirementAccountIcon)
     )
     val isDebtType = selectedType == AccountType.CREDIT_CARD || selectedType == AccountType.LOAN
 
@@ -120,6 +121,7 @@ fun AddCustomAccountDialog(
         AccountType.SAVINGS -> "#9C27B0"
         AccountType.INVESTMENT -> "#FF9800"
         AccountType.LOAN -> "#795548"
+        AccountType.RETIREMENT -> "#607D8B"
         else -> "#2196F3"
     }
     val accColor = try { Color(android.graphics.Color.parseColor(accColorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
@@ -173,7 +175,8 @@ fun AddCustomAccountDialog(
                         Button(
                             onClick = {
                                 if (accountName.isNotBlank()) {
-                                    val balance = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                    val rawBalance = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                    val balance = if (isDebtType && rawBalance > 0.0) -rawBalance else rawBalance
                                     val newAcc = AccountEntity(
                                         id = "acc_custom_${UUID.randomUUID()}",
                                         userId = "custom",
@@ -397,6 +400,7 @@ fun AddCustomAccountDialog(
                                     AccountType.SAVINGS -> "#9C27B0"
                                     AccountType.INVESTMENT -> "#FF9800"
                                     AccountType.LOAN -> "#795548"
+                                    AccountType.RETIREMENT -> "#607D8B"
                                     else -> "#2196F3"
                                 }
                                 val optionColor = try { Color(android.graphics.Color.parseColor(optionColorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
@@ -433,6 +437,7 @@ fun AddCustomAccountDialog(
                         AccountType.SAVINGS -> "e.g. Savings Account"
                         AccountType.INVESTMENT -> "e.g. Investment"
                         AccountType.LOAN -> "e.g. Car Loan"
+                        AccountType.RETIREMENT -> "e.g. 401(k), IRA"
                         else -> "e.g. Checking Account"
                     }
 

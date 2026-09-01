@@ -10,7 +10,9 @@
 * **Per-Source Effective Income**: Accurately computes monthly income across recurring salaries, paychecks, and freelance/ad-hoc payments ($\max(\text{Logged}, \text{Expected}) + \text{Ad-Hoc}$).
 * **Unified Budget & Fixed Bill Commitments**: Calculates unassigned "Free Cash" by balancing category budgets, fixed recurring obligations, unbudgeted expenses, and savings goal commitments.
 
-### 2. 🎯 Smart Category Budgets & Multi-Month Rollover
+### 2. 🎯 Smart Category Budgets & Persistent Baselines
+* **Persistent Monthly Baselines (Monarch/Mint Model)**: Budgets set in any month automatically carry forward to all future months without requiring manual monthly recreation.
+* **Historical Immutability**: Modifying or deleting a budget in the current month creates a forward baseline without retroactively altering past historical reports or calculations.
 * **Persistent Deficit Carryover**: Rollover carryover chains off the previous month's unclamped net position, so overspending deficits persist across consecutive months until fully repaid.
 * **Safe-to-Spend Safeguard**: Real-time spending headroom calculator accounting for upcoming recurring bills in each category.
 * **Daily Pace Safeguard**: Zero-floored daily spending pace tracker ($\max(0.0, \, \text{Remaining Budget} / \text{Remaining Days})$).
@@ -20,8 +22,10 @@
 * **Zero Cost & High Privacy**: Uses the user's personal Google storage quota ($0.00 cloud server cost to developer). Data is hidden from third-party apps and standard Drive views.
 * **Offline Share Sheet Export**: Cent-safe JSON export/import via Android Share Sheet and Storage Access Framework document picker.
 
-### 4. 💳 Net Worth & Signed Liability Account Engine
-* **Signed Asset & Debt Balancing**: Accurately tracks checking, savings, cash, investments, credit card debts, and loan balances. Purchases increase liability debt, while payments reduce debt and adjust net worth.
+### 4. 💳 Net Worth, Accounts & Wallet Management
+* **Signed Asset & Debt Balancing**: Accurately tracks checking, savings, cash, investments, retirement accounts (e.g. 401(k), IRA), credit card debts, and loan balances. Purchases increase liability debt, while payments reduce debt and adjust net worth.
+* **Unified Global Add Chooser**: Fast 1-tap entry for Income, Expense, Budgets, Recurring Bills, and Accounts/Wallets directly from the global `+` FAB.
+* **Interactive Edit Mode Toggle**: Seamlessly switch between viewing an account's filtered transaction activity feed and editing/deleting accounts with pencil badge overlays.
 * **Net Worth Snapshot History**: Interactive historical net worth tracking with time-range filtering.
 
 ### 5. 🧾 ML Kit OCR Receipt Scanning & Voice Logging
@@ -34,9 +38,10 @@
 * **Archived Bill Safeguards & Styled Cards**: Disable posting on archived bills with muted semi-transparent containers, soft borders, and Archived 📦 status badges.
 * **Calibrated Preset Chips**: Quick amount preset chips (`+$50`, `+$100`, `+$250`, `+$500`, `+$1000`) matching the Budget page.
 
-### 7. 🔒 Biometric Security & High-Contrast Themes
+### 7. 🔒 Biometric Security, Data Management & High-Contrast Themes
 * **Native Android Biometrics**: Fingerprint & Face Unlock protection using `BiometricPrompt`.
-* **Adaptive Dark & Light Themes**: Accessible Material 3 design system with WCAG AA compliant text contrast in both light and dark modes.
+* **Isolated Data Management**: Dedicated Data & Account Management section housing Reset All Data / Clean Sweep tools with dual-step confirmation dialogs.
+* **Adaptive Dark & Light Themes**: Accessible Material 3 design system with WCAG AA compliant text contrast (`#1E5631` light mode income green) and calibrated ring charts.
 
 ---
 

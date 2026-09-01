@@ -15,3 +15,7 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+# Temporary scratch & cache directories
+.scratch/
+**/__pycache__/

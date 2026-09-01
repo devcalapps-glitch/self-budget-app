@@ -34,7 +34,12 @@ import com.selfbudget.app.data.model.UserEntity
     // v11: BudgetEntity added unique index on (userId, categoryId, monthYear).
     // v12: BudgetEntity gained isAutoSynced, so a manually-set budget ceiling stops being
     // silently overwritten by recurring-bill auto-sync (see MainViewModel.upsertRecurring).
-    version = 12,
+    // v13: CategoryEntity gained isArchived to support archiving custom categories.
+    // v14: RecurringTransactionEntity gained transferAccountId, so a recurring debt payment can
+    // target a specific Credit Card / Loan account and actually reduce its balance when posted -
+    // see MIGRATION_13_14 below, a real migration (not destructive fallback) since this app now
+    // has an installed base with real transaction history.
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -59,6 +64,7 @@ abstract class AppDatabase : RoomDatabase() {
             CategoryEntity("cat_bills", "Bills & Utilities", "Receipt", "#9C27B0", TransactionType.EXPENSE, true),
             CategoryEntity("cat_entertainment", "Entertainment", "Movie", "#673AB7", TransactionType.EXPENSE, true),
             CategoryEntity("cat_health", "Health & Fitness", "MedicalServices", "#009688", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_transfer", "Account Transfer", "CompareArrows", "#00ACC1", TransactionType.EXPENSE, true),
             CategoryEntity("cat_other", "Other", "MoreHoriz", "#607D8B", TransactionType.EXPENSE, true),
 
             // Tailored Income Categories
@@ -76,6 +82,12 @@ abstract class AppDatabase : RoomDatabase() {
             AccountEntity(id = "acc_savings", userId = "system", name = "Savings Account", type = AccountType.SAVINGS, initialBalance = 0.0, colorHex = "#9C27B0", iconName = "Savings", isDefault = false)
         )
 
+        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recurring_transactions ADD COLUMN transferAccountId TEXT DEFAULT NULL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -86,6 +98,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "self_budget.db"
                 )
+                .addMigrations(MIGRATION_13_14)
                 // PRE-LAUNCH ONLY: destructive fallback is acceptable while this app has never
                 // shipped a public release (versionCode 1, no installed base yet), since there's
                 // no real user data any schema bump could destroy. The moment this ships to

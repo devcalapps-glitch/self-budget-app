@@ -13,37 +13,27 @@ import com.selfbudget.app.data.model.TransactionType
 object IncomeCalculator {
 
     /**
-     * Computes the per-source effective monthly income.
+     * Computes realized/posted monthly income from logged income transactions.
+     * Following Monarch/Mint standard, net worth and realized income only update when transactions are posted.
      */
     fun computeEffectiveMonthlyIncome(
         loggedIncomeTransactions: List<TransactionEntity>,
+        recurringIncomeList: List<RecurringTransactionEntity> = emptyList()
+    ): Double {
+        return Money.sum(loggedIncomeTransactions.filter { it.type == TransactionType.INCOME }.map { it.amount })
+    }
+
+    /**
+     * Computes the total expected recurring income for budget planning/forecasting.
+     */
+    fun computeExpectedMonthlyIncome(
         recurringIncomeList: List<RecurringTransactionEntity>
     ): Double {
         val activeRecurringIncome = recurringIncomeList.filter {
             it.type == TransactionType.INCOME && !it.isArchived
         }
-
-        val recurringCategoryIds = activeRecurringIncome.map { it.categoryId }.toSet()
-
-        // 1. Calculate per recurring income category: max(expected, logged for category)
-        val recurringCategoryTotals = activeRecurringIncome.groupBy { it.categoryId }.mapValues { entry ->
-            val expectedMonthly = Money.sum(entry.value.map { rec ->
-                RecurringFrequencyNormalizer.toMonthlyAmount(rec.amount, rec.frequency)
-            })
-            val actualLoggedForCat = Money.sum(
-                loggedIncomeTransactions.filter { it.categoryId == entry.key }.map { it.amount }
-            )
-            maxOf(expectedMonthly, actualLoggedForCat)
-        }
-
-        val totalRecurringEffective = Money.sum(recurringCategoryTotals.values)
-
-        // 2. Ad-hoc income logged in categories without an active recurring income item (e.g. freelance, bonus)
-        val adHocTxs = loggedIncomeTransactions.filter {
-            it.type == TransactionType.INCOME && it.categoryId !in recurringCategoryIds
-        }
-        val totalAdHoc = Money.sum(adHocTxs.map { it.amount })
-
-        return Money.add(totalRecurringEffective, totalAdHoc)
+        return Money.sum(activeRecurringIncome.map { rec ->
+            RecurringFrequencyNormalizer.toMonthlyAmount(rec.amount, rec.frequency)
+        })
     }
 }

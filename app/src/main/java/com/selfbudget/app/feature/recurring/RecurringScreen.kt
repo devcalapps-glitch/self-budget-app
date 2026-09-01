@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -36,16 +37,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Publish
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -86,15 +92,19 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.selfbudget.app.core.ui.AccountSelectionModal
+import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
+import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getExpenseColor
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -103,6 +113,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Close
+
+private data class RecurringEditSnapshot(
+    val title: String,
+    val amountText: String,
+    val frequency: RecurringFrequency,
+    val categoryId: String?,
+    val isArchived: Boolean,
+    val nextDueDate: Long,
+    val hasLimitedOccurrences: Boolean,
+    val occurrencesText: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,11 +136,14 @@ fun RecurringScreen(
     onNextMonth: (() -> Unit)? = null,
     onSelectMonthYear: ((String) -> Unit)? = null,
     currencySymbol: String = "$",
-    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?) -> Unit,
+    accounts: List<com.selfbudget.app.data.model.AccountEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
+    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?, transferAccountId: String?) -> Unit,
     onDeleteRecurring: (RecurringTransactionEntity) -> Unit,
     onPostTransaction: (RecurringTransactionEntity) -> Unit,
     onUpdateRecurring: (RecurringTransactionEntity) -> Unit = {},
     onAddCustomCategory: ((CategoryEntity) -> Unit)? = null,
+    onAddCustomAccount: ((AccountEntity) -> Unit)? = null,
     // Lets the single global "+" (owned by HomeScreen) open this screen's "new recurring" dialog
     // from anywhere in the app, instead of this screen needing its own floating add button.
     requestNewRecurring: Boolean = false,
@@ -129,6 +153,7 @@ fun RecurringScreen(
     var selectedFilterType by remember { mutableStateOf<TransactionType?>(null) }
     var selectedRecurringForDetails by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var pendingDuplicateItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
+    var pendingPostItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var pendingDeleteItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var duplicateMatchDate by remember { mutableStateOf<String?>(null) }
     var recentlyPostedId by remember { mutableStateOf<String?>(null) }
@@ -161,6 +186,7 @@ fun RecurringScreen(
     }
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
+    val accountMap = remember(accounts) { accounts.associateBy { it.id } }
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     // Archived/finished items no longer count toward totals - they're done, not active.
@@ -177,8 +203,9 @@ fun RecurringScreen(
     }
 
     val filteredList = remember(recurringList, selectedFilterType) {
-        if (selectedFilterType == null) recurringList
+        val list = if (selectedFilterType == null) recurringList
         else recurringList.filter { it.type == selectedFilterType }
+        list.sortedBy { it.isArchived }
     }
 
     val currentMonthName = remember(selectedMonthYear) {
@@ -250,8 +277,8 @@ fun RecurringScreen(
                         Surface(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
-                            color = IncomeGreen.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.25f))
+                            color = getIncomeColor().copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, getIncomeColor().copy(alpha = 0.25f))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
@@ -265,7 +292,7 @@ fun RecurringScreen(
                                     text = "+$currencySymbol%.2f".format(totalRecurringIncome),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = IncomeGreen
+                                    color = getIncomeColor()
                                 )
                             }
                         }
@@ -389,13 +416,14 @@ fun RecurringScreen(
                         ) {
                             Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Add Recurring Bill / Salary", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(text = "Add Recurring Item", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     filteredList.forEach { item ->
+                        val isDark = isSystemInDarkTheme()
                         val category = categoryMap[item.categoryId]
                         val isIncome = item.type == TransactionType.INCOME
                         val freqText = when (item.frequency) {
@@ -416,7 +444,8 @@ fun RecurringScreen(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = if (item.isArchived) {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
                                 } else {
                                     MaterialTheme.colorScheme.surface
                                 }
@@ -427,7 +456,8 @@ fun RecurringScreen(
                             border = BorderStroke(
                                 1.dp,
                                 if (item.isArchived) {
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                                    if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
                                 } else {
                                     MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                                 }
@@ -451,9 +481,9 @@ fun RecurringScreen(
                                                     if (item.isArchived) {
                                                         MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                                                     } else if (isIncome) {
-                                                        IncomeGreen
+                                                        com.selfbudget.app.ui.theme.getIncomeColor()
                                                     } else {
-                                                        ExpenseRed
+                                                        com.selfbudget.app.ui.theme.getExpenseColor()
                                                     }
                                                 )
                                         )
@@ -497,9 +527,9 @@ fun RecurringScreen(
                                             color = if (item.isArchived) {
                                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                             } else if (isIncome) {
-                                                IncomeGreen
+                                                com.selfbudget.app.ui.theme.getIncomeColor()
                                             } else {
-                                                ExpenseRed
+                                                com.selfbudget.app.ui.theme.getExpenseColor()
                                             }
                                         )
 
@@ -522,13 +552,13 @@ fun RecurringScreen(
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = IncomeGreen.copy(alpha = 0.15f)
+                                                color = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
                                             ) {
                                                 Text(
                                                     text = "Posted for ${monthNameFormatter.format(postedTransactionForThisCycle?.timestamp?.let { Date(it) } ?: Date())} ✅",
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = IncomeGreen,
+                                                    color = com.selfbudget.app.ui.theme.getIncomeColor(),
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )
                                             }
@@ -566,7 +596,7 @@ fun RecurringScreen(
                                     Button(
                                         onClick = {
                                             if (!isPosted) {
-                                                executePost(item)
+                                                pendingPostItem = item
                                             } else {
                                                 duplicateMatchDate = postedTransactionForThisCycle?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
                                                 pendingDuplicateItem = item
@@ -575,14 +605,14 @@ fun RecurringScreen(
                                         enabled = !isArchived,
                                         shape = RoundedCornerShape(10.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else if (isPosted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f) else if (isIncome) IncomeGreen else MaterialTheme.colorScheme.primary,
+                                            containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else if (isPosted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f) else if (isIncome) getIncomeColor() else MaterialTheme.colorScheme.primary,
                                             contentColor = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else if (isPosted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) else Color.White,
                                             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                                             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         )
                                     ) {
                                         Icon(
-                                            imageVector = if (isArchived) Icons.Default.Archive else if (isPosted) Icons.Default.Verified else Icons.Default.Check,
+                                            imageVector = if (isArchived) Icons.Default.Archive else if (isPosted) Icons.Default.Verified else Icons.Default.Publish,
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp)
                                         )
@@ -617,12 +647,38 @@ fun RecurringScreen(
             SetRecurringDialog(
                 categories = categories,
                 currencySymbol = currencySymbol,
+                accounts = accounts,
+                accountBalances = accountBalances,
                 onDismiss = { showAddDialog = false },
-                onConfirm = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate ->
-                    onAddRecurring(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate)
+                onConfirm = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId ->
+                    onAddRecurring(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId)
                     showAddDialog = false
                 },
-                onAddCustomCategory = onAddCustomCategory
+                onAddCustomCategory = onAddCustomCategory,
+                onAddCustomAccount = onAddCustomAccount
+            )
+        }
+
+        // Full-page confirmation before any "Post Now" actually posts: lets the user see the
+        // bill's details and pick which account the money actually comes from / goes to for this
+        // occurrence, instead of silently reusing whatever account the item was created with.
+        pendingPostItem?.let { postItem ->
+            PostRecurringConfirmModal(
+                item = postItem,
+                accounts = accounts,
+                accountBalances = accountBalances,
+                categoryName = categoryMap[postItem.categoryId]?.name,
+                currencySymbol = currencySymbol,
+                onDismiss = { pendingPostItem = null },
+                onConfirm = { accountId ->
+                    executePost(postItem.copy(accountId = accountId))
+                    pendingPostItem = null
+                },
+                onDelete = {
+                    pendingDeleteItem = postItem
+                    pendingPostItem = null
+                },
+                onAddCustomAccount = onAddCustomAccount
             )
         }
 
@@ -706,7 +762,7 @@ fun RecurringScreen(
                                         text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(itemToPost.amount),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isIncome) IncomeGreen else ExpenseRed
+                                        color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                                     )
                                 }
 
@@ -852,7 +908,7 @@ fun RecurringScreen(
                                     text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(itemToDelete.amount),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isIncome) IncomeGreen else ExpenseRed
+                                    color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                                 )
                             }
                         }
@@ -922,6 +978,30 @@ fun RecurringScreen(
             val amount = amountText.toDoubleOrNull() ?: 0.0
             val isValid = title.isNotBlank() && amount > 0.0
 
+            // Dialog opens read-only; tapping "Edit" is the deliberate action that unlocks the
+            // form. Post Now / Delete stay live regardless of mode since they act on the
+            // last-saved item, not the in-progress edit draft.
+            var isEditMode by remember(item.id) { mutableStateOf(false) }
+            var editBaseline by remember(item.id) { mutableStateOf<RecurringEditSnapshot?>(null) }
+
+            fun captureEditSnapshot() = RecurringEditSnapshot(
+                title = title,
+                amountText = amountText,
+                frequency = selectedFrequency,
+                categoryId = selectedCategory?.id,
+                isArchived = isArchived,
+                nextDueDate = selectedNextDueDate,
+                hasLimitedOccurrences = hasLimitedOccurrences,
+                occurrencesText = occurrencesText
+            )
+
+            val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
+
+            fun enterEditMode() {
+                editBaseline = captureEditSnapshot()
+                isEditMode = true
+            }
+
             fun save() {
                 if (!isValid) return
                 val remainingOccurrences = if (hasLimitedOccurrences) occurrencesText.toIntOrNull() else null
@@ -943,7 +1023,7 @@ fun RecurringScreen(
                 if (isArchived) return
                 selectedRecurringForDetails = null
                 if (!isJustPosted) {
-                    executePost(item)
+                    pendingPostItem = item
                 } else {
                     duplicateMatchDate = postedTransactionForThisCycle?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
                     pendingDuplicateItem = item
@@ -990,26 +1070,32 @@ fun RecurringScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Edit Recurring",
+                                        text = if (isEditMode) "Edit Recurring" else "Recurring Details",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
 
                                 Button(
-                                    onClick = { save() },
-                                    enabled = isValid,
+                                    onClick = {
+                                        if (isEditMode) {
+                                            save()
+                                        } else {
+                                            enterEditMode()
+                                        }
+                                    },
+                                    enabled = !isEditMode || (isDirty && isValid),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
                             }
                         }
 
                         // Scrollable Form Content with clean radial glow on off-white background
                         val isDark = isSystemInDarkTheme()
-                        val glowColorCenter = if (isIncome) IncomeGreen.copy(alpha = 0.16f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                        val glowColorMid = if (isIncome) IncomeGreen.copy(alpha = 0.05f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
+                        val glowColorCenter = if (isIncome) getIncomeColor().copy(alpha = 0.16f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        val glowColorMid = if (isIncome) getIncomeColor().copy(alpha = 0.05f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -1042,7 +1128,25 @@ fun RecurringScreen(
                                     .padding(20.dp),
                                 verticalArrangement = Arrangement.spacedBy(20.dp)
                             ) {
-                                val themeColor = if (isIncome) IncomeGreen else ExpenseRed
+                                val themeColor = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
+
+                            if (!isEditMode) {
+                                RecurringViewModeSummary(
+                                    isIncome = isIncome,
+                                    themeColor = themeColor,
+                                    currencySymbol = currencySymbol,
+                                    amountText = amountText,
+                                    title = title,
+                                    frequency = selectedFrequency,
+                                    categoryName = selectedCategory?.name,
+                                    nextDueDate = selectedNextDueDate,
+                                    dateFormatter = dateFormatter,
+                                    hasLimitedOccurrences = hasLimitedOccurrences,
+                                    occurrencesText = occurrencesText,
+                                    isArchived = isArchived,
+                                    transferAccountName = item.transferAccountId?.let { accountMap[it]?.name }
+                                )
+                            } else {
 
                             // 1. Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
                             Column(
@@ -1052,7 +1156,7 @@ fun RecurringScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = if (isIncome) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING BILL AMOUNT ($currencySymbol)",
+                                    text = if (isIncome) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING EXPENSE AMOUNT ($currencySymbol)",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1193,22 +1297,26 @@ fun RecurringScreen(
                                 }
                             }
 
+                            } // end isEditMode amount stepper
+
                             // 2. Verified Status / Post Action Card (Elevated for Light Mode Contrast)
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = if (isArchived) {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
                                 } else if (isJustPosted) {
-                                    if (isDark) IncomeGreen.copy(alpha = 0.15f) else Color(0xFFE8F5E9)
+                                    if (isDark) getIncomeColor().copy(alpha = 0.15f) else Color(0xFFE8F5E9)
                                 } else {
                                     if (isDark) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
                                 },
                                 border = BorderStroke(
                                     1.dp,
                                     if (isArchived) {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                        if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
                                     } else if (isJustPosted) {
-                                        if (isDark) IncomeGreen.copy(alpha = 0.4f) else IncomeGreen.copy(alpha = 0.6f)
+                                        if (isDark) getIncomeColor().copy(alpha = 0.4f) else getIncomeColor().copy(alpha = 0.6f)
                                     } else {
                                         if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                                     }
@@ -1224,14 +1332,14 @@ fun RecurringScreen(
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) IncomeGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        color = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) getIncomeColor().copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                         modifier = Modifier.size(42.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = if (isArchived) Icons.Default.Archive else if (isJustPosted) Icons.Default.Verified else Icons.Default.Check,
+                                                imageVector = if (isArchived) Icons.Default.Archive else if (isJustPosted) Icons.Default.Verified else Icons.Default.Publish,
                                                 contentDescription = null,
-                                                tint = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) IncomeGreen else MaterialTheme.colorScheme.primary,
+                                                tint = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) com.selfbudget.app.ui.theme.getIncomeColor() else MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(22.dp)
                                             )
                                         }
@@ -1242,23 +1350,23 @@ fun RecurringScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = if (isArchived) "Bill Archived" else if (isJustPosted) "Posted for ${monthNameFormatter.format(postedTransactionForThisCycle?.timestamp?.let { Date(it) } ?: Date())}" else "Mark Done / Post Now",
+                                                text = if (isArchived) "Bill Archived" else if (isJustPosted) "Posted for ${monthNameFormatter.format(postedTransactionForThisCycle?.timestamp?.let { Date(it) } ?: Date())}" else "Post Now",
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else if (isJustPosted) IncomeGreen else MaterialTheme.colorScheme.onSurface
+                                                color = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else if (isJustPosted) com.selfbudget.app.ui.theme.getIncomeColor() else MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isJustPosted && !isArchived) {
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.Verified,
                                                     contentDescription = "Verified Tick Mark",
-                                                    tint = IncomeGreen,
+                                                    tint = com.selfbudget.app.ui.theme.getIncomeColor(),
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
                                         }
                                         Text(
-                                            text = if (isArchived) "Posting is disabled while archived. Unarchive to post." else if (isJustPosted) "Transaction logged for this cycle. Tap to post again." else "Tap to log current cycle transaction immediately.",
+                                            text = if (isArchived) "Posting is disabled while archived. Unarchive to post." else if (isJustPosted) "Transaction logged for this cycle. Tap to post again." else "Tap to post current cycle transaction immediately.",
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1266,6 +1374,8 @@ fun RecurringScreen(
                                     }
                                 }
                             }
+
+                            if (isEditMode) {
 
                             // 3. Title Field
                             OutlinedTextField(
@@ -1393,7 +1503,67 @@ fun RecurringScreen(
                                 Switch(checked = isArchived, onCheckedChange = { isArchived = it })
                             }
 
-                            Spacer(modifier = Modifier.height(48.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // In-Form Action Buttons (Cancel | Save Changes)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        editBaseline?.let { baseline ->
+                                            title = baseline.title
+                                            amountText = baseline.amountText
+                                            selectedFrequency = baseline.frequency
+                                            selectedCategory = categoryMap[baseline.categoryId]
+                                            isArchived = baseline.isArchived
+                                            selectedNextDueDate = baseline.nextDueDate
+                                            hasLimitedOccurrences = baseline.hasLimitedOccurrences
+                                            occurrencesText = baseline.occurrencesText
+                                        }
+                                        isEditMode = false
+                                    },
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+
+                                Button(
+                                    onClick = { save() },
+                                    enabled = isDirty && isValid,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(1.3f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    pendingDeleteItem = item
+                                    selectedRecurringForDetails = null
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                            ) {
+                                Text("Delete Recurring Item", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
+
+                            } // end isEditMode form fields
+
+                            Spacer(modifier = Modifier.height(150.dp))
                         }
                         }
 
@@ -1408,24 +1578,55 @@ fun RecurringScreen(
                                 .imePadding()
                                 .navigationBarsPadding()
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 OutlinedButton(
                                     onClick = {
-                                        pendingDeleteItem = item
-                                        selectedRecurringForDetails = null
+                                        if (isEditMode) {
+                                            editBaseline?.let { baseline ->
+                                                title = baseline.title
+                                                amountText = baseline.amountText
+                                                selectedFrequency = baseline.frequency
+                                                selectedCategory = categoryMap[baseline.categoryId]
+                                                isArchived = baseline.isArchived
+                                                selectedNextDueDate = baseline.nextDueDate
+                                                hasLimitedOccurrences = baseline.hasLimitedOccurrences
+                                                occurrencesText = baseline.occurrencesText
+                                            }
+                                            isEditMode = false
+                                        } else {
+                                            selectedRecurringForDetails = null
+                                        }
                                     },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp),
                                     shape = RoundedCornerShape(14.dp),
-                                    border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
                                 ) {
-                                    Text("Delete Recurring Item", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text(if (isEditMode) "Cancel" else "Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (isEditMode) {
+                                            save()
+                                        } else {
+                                            enterEditMode()
+                                        }
+                                    },
+                                    enabled = !isEditMode || (isDirty && isValid),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(1.3f)
+                                        .height(48.dp)
+                                ) {
+                                    Text(if (isEditMode) "Save Changes" else "Edit Recurring", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 }
                             }
                         }
@@ -1458,7 +1659,8 @@ fun RecurringScreen(
                     onAddCustomCategory = {
                         expandedCategory = false
                         showNewCategoryDialog = true
-                    }
+                    },
+                    onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
                 )
             }
 
@@ -1491,6 +1693,444 @@ fun RecurringScreen(
                 ) {
                     androidx.compose.material3.DatePicker(state = datePickerState)
                 }
+            }
+        }
+    }
+}
+
+// Full-screen "review before you post" step, same modal pattern as the rest of the app
+// (persistent top bar with Close, scrollable content, sticky bottom action). Exists because
+// posting used to silently reuse whatever account the recurring item was created with - usually
+// the default checking account - with no way to say "actually, pay this one from my other card."
+@Composable
+private fun PostRecurringConfirmModal(
+    item: RecurringTransactionEntity,
+    accounts: List<AccountEntity>,
+    accountBalances: Map<String, Double>,
+    categoryName: String?,
+    currencySymbol: String,
+    onDismiss: () -> Unit,
+    onConfirm: (accountId: String) -> Unit,
+    onDelete: (() -> Unit)? = null,
+    onAddCustomAccount: ((AccountEntity) -> Unit)? = null
+) {
+    val isIncome = item.type == TransactionType.INCOME
+    val themeColor = if (isIncome) getIncomeColor() else getExpenseColor()
+    var selectedAccount by remember(item.id) {
+        mutableStateOf(accounts.firstOrNull { it.id == item.accountId } ?: accounts.firstOrNull())
+    }
+    var pickingAccount by remember { mutableStateOf(false) }
+    var showNewAccountDialog by remember { mutableStateOf(false) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+            ) {
+                // Persistent Top App Bar
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Confirm & Post", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // Amount Hero
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isIncome) "INCOME AMOUNT" else "EXPENSE AMOUNT",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$currencySymbol%.2f".format(item.amount),
+                            style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
+                        )
+                    }
+
+                    // Recurring Record Details
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            RecurringInfoRow(icon = if (isIncome) Icons.Default.Check else Icons.Default.Category, label = if (isIncome) "Income Title" else "Bill Title", value = item.title)
+                            RecurringInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
+                            RecurringInfoRow(
+                                icon = Icons.Default.Repeat,
+                                label = "Repeat Frequency",
+                                value = item.frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
+                            )
+                            if (item.transferAccountId != null) {
+                                val debtAccountName = accounts.firstOrNull { it.id == item.transferAccountId }?.name ?: "Linked account"
+                                RecurringInfoRow(
+                                    icon = Icons.Default.CreditCard,
+                                    label = "Pays Down Debt",
+                                    value = debtAccountName,
+                                    valueColor = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    // Payment Account Picker
+                    Text(
+                        text = if (isIncome) "DEPOSIT TO" else "PAY FROM",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.2.sp
+                    )
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pickingAccount = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = selectedAccount?.name ?: "Select an account",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    selectedAccount?.let { acc ->
+                                        val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                        Text(
+                                            text = "Balance: $currencySymbol%.2f".format(rawBal),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    // In-Form Action Buttons (Cancel | Confirm & Post, and Delete Recurring)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+
+                        Button(
+                            onClick = { selectedAccount?.let { onConfirm(it.id) } },
+                            enabled = selectedAccount != null,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier
+                                .weight(1.4f)
+                                .height(50.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Confirm & Post", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+
+                    if (onDelete != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onDelete,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = com.selfbudget.app.ui.theme.ExpenseRed
+                            ),
+                            border = BorderStroke(1.5.dp, com.selfbudget.app.ui.theme.ExpenseRed.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                tint = com.selfbudget.app.ui.theme.ExpenseRed,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Delete Recurring Item",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = com.selfbudget.app.ui.theme.ExpenseRed
+                            )
+                        }
+                    }
+
+                    // Standardized 150.dp bottom scroll spacing for effortless scrolling
+                    Spacer(modifier = Modifier.height(150.dp))
+                }
+
+                // Sticky Bottom Action Bar
+                Surface(
+                    shadowElevation = 12.dp,
+                    tonalElevation = 6.dp,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+
+                        if (onDelete != null) {
+                            OutlinedButton(
+                                onClick = onDelete,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = com.selfbudget.app.ui.theme.ExpenseRed
+                                ),
+                                border = BorderStroke(1.dp, com.selfbudget.app.ui.theme.ExpenseRed.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .size(48.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Delete",
+                                    tint = com.selfbudget.app.ui.theme.ExpenseRed,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { selectedAccount?.let { onConfirm(it.id) } },
+                            enabled = selectedAccount != null,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(48.dp)
+                        ) {
+                            Text("Confirm & Post", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (pickingAccount) {
+        AccountSelectionModal(
+            accounts = accounts,
+            selectedAccount = selectedAccount,
+            currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
+            onDismiss = { pickingAccount = false },
+            onSelectAccount = { acc ->
+                selectedAccount = acc
+                pickingAccount = false
+            },
+            onAddCustomAccount = {
+                pickingAccount = false
+                showNewAccountDialog = true
+            }
+        )
+    }
+
+    if (showNewAccountDialog) {
+        AddCustomAccountDialog(
+            currencySymbol = currencySymbol,
+            onDismiss = { showNewAccountDialog = false },
+            onConfirm = { newAcc ->
+                onAddCustomAccount?.invoke(newAcc)
+                selectedAccount = newAcc
+                showNewAccountDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun RecurringViewModeSummary(
+    isIncome: Boolean,
+    themeColor: Color,
+    currencySymbol: String,
+    amountText: String,
+    title: String,
+    frequency: RecurringFrequency,
+    categoryName: String?,
+    nextDueDate: Long,
+    dateFormatter: SimpleDateFormat,
+    hasLimitedOccurrences: Boolean,
+    occurrencesText: String,
+    isArchived: Boolean,
+    transferAccountName: String? = null
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (isIncome) "RECURRING INCOME AMOUNT" else "RECURRING EXPENSE AMOUNT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$currencySymbol${amountText.ifBlank { "0.00" }}",
+                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
+            )
+        }
+
+        RecurringInfoRow(icon = if (isIncome) Icons.Default.Check else Icons.Default.Category, label = if (isIncome) "Income Title" else "Bill Title", value = title)
+        RecurringInfoRow(
+            icon = Icons.Default.Repeat,
+            label = "Repeat Frequency",
+            value = frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
+        )
+        RecurringInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
+        RecurringInfoRow(icon = Icons.Default.CalendarToday, label = "Start / Next Due Date", value = dateFormatter.format(Date(nextDueDate)))
+
+        if (transferAccountName != null) {
+            RecurringInfoRow(
+                icon = Icons.Default.CreditCard,
+                label = "Pays Down Debt",
+                value = transferAccountName,
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (hasLimitedOccurrences) {
+            RecurringInfoRow(
+                icon = Icons.Default.Schedule,
+                label = "Payments Remaining",
+                value = occurrencesText.ifBlank { "—" }
+            )
+        }
+
+        if (isArchived) {
+            RecurringInfoRow(
+                icon = Icons.Default.Archive,
+                label = "Status",
+                value = "Archived / Paused",
+                valueColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecurringInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor
+                )
             }
         }
     }

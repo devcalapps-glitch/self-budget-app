@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +77,13 @@ fun AccountSelectionModal(
 
     val filteredAccounts = remember(accounts, searchQuery) {
         accounts.filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .sortedWith(
+                compareBy(
+                    { !it.isDefault },
+                    { getAccountTypePriority(it.type) },
+                    { it.name.lowercase() }
+                )
+            )
     }
 
     Dialog(
@@ -142,7 +150,7 @@ fun AccountSelectionModal(
                 }
 
                 // Search Box
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Box(modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 8.dp)) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -158,8 +166,9 @@ fun AccountSelectionModal(
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     if (filteredAccounts.isEmpty()) {
                         item {
@@ -205,13 +214,7 @@ fun AccountSelectionModal(
                     items(filteredAccounts, key = { it.id }) { acc ->
                         val isSelected = selectedAccount?.id == acc.id
                         val accColor = try { Color(android.graphics.Color.parseColor(acc.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
-                        val icon = when (acc.type) {
-                            AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-                            AccountType.CASH -> Icons.Default.Payments
-                            AccountType.SAVINGS -> Icons.Default.Savings
-                            AccountType.INVESTMENT -> Icons.Default.Wallet
-                            else -> Icons.Default.AccountBalance
-                        }
+                        val icon = getAccountIcon(acc.type)
 
                         Card(
                             shape = RoundedCornerShape(14.dp),
@@ -264,8 +267,11 @@ fun AccountSelectionModal(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         val accSym = Currencies.symbolFor(acc.currencyCode)
+                                        val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                        val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                        val displayBal = if (isLiability) kotlin.math.abs(rawBal) else rawBal
                                         Text(
-                                            text = "$accSym%.2f".format(accountBalances[acc.id] ?: acc.initialBalance),
+                                            text = "$accSym%.2f".format(displayBal),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -282,6 +288,10 @@ fun AccountSelectionModal(
                                 }
                             }
                         }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(100.dp))
                     }
                 }
             }

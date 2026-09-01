@@ -100,7 +100,7 @@ import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,6 +116,7 @@ import java.util.Locale
 fun AddIncomeDialog(
     categories: List<CategoryEntity>,
     accounts: List<AccountEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
     allTransactions: List<TransactionEntity> = emptyList(),
     recurringList: List<RecurringTransactionEntity> = emptyList(),
     currencySymbol: String = "$",
@@ -162,7 +163,7 @@ fun AddIncomeDialog(
     // Android will restore focus onto the last real field (e.g. Amount) unless something else
     // already holds it — clearFocus() alone loses that race.
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal) {
-        focusAnchor.requestFocus()
+        runCatching { focusAnchor.requestFocus() }
         keyboardController?.hide()
     }
 
@@ -618,8 +619,16 @@ fun AddIncomeDialog(
                                 expandedAccountDropdown = true
                             }
                     ) {
+                        val depositAccountText = selectedAccount?.let { acc ->
+                            val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                            val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                            val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
+                            val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                            "${acc.name} ($accSym%.2f)".format(dispBal)
+                        } ?: "Select Deposit Account"
+
                         OutlinedTextField(
-                            value = selectedAccount?.name ?: "Select Deposit Account",
+                            value = depositAccountText,
                             onValueChange = {},
                             enabled = false,
                             label = { Text("Deposit Account") },
@@ -973,6 +982,7 @@ fun AddIncomeDialog(
     if (showNewCategoryDialog) {
         AddCustomCategoryDialog(
             initialType = TransactionType.INCOME,
+            lockType = true,
             onDismiss = { showNewCategoryDialog = false },
             onConfirm = { newCat ->
                 onAddCustomCategory?.invoke(newCat)
@@ -996,7 +1006,8 @@ fun AddIncomeDialog(
             onAddCustomCategory = {
                 expandedCategoryDropdown = false
                 showNewCategoryDialog = true
-            }
+            },
+            onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
         )
     }
 
@@ -1005,6 +1016,7 @@ fun AddIncomeDialog(
             accounts = availableAccounts,
             selectedAccount = selectedAccount,
             currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
             onDismiss = { expandedAccountDropdown = false },
             onSelectAccount = { acc ->
                 selectedAccount = acc

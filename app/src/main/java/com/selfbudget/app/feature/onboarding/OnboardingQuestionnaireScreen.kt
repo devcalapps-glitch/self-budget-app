@@ -52,7 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.AppLogoBadge
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.util.Locale
 
 /**
@@ -148,7 +148,7 @@ fun OnboardingQuestionnaireScreen(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
-                color = IncomeGreen,
+                color = getIncomeColor(),
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
@@ -219,7 +219,7 @@ fun OnboardingQuestionnaireScreen(
                         .height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = IncomeGreen,
+                        containerColor = getIncomeColor(),
                         contentColor = Color.White
                     )
                 ) {
@@ -270,10 +270,10 @@ private fun StepPrimaryGoal(
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(
                     width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) IncomeGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 ),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) IncomeGreen.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
                 )
             ) {
                 Row(
@@ -302,7 +302,7 @@ private fun StepPrimaryGoal(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Selected",
-                            tint = IncomeGreen,
+                            tint = getIncomeColor(),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -375,10 +375,10 @@ private fun StepCurrencySetup(
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(
                     width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) IncomeGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 ),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) IncomeGreen.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
                 )
             ) {
                 Row(
@@ -391,7 +391,7 @@ private fun StepCurrencySetup(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = CircleShape,
-                            color = if (isSelected) IncomeGreen else MaterialTheme.colorScheme.surfaceVariant,
+                            color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.size(36.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -416,7 +416,7 @@ private fun StepCurrencySetup(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Selected",
-                            tint = IncomeGreen,
+                            tint = getIncomeColor(),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -458,10 +458,10 @@ private fun StepReferralSource(
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(
                     width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) IncomeGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 ),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) IncomeGreen.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
                 )
             ) {
                 Row(
@@ -490,7 +490,7 @@ private fun StepReferralSource(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Selected",
-                            tint = IncomeGreen,
+                            tint = getIncomeColor(),
                             modifier = Modifier.size(24.dp)
                         )
                     }

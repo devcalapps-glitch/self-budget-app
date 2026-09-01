@@ -190,6 +190,7 @@
             <span class="badge">Last Updated: August 25, 2026</span>
             <div class="nav-links">
                 <a href="#privacy">Privacy Policy</a>
+                <a href="#delete-account">Account Deletion</a>
                 <a href="#terms">Terms of Service</a>
             </div>
         </header>
@@ -248,6 +249,37 @@
                     <li><strong>Data Reset:</strong> Erase all local accounts, transactions, and settings at any time using <strong>Clean Sweep / Reset Data</strong> in the app Settings.</li>
                     <li><strong>Cloud Backup Deletion:</strong> Manage or remove cloud backups directly inside your Google Account settings (<strong>Google Drive Web &rarr; Settings &rarr; Manage Apps &rarr; Self Budget &rarr; Delete hidden app data</strong>).</li>
                 </ul>
+            </div>
+
+            <!-- ACCOUNT DELETION REQUEST SECTION -->
+            <h2 id="delete-account" class="page-title">Account & Data Deletion Request</h2>
+
+            <div class="section">
+                <h2>Request Account & Data Erasure</h2>
+                <p>In accordance with Google Play Developer Policy, users of <strong>Self Budget</strong> have the right to request the complete deletion of their account records and associated data.</p>
+                <p>Self Budget is an offline-first application, so your transactions and accounts are stored locally on your device. However, if you signed in with Google or initialized Google Drive Cloud Sync, you can submit a formal account deletion request below:</p>
+
+                <div class="contact-box" style="margin-top: 16px;">
+                    <form name="account-deletion" action="https://formspree.io/f/xaeyyrln" method="POST">
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;" for="email">Google Account Email Address *</label>
+                            <input type="email" id="email" name="email" required placeholder="your.email@gmail.com" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-dark);">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;" for="request-type">Request Type *</label>
+                            <select id="request-type" name="request_type" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-dark);">
+                                <option value="full-erasure">Delete Account & Revoke Google Drive Sync Data</option>
+                                <option value="cloud-only">Delete Google Drive Sync Backup Only</option>
+                                <option value="other">General Data Privacy Request</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;" for="details">Additional Notes (Optional)</label>
+                            <textarea id="details" name="details" rows="3" placeholder="Provide any additional account or request details..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-dark);"></textarea>
+                        </div>
+                        <button type="submit" style="background-color: #dc2626; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.95rem;">Submit Account Deletion Request</button>
+                    </form>
+                </div>
             </div>
 
             <!-- TERMS OF SERVICE SECTION -->

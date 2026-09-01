@@ -85,6 +85,9 @@ class ExpenseRepository @Inject constructor(
     fun getBudgets(userId: String, monthYear: String): Flow<List<BudgetEntity>> =
         budgetDao.getBudgetsForMonth(userId, monthYear)
 
+    fun getAllBudgets(userId: String): Flow<List<BudgetEntity>> =
+        budgetDao.getAllBudgets(userId)
+
     suspend fun getBudgetForCategory(userId: String, categoryId: String, monthYear: String): BudgetEntity? =
         budgetDao.getBudgetForCategory(userId, categoryId, monthYear)
 
@@ -164,6 +167,10 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun deleteExchangeRate(rate: ExchangeRateEntity) {
         exchangeRateDao.deleteRate(rate)
+    }
+
+    suspend fun clearTransactionsOnly(userId: String) {
+        transactionDao.deleteAllTransactions(userId)
     }
 
     suspend fun clearAllData(userId: String) {

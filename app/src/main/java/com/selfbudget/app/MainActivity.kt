@@ -204,8 +204,8 @@ class MainActivity : FragmentActivity() {
                             onDeleteBudget = { categoryId ->
                                 viewModel.deleteCategoryBudget(categoryId)
                             },
-                            onAddRecurring = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate ->
-                                viewModel.addRecurringTransaction(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate)
+                            onAddRecurring = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId ->
+                                viewModel.addRecurringTransaction(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId)
                             },
                             onDeleteRecurring = { recurring ->
                                 viewModel.deleteRecurringTransaction(recurring)
@@ -219,6 +219,9 @@ class MainActivity : FragmentActivity() {
                             onAddCustomCategory = { category ->
                                 viewModel.addCustomCategory(category)
                             },
+                            onToggleCategoryArchive = { category ->
+                                viewModel.toggleCategoryArchive(category)
+                            },
                             onAddCustomAccount = { account ->
                                 viewModel.addAccount(account)
                             },
@@ -231,8 +234,8 @@ class MainActivity : FragmentActivity() {
                             onAddTransfer = { fromId, toId, amount, note ->
                                 viewModel.addTransfer(fromId, toId, amount, note)
                             },
-                            onAddGoal = { name, target, accountId ->
-                                viewModel.addGoal(name, target, linkedAccountId = accountId)
+                            onAddGoal = { name, target, accountId, targetDate ->
+                                viewModel.addGoal(name, target, targetDate = targetDate, linkedAccountId = accountId)
                             },
                             onDeleteGoal = { goal ->
                                 viewModel.deleteGoal(goal)
@@ -261,6 +264,9 @@ class MainActivity : FragmentActivity() {
                             onRestoreBackupJson = { jsonString, onSuccess, onError ->
                                 viewModel.restoreBackupJson(jsonString, onSuccess, onError)
                             },
+                            onImportData = { data, onSuccess, onError ->
+                                viewModel.importData(data, onSuccess, onError)
+                            },
                             onDriveSyncClick = { account, onResult ->
                                 viewModel.syncToGoogleDrive(this@MainActivity, account, onResult)
                             },
@@ -269,6 +275,9 @@ class MainActivity : FragmentActivity() {
                             },
                             onResetData = {
                                 viewModel.clearAllData()
+                            },
+                            onResetTransactionsOnly = {
+                                viewModel.clearTransactionsOnly()
                             },
                             onSignOut = {
                                 viewModel.signOut()

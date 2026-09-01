@@ -30,7 +30,8 @@ enum class AccountType {
     SAVINGS,
     CASH,
     INVESTMENT,
-    LOAN
+    LOAN,
+    RETIREMENT
 }
 
 @Entity(tableName = "accounts")
@@ -90,7 +91,12 @@ data class RecurringTransactionEntity(
     // item recurs indefinitely. Decremented by 1 each time it's posted (MainViewModel.postRecurringTransaction);
     // the item is auto-archived once this reaches 0, so a finished bill/loan doesn't linger forever
     // and doesn't keep generating reminders or counting toward budget/cash-flow projections.
-    val remainingOccurrences: Int? = null
+    val remainingOccurrences: Int? = null,
+    // When set (type == EXPENSE only), posting this recurring bill also reduces this Credit
+    // Card / Loan account's balance, the same way a one-off transfer/debt payment already does
+    // (see AccountBalanceCalculator.computeBalance). Lets a recurring item represent an actual
+    // planned monthly debt payment rather than just a generic expense.
+    val transferAccountId: String? = null
 )
 
 @Entity(tableName = "categories")
@@ -101,7 +107,8 @@ data class CategoryEntity(
     val iconName: String,
     val colorHex: String,
     val type: TransactionType,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    val isArchived: Boolean = false
 )
 
 @Entity(

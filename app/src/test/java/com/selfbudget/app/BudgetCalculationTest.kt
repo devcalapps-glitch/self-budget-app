@@ -153,4 +153,73 @@ class BudgetCalculationTest {
         // Then: Daily pace max must be floored at $0.00/day, not -$10.00/day
         assertEquals(0.0, dailyPace, 0.001)
     }
+
+    @Test
+    fun testPersistentBudgets_inheritsForwardWithoutMutatingPast() {
+        // Given: Groceries budget of $500 set in June 2026 ("2026-06")
+        val juneBudget = BudgetEntity(
+            id = "b1",
+            userId = "u1",
+            categoryId = "cat_groceries",
+            amountLimit = 500.0,
+            monthYear = "2026-06"
+        )
+        val allBudgets = mutableListOf(juneBudget)
+
+        // 1. June 2026 should have $500
+        val juneEffective = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-06")
+        assertEquals(1, juneEffective.size)
+        assertEquals(500.0, juneEffective[0].amountLimit, 0.001)
+
+        // 2. July 2026 ("2026-07") automatically inherits $500 without needing a new record
+        val julyEffective = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-07")
+        assertEquals(1, julyEffective.size)
+        assertEquals(500.0, julyEffective[0].amountLimit, 0.001)
+        assertEquals("2026-07", julyEffective[0].monthYear)
+
+        // 3. User edits Groceries in August 2026 ("2026-08") to $650
+        val augustBudget = BudgetEntity(
+            id = "b2",
+            userId = "u1",
+            categoryId = "cat_groceries",
+            amountLimit = 650.0,
+            monthYear = "2026-08"
+        )
+        allBudgets.add(augustBudget)
+
+        // PAST MONTHS CHECK: June and July MUST STILL have $500 (historical integrity)
+        val juneCheckAfterEdit = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-06")
+        assertEquals(500.0, juneCheckAfterEdit[0].amountLimit, 0.001)
+
+        val julyCheckAfterEdit = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-07")
+        assertEquals(500.0, julyCheckAfterEdit[0].amountLimit, 0.001)
+
+        // CURRENT & FUTURE MONTHS CHECK: August and September inherit $650
+        val augustEffective = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-08")
+        assertEquals(650.0, augustEffective[0].amountLimit, 0.001)
+
+        val septemberEffective = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-09")
+        assertEquals(650.0, septemberEffective[0].amountLimit, 0.001)
+
+        // 4. User deletes Groceries budget in October 2026 ("2026-10") (represented as 0.0 limit)
+        val octoberDelete = BudgetEntity(
+            id = "b3",
+            userId = "u1",
+            categoryId = "cat_groceries",
+            amountLimit = 0.0,
+            monthYear = "2026-10"
+        )
+        allBudgets.add(octoberDelete)
+
+        // October has no budget
+        val octoberEffective = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-10")
+        assertTrue("October budget should be empty after deletion", octoberEffective.isEmpty())
+
+        // Past months (August & June) still retain their respective historical limits
+        val augustCheck = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-08")
+        assertEquals(650.0, augustCheck[0].amountLimit, 0.001)
+
+        val juneCheck = com.selfbudget.app.core.util.BudgetCalculator.computeBudgetsForMonth(allBudgets, "2026-06")
+        assertEquals(500.0, juneCheck[0].amountLimit, 0.001)
+    }
 }

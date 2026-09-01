@@ -81,7 +81,6 @@ import com.selfbudget.app.core.util.VoiceParser
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.core.util.RecurringFrequencyNormalizer
 import androidx.compose.material3.AssistChip
@@ -89,6 +88,12 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material3.Switch
+
+private data class BudgetEditSnapshot(
+    val categoryId: String?,
+    val limitText: String,
+    val rolloverEnabled: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,6 +130,37 @@ fun SetBudgetDialog(
     var expandedDropdown by remember { mutableStateOf(false) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+
+    // Existing budgets open read-only; tapping "Edit" is the deliberate action that unlocks the
+    // form. A brand-new budget (isEditing == false) has nothing to view yet, so it always opens
+    // straight into the form.
+    var isEditMode by remember(isEditing) { mutableStateOf(!isEditing) }
+    var editBaseline by remember { mutableStateOf<BudgetEditSnapshot?>(null) }
+
+    fun captureEditSnapshot() = BudgetEditSnapshot(
+        categoryId = selectedCategory?.id,
+        limitText = limitText,
+        rolloverEnabled = rolloverEnabled
+    )
+
+    val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
+    val isValidBudget = selectedCategory != null && (limitText.toDoubleOrNull() ?: 0.0) > 0.0
+    val canSave = if (isEditing) isDirty && isValidBudget else isValidBudget
+
+    fun enterEditMode() {
+        editBaseline = captureEditSnapshot()
+        isEditMode = true
+    }
+
+    fun saveBudget() {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+        val cat = selectedCategory
+        val limit = limitText.toDoubleOrNull()
+        if (cat != null && limit != null && limit > 0) {
+            onConfirm(cat.id, limit, rolloverEnabled)
+        }
+    }
 
     val categoryRecurringMonthly = remember(selectedCategory, recurringList) {
         val catId = selectedCategory?.id ?: return@remember 0.0
@@ -184,8 +220,8 @@ fun SetBudgetDialog(
                 TopAppBar(
                     title = {
                         Text(
-                            text = if (initialCategoryId != null) "Edit Category Budget" else "Set Category Budget",
-                            style = MaterialTheme.typography.titleLarge,
+                            text = if (!isEditing) "Set Category Budget" else if (isEditMode) "Edit Category Budget" else "Category Budget Details",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     },
@@ -197,15 +233,13 @@ fun SetBudgetDialog(
                     actions = {
                         Button(
                             onClick = {
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                val cat = selectedCategory
-                                val limit = limitText.toDoubleOrNull()
-                                if (cat != null && limit != null && limit > 0) {
-                                    onConfirm(cat.id, limit, rolloverEnabled)
+                                if (isEditing && !isEditMode) {
+                                    enterEditMode()
+                                } else {
+                                    saveBudget()
                                 }
                             },
-                            enabled = selectedCategory != null && (limitText.toDoubleOrNull() ?: 0.0) > 0.0,
+                            enabled = if (isEditing && !isEditMode) true else canSave,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -213,7 +247,7 @@ fun SetBudgetDialog(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.padding(end = 12.dp)
                         ) {
-                            Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(if (isEditing && !isEditMode) "Edit" else "Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 )
@@ -226,6 +260,16 @@ fun SetBudgetDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    if (isEditing && !isEditMode) {
+                        BudgetViewModeSummary(
+                            currencySymbol = currencySymbol,
+                            limitText = limitText,
+                            categoryName = selectedCategory?.name,
+                            rolloverEnabled = rolloverEnabled,
+                            categoryRecurringMonthly = categoryRecurringMonthly
+                        )
+                    } else {
+
                     // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
                     Column(
                         modifier = Modifier
@@ -523,10 +567,12 @@ fun SetBudgetDialog(
                         )
                     }
 
+                    } // end isEditMode form content
+
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // Action Buttons Layout:
-                    // Row 1: [ Cancel ] | [ Save Budget / Save Budget Changes ] on the same line
+                    // Row 1: [ Cancel/Close ] | [ Save Budget / Save Budget Changes / Edit ] on the same line
                     // Row 2: [ Delete Category Budget ] stacked directly below
                     Column(
                         modifier = Modifier
@@ -551,20 +597,18 @@ fun SetBudgetDialog(
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
-                                Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(if (isEditing && !isEditMode) "Close" else "Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
 
                              Button(
                                 onClick = {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    val cat = selectedCategory
-                                    val limit = limitText.toDoubleOrNull()
-                                    if (cat != null && limit != null && limit > 0) {
-                                        onConfirm(cat.id, limit, rolloverEnabled)
+                                    if (isEditing && !isEditMode) {
+                                        enterEditMode()
+                                    } else {
+                                        saveBudget()
                                     }
                                 },
-                                enabled = selectedCategory != null && (limitText.toDoubleOrNull() ?: 0.0) > 0.0,
+                                enabled = if (isEditing && !isEditMode) true else canSave,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -574,7 +618,11 @@ fun SetBudgetDialog(
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text(if (isEditing) "Save Changes" else "Save Budget", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(
+                                    text = if (isEditing && !isEditMode) "Edit Category Budget" else if (isEditing) "Save Changes" else "Save Budget",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
                             }
                         }
 
@@ -713,7 +761,102 @@ fun SetBudgetDialog(
             onAddCustomCategory = {
                 expandedDropdown = false
                 showNewCategoryDialog = true
-            }
+            },
+            onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
         )
+    }
+}
+
+@Composable
+private fun BudgetViewModeSummary(
+    currencySymbol: String,
+    limitText: String,
+    categoryName: String?,
+    rolloverEnabled: Boolean,
+    categoryRecurringMonthly: Double
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "MONTHLY BUDGET LIMIT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$currencySymbol${limitText.ifBlank { "0.00" }}",
+                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+            )
+        }
+
+        BudgetInfoRow(icon = Icons.Default.Category, label = "Expense Category", value = categoryName ?: "—")
+        BudgetInfoRow(
+            icon = Icons.Default.Autorenew,
+            label = "Roll Over Unused Budget",
+            value = if (rolloverEnabled) "On" else "Off",
+            valueColor = if (rolloverEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+
+        if (categoryRecurringMonthly > 0.0) {
+            BudgetInfoRow(
+                icon = Icons.Default.AutoAwesome,
+                label = "Recurring Bills In This Category",
+                value = "$currencySymbol%.2f/mo".format(categoryRecurringMonthly),
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun BudgetInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor
+                )
+            }
+        }
     }
 }

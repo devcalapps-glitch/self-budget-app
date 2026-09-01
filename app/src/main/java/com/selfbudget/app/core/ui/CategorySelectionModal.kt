@@ -6,10 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -32,6 +35,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,14 +65,17 @@ fun CategorySelectionModal(
     transactionType: TransactionType = TransactionType.EXPENSE,
     onDismiss: () -> Unit,
     onSelectCategory: (CategoryEntity) -> Unit,
-    onAddCustomCategory: () -> Unit
+    onAddCustomCategory: () -> Unit,
+    onArchiveCategory: ((CategoryEntity) -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var pendingArchiveCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val filteredCategories = remember(categories, transactionType, searchQuery) {
         categories
+            .filter { !it.isArchived }
             .filter { it.type == transactionType }
             .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
     }
@@ -136,7 +143,7 @@ fun CategorySelectionModal(
                 }
 
                 // Search Box
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Box(modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 8.dp)) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -152,8 +159,9 @@ fun CategorySelectionModal(
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(filteredCategories, key = { it.id }) { category ->
                         val isSelected = selectedCategory?.id == category.id
@@ -180,14 +188,17 @@ fun CategorySelectionModal(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(14.dp),
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(36.dp)
+                                            .size(42.dp)
                                             .clip(CircleShape)
                                             .background(catColor.copy(alpha = 0.2f)),
                                         contentAlignment = Alignment.Center
@@ -196,11 +207,11 @@ fun CategorySelectionModal(
                                             imageVector = getCategoryIcon(category),
                                             contentDescription = null,
                                             tint = catColor,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(22.dp)
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(14.dp))
 
                                     Text(
                                         text = category.name,
@@ -210,19 +221,78 @@ fun CategorySelectionModal(
                                     )
                                 }
 
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (!category.isDefault && onArchiveCategory != null) {
+                                        IconButton(
+                                            onClick = { pendingArchiveCategory = category },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Archive,
+                                                contentDescription = "Archive Category",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+
+                    item {
+                        Spacer(modifier = Modifier.height(100.dp))
+                    }
                 }
             }
         }
+    }
+
+    // Archive Confirmation Dialog
+    if (pendingArchiveCategory != null) {
+        val catToArchive = pendingArchiveCategory!!
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingArchiveCategory = null },
+            title = {
+                Text(
+                    text = "Archive Category?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "This will hide '${catToArchive.name}' from future picklists. Your past spending history for this category remains safe and intact."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onArchiveCategory?.invoke(catToArchive)
+                        pendingArchiveCategory = null
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Archive Category", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { pendingArchiveCategory = null },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

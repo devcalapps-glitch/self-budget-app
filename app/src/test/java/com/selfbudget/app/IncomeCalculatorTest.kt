@@ -39,12 +39,17 @@ class IncomeCalculatorTest {
             categoryId = "cat_freelance"
         )
 
-        val effectiveIncome = IncomeCalculator.computeEffectiveMonthlyIncome(
+        val realizedIncome = IncomeCalculator.computeEffectiveMonthlyIncome(
             loggedIncomeTransactions = listOf(loggedSalary, loggedFreelance),
             recurringIncomeList = listOf(recurringSalary)
         )
 
-        // Salary source max(2000, 4000) = 4000. Ad-hoc freelance = 500. Total = 4500.
-        assertEquals(4500.0, effectiveIncome, 0.001)
+        val expectedIncome = IncomeCalculator.computeExpectedMonthlyIncome(
+            recurringIncomeList = listOf(recurringSalary)
+        )
+
+        // Realized income is strictly posted transactions: 2000 + 500 = 2500. Expected recurring = 4000.
+        assertEquals(2500.0, realizedIncome, 0.001)
+        assertEquals(4000.0, expectedIncome, 0.001)
     }
 }

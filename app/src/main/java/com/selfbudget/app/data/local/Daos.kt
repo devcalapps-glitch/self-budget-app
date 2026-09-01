@@ -185,6 +185,9 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE userId = :userId AND monthYear = :monthYear")
     fun getBudgetsForMonth(userId: String, monthYear: String): Flow<List<BudgetEntity>>
 
+    @Query("SELECT * FROM budgets WHERE userId = :userId OR userId = 'system' ORDER BY monthYear ASC")
+    fun getAllBudgets(userId: String): Flow<List<BudgetEntity>>
+
     @Query("SELECT * FROM budgets WHERE userId = :userId AND categoryId = :categoryId AND monthYear = :monthYear LIMIT 1")
     suspend fun getBudgetForCategory(userId: String, categoryId: String, monthYear: String): BudgetEntity?
 

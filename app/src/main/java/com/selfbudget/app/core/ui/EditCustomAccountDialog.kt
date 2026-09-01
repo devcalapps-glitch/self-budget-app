@@ -30,10 +30,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,6 +73,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -76,36 +81,58 @@ import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
+import com.selfbudget.app.data.model.GoalEntity
 import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.ui.theme.getIncomeColor
+
+private data class AccountEditSnapshot(
+    val name: String,
+    val type: AccountType,
+    val balanceText: String,
+    val currency: String,
+    val creditLimitText: String,
+    val aprText: String,
+    val minPaymentText: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCustomAccountDialog(
     account: AccountEntity,
+    currentBalance: Double? = null,
     currencySymbol: String = "$",
+    goals: List<GoalEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (AccountEntity) -> Unit,
     onDelete: ((AccountEntity) -> Unit)? = null
 ) {
+    val displayStartingBalance = currentBalance ?: account.initialBalance
+    val txDelta = (currentBalance ?: account.initialBalance) - account.initialBalance
+
     var accountName by remember { mutableStateOf(account.name) }
-    var initialBalanceText by remember { mutableStateOf(if (account.initialBalance > 0.0) "%.2f".format(account.initialBalance) else "") }
     var selectedType by remember { mutableStateOf(account.type) }
+    val isDebtType = selectedType == AccountType.CREDIT_CARD || selectedType == AccountType.LOAN
+
+    var initialBalanceText by remember {
+        mutableStateOf(
+            if (displayStartingBalance != 0.0) "%.2f".format(if (isDebtType && displayStartingBalance < 0.0) kotlin.math.abs(displayStartingBalance) else displayStartingBalance) else ""
+        )
+    }
     var accountTypeExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var selectedCurrency by remember { mutableStateOf(account.currencyCode) }
     var creditLimitText by remember { mutableStateOf(account.creditLimit?.let { "%.2f".format(it) } ?: "") }
     var aprText by remember { mutableStateOf(account.interestRateApr?.let { "%.2f".format(it) } ?: "") }
     var minPaymentText by remember { mutableStateOf(account.minimumPayment?.let { "%.2f".format(it) } ?: "") }
-
     val accountTypes = listOf(
         AccountTypeOption(AccountType.CHECKING, "Checking", Icons.Default.AccountBalance),
         AccountTypeOption(AccountType.CREDIT_CARD, "Credit Card", Icons.Default.CreditCard),
         AccountTypeOption(AccountType.CASH, "Cash Wallet", Icons.Default.Payments),
         AccountTypeOption(AccountType.SAVINGS, "Savings", Icons.Default.Savings),
         AccountTypeOption(AccountType.INVESTMENT, "Investment", Icons.Default.Wallet),
-        AccountTypeOption(AccountType.LOAN, "Loan / Debt", Icons.Default.AccountBalance)
+        AccountTypeOption(AccountType.LOAN, "Loan / Debt", Icons.Default.AccountBalance),
+        AccountTypeOption(AccountType.RETIREMENT, "Retirement (Non-Liquid)", RetirementAccountIcon)
     )
-    val isDebtType = selectedType == AccountType.CREDIT_CARD || selectedType == AccountType.LOAN
 
     val selectedOption = accountTypes.firstOrNull { it.type == selectedType } ?: accountTypes.first()
     val accColorHex = when (selectedType) {
@@ -114,9 +141,53 @@ fun EditCustomAccountDialog(
         AccountType.SAVINGS -> "#9C27B0"
         AccountType.INVESTMENT -> "#FF9800"
         AccountType.LOAN -> "#795548"
+        AccountType.RETIREMENT -> "#607D8B"
         else -> "#2196F3"
     }
     val accColor = try { Color(android.graphics.Color.parseColor(accColorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+
+    // Dialog opens read-only; tapping "Edit" is the deliberate action that unlocks the form.
+    var isEditMode by remember { mutableStateOf(false) }
+    var editBaseline by remember { mutableStateOf<AccountEditSnapshot?>(null) }
+
+    fun captureEditSnapshot() = AccountEditSnapshot(
+        name = accountName,
+        type = selectedType,
+        balanceText = initialBalanceText,
+        currency = selectedCurrency,
+        creditLimitText = creditLimitText,
+        aprText = aprText,
+        minPaymentText = minPaymentText
+    )
+
+    val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
+
+    fun enterEditMode() {
+        editBaseline = captureEditSnapshot()
+        isEditMode = true
+    }
+
+    fun buildUpdatedAccount(): AccountEntity {
+        val rawEntered = initialBalanceText.toDoubleOrNull() ?: kotlin.math.abs(displayStartingBalance)
+        val signedEntered = if (isDebtType && rawEntered > 0.0) -rawEntered else rawEntered
+        val targetInitialBalance = signedEntered - txDelta
+        return account.copy(
+            name = accountName.trim(),
+            type = selectedType,
+            initialBalance = targetInitialBalance,
+            colorHex = accColorHex,
+            currencyCode = selectedCurrency,
+            creditLimit = if (isDebtType) creditLimitText.toDoubleOrNull() else null,
+            interestRateApr = if (isDebtType) aprText.toDoubleOrNull() else null,
+            minimumPayment = if (isDebtType) minPaymentText.toDoubleOrNull() else null
+        )
+    }
+
+    fun trySave() {
+        if (accountName.isNotBlank()) {
+            onConfirm(buildUpdatedAccount())
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -148,7 +219,10 @@ fun EditCustomAccountDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             IconButton(onClick = onDismiss) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
@@ -158,27 +232,26 @@ fun EditCustomAccountDialog(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Edit Payment Account",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                text = if (isEditMode) "Edit Payment Account" else "Account Details",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        if (onDelete != null) {
-                            IconButton(
-                                onClick = { showDeleteConfirmation = true },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(ExpenseRed.copy(alpha = 0.15f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete Account",
-                                    tint = ExpenseRed,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                        Button(
+                            onClick = {
+                                if (isEditMode) {
+                                    trySave()
+                                } else {
+                                    enterEditMode()
+                                }
+                            },
+                            enabled = !isEditMode || (isDirty && accountName.isNotBlank()),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -191,6 +264,22 @@ fun EditCustomAccountDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
+                    if (!isEditMode) {
+                        AccountViewModeSummary(
+                            accountName = accountName,
+                            typeLabel = selectedOption.label,
+                            typeIcon = selectedOption.icon,
+                            accColor = accColor,
+                            currencySymbol = currencySymbol,
+                            balance = displayStartingBalance,
+                            initialBalance = account.initialBalance,
+                            isDebtType = isDebtType,
+                            creditLimitText = creditLimitText,
+                            aprText = aprText,
+                            minPaymentText = minPaymentText
+                        )
+                    } else {
+
                     // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
                     Column(
                         modifier = Modifier
@@ -199,7 +288,7 @@ fun EditCustomAccountDialog(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "STARTING BALANCE ($currencySymbol)",
+                            text = "CURRENT ACCOUNT BALANCE ($currencySymbol)",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -337,6 +426,38 @@ fun EditCustomAccountDialog(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        append("Initial Opening Balance: ")
+                                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)) {
+                                            append("$currencySymbol%.2f".format(account.initialBalance))
+                                        }
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
                     // 2. Account Type Dropdown List
@@ -383,6 +504,7 @@ fun EditCustomAccountDialog(
                                     AccountType.SAVINGS -> "#9C27B0"
                                     AccountType.INVESTMENT -> "#FF9800"
                                     AccountType.LOAN -> "#795548"
+                                    AccountType.RETIREMENT -> "#607D8B"
                                     else -> "#2196F3"
                                 }
                                 val optionColor = try { Color(android.graphics.Color.parseColor(optionColorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
@@ -419,6 +541,7 @@ fun EditCustomAccountDialog(
                         AccountType.SAVINGS -> "e.g. Savings Account"
                         AccountType.INVESTMENT -> "e.g. Investment"
                         AccountType.LOAN -> "e.g. Car Loan"
+                        AccountType.RETIREMENT -> "e.g. 401(k), IRA"
                         else -> "e.g. Checking Account"
                     }
 
@@ -485,6 +608,101 @@ fun EditCustomAccountDialog(
                             )
                         }
                     }
+
+                    } // end isEditMode form fields
+
+                    // Linked Savings Goals Section & Cash Availability Summary
+                    val linkedGoals = remember(goals, account.id) { goals.filter { it.linkedAccountId == account.id } }
+                    val totalEarmarked = remember(linkedGoals, displayStartingBalance) {
+                        linkedGoals.sumOf { if (it.savedAmount > 0) it.savedAmount else minOf(displayStartingBalance, it.targetAmount) }
+                    }
+                    val availableToSpend = remember(displayStartingBalance, totalEarmarked) {
+                        (displayStartingBalance - totalEarmarked).coerceAtLeast(0.0)
+                    }
+
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "LINKED SAVINGS GOALS & CASH AVAILABILITY",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        if (linkedGoals.isNotEmpty()) {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    linkedGoals.forEach { goal ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(imageVector = Icons.Default.Savings, contentDescription = null, tint = getIncomeColor(), modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(text = goal.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                            Text(
+                                                text = "$currencySymbol%.2f Goal Target".format(goal.targetAmount),
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = getIncomeColor()
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)))
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Available to Spend", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = getIncomeColor())
+                                        Text("$currencySymbol%.2f".format(availableToSpend), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = getIncomeColor())
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Earmarked for Goals", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("-$currencySymbol%.2f".format(totalEarmarked), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Total Account Balance", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("$currencySymbol%.2f".format(displayStartingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        } else {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "No savings goals linked to this account yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (isEditMode) {
 
                     // 5. Real-Time Account Card Preview (Hero Card)
                     Text(
@@ -601,23 +819,8 @@ fun EditCustomAccountDialog(
                         }
 
                         Button(
-                            onClick = {
-                                if (accountName.isNotBlank()) {
-                                    val balance = initialBalanceText.toDoubleOrNull() ?: account.initialBalance
-                                    val updatedAcc = account.copy(
-                                        name = accountName.trim(),
-                                        type = selectedType,
-                                        initialBalance = balance,
-                                        colorHex = accColorHex,
-                                        currencyCode = selectedCurrency,
-                                        creditLimit = if (isDebtType) creditLimitText.toDoubleOrNull() else null,
-                                        interestRateApr = if (isDebtType) aprText.toDoubleOrNull() else null,
-                                        minimumPayment = if (isDebtType) minPaymentText.toDoubleOrNull() else null
-                                    )
-                                    onConfirm(updatedAcc)
-                                }
-                            },
-                            enabled = accountName.isNotBlank(),
+                            onClick = { trySave() },
+                            enabled = isDirty && accountName.isNotBlank(),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1.3f)
@@ -626,6 +829,8 @@ fun EditCustomAccountDialog(
                             Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
+
+                    } // end isEditMode preview + inline actions
 
                     if (onDelete != null) {
                         OutlinedButton(
@@ -668,33 +873,24 @@ fun EditCustomAccountDialog(
                                 .weight(1f)
                                 .height(48.dp)
                         ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(if (isEditMode) "Cancel" else "Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
 
                         Button(
                             onClick = {
-                                if (accountName.isNotBlank()) {
-                                    val balance = initialBalanceText.toDoubleOrNull() ?: account.initialBalance
-                                    val updatedAcc = account.copy(
-                                        name = accountName.trim(),
-                                        type = selectedType,
-                                        initialBalance = balance,
-                                        colorHex = accColorHex,
-                                        currencyCode = selectedCurrency,
-                                        creditLimit = if (isDebtType) creditLimitText.toDoubleOrNull() else null,
-                                        interestRateApr = if (isDebtType) aprText.toDoubleOrNull() else null,
-                                        minimumPayment = if (isDebtType) minPaymentText.toDoubleOrNull() else null
-                                    )
-                                    onConfirm(updatedAcc)
+                                if (isEditMode) {
+                                    trySave()
+                                } else {
+                                    enterEditMode()
                                 }
                             },
-                            enabled = accountName.isNotBlank(),
+                            enabled = !isEditMode || (isDirty && accountName.isNotBlank()),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(48.dp)
                         ) {
-                            Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(if (isEditMode) "Save Changes" else "Edit Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }
@@ -779,6 +975,105 @@ fun EditCustomAccountDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountViewModeSummary(
+    accountName: String,
+    typeLabel: String,
+    typeIcon: ImageVector,
+    accColor: Color,
+    currencySymbol: String,
+    balance: Double,
+    initialBalance: Double,
+    isDebtType: Boolean,
+    creditLimitText: String,
+    aprText: String,
+    minPaymentText: String
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "CURRENT ACCOUNT BALANCE",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$currencySymbol%.2f".format(balance),
+                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = accColor)
+            )
+        }
+
+        AccountInfoRow(icon = Icons.Default.Info, label = "Initial Opening Balance", value = "$currencySymbol%.2f".format(initialBalance))
+        AccountInfoRow(icon = typeIcon, label = "Account Type", value = typeLabel, valueColor = accColor)
+        AccountInfoRow(icon = Icons.Default.AccountBalance, label = "Account Name", value = accountName)
+
+        if (isDebtType) {
+            if (creditLimitText.isNotBlank()) {
+                AccountInfoRow(icon = Icons.Default.CreditCard, label = "Credit Limit", value = "$currencySymbol$creditLimitText")
+            }
+            if (aprText.isNotBlank()) {
+                AccountInfoRow(icon = Icons.Default.Info, label = "APR", value = "$aprText%")
+            }
+            if (minPaymentText.isNotBlank()) {
+                AccountInfoRow(icon = Icons.Default.Payments, label = "Minimum Monthly Payment", value = "$currencySymbol$minPaymentText")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor
+                )
             }
         }
     }

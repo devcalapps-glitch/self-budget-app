@@ -53,6 +53,42 @@ object AccountBalanceCalculator {
     }
 
     /**
+     * Helper to compute timestamp cutoff for the end of a "yyyy-MM" month (23:59:59.999).
+     */
+    fun getEndOfMonthTimestamp(monthYear: String): Long {
+        return try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
+            val date = sdf.parse(monthYear) ?: return Long.MAX_VALUE
+            val cal = java.util.Calendar.getInstance()
+            cal.time = date
+            cal.set(java.util.Calendar.DAY_OF_MONTH, cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+            cal.set(java.util.Calendar.MINUTE, 59)
+            cal.set(java.util.Calendar.SECOND, 59)
+            cal.set(java.util.Calendar.MILLISECOND, 999)
+            cal.timeInMillis
+        } catch (_: Exception) {
+            Long.MAX_VALUE
+        }
+    }
+
+    /**
+     * Computes per-account balances as of the end of the given monthYear ("yyyy-MM").
+     * Includes initial balances plus all transactions up to the end of that month.
+     */
+    fun computeBalancesAsOfMonth(
+        accounts: List<AccountEntity>,
+        allTransactions: List<TransactionEntity>,
+        monthYear: String
+    ): Map<String, Double> {
+        val cutoff = getEndOfMonthTimestamp(monthYear)
+        val txsUpToMonth = allTransactions.filter { it.timestamp <= cutoff }
+        return accounts.associate { acc ->
+            acc.id to computeBalance(acc, txsUpToMonth)
+        }
+    }
+
+    /**
      * Total net worth across all accounts in `baseCurrency`.
      * Balances are converted and summed; negative balances (debts/liabilities) correctly reduce net worth.
      */

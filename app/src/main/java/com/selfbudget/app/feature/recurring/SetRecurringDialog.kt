@@ -29,14 +29,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import com.selfbudget.app.core.ui.AccountSelectionModal
+import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
 import com.selfbudget.app.core.ui.getCategoryIcon
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -92,11 +96,13 @@ import java.util.Date
 import androidx.compose.material.icons.filled.CalendarToday
 import com.selfbudget.app.core.util.VoiceParser
 import com.selfbudget.app.data.local.AppDatabase
+import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import androidx.compose.material3.Switch
 import androidx.compose.material.icons.filled.Autorenew
 
@@ -105,9 +111,12 @@ import androidx.compose.material.icons.filled.Autorenew
 fun SetRecurringDialog(
     categories: List<CategoryEntity>,
     currencySymbol: String = "$",
+    accounts: List<AccountEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
     onDismiss: () -> Unit,
-    onConfirm: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?) -> Unit,
-    onAddCustomCategory: ((CategoryEntity) -> Unit)? = null
+    onConfirm: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?, transferAccountId: String?) -> Unit,
+    onAddCustomCategory: ((CategoryEntity) -> Unit)? = null,
+    onAddCustomAccount: ((AccountEntity) -> Unit)? = null
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -118,6 +127,7 @@ fun SetRecurringDialog(
     var selectedFrequency by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
     var hasLimitedOccurrences by remember { mutableStateOf(false) }
     var occurrencesText by remember { mutableStateOf("") }
+    var showNewAccountDialog by remember { mutableStateOf(false) }
 
     val availableCategories = remember(categories) {
         if (categories.isNotEmpty()) categories else AppDatabase.DEFAULT_CATEGORIES
@@ -132,6 +142,12 @@ fun SetRecurringDialog(
     var expandedCategory by remember { mutableStateOf(false) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
     var showDatePickerModal by remember { mutableStateOf(false) }
+
+    var selectedTargetDebtAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var showTargetDebtAccountModal by remember { mutableStateOf(false) }
+    val availableDebtAccounts = remember(accounts) {
+        accounts.filter { it.type == AccountType.CREDIT_CARD || it.type == AccountType.LOAN }
+    }
     var selectedTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()) }
     
@@ -142,8 +158,8 @@ fun SetRecurringDialog(
     // closes. Dismissing the nested picker Dialog hands window focus back to this dialog's
     // window, and Android will restore focus onto the last real field (e.g. Amount) unless
     // something else already holds it — clearFocus() alone loses that race.
-    LaunchedEffect(expandedCategory) {
-        focusAnchor.requestFocus()
+    LaunchedEffect(expandedCategory, showTargetDebtAccountModal) {
+        runCatching { focusAnchor.requestFocus() }
         keyboardController?.hide()
     }
 
@@ -195,7 +211,7 @@ fun SetRecurringDialog(
                 TopAppBar(
                     title = {
                         Text(
-                            text = if (selectedType == TransactionType.INCOME) "Add Recurring Income" else "Add Recurring Bill",
+                            text = "Add Recurring Item",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -214,7 +230,7 @@ fun SetRecurringDialog(
                                 val categoryId = selectedCategory?.id ?: "cat_other"
                                 if (title.isNotBlank() && amount > 0.0) {
                                     val remainingOccurrences = if (hasLimitedOccurrences) occurrencesText.toIntOrNull() else null
-                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp)
+                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp, selectedTargetDebtAccount?.id)
                                 }
                             },
                             enabled = title.isNotBlank() &&
@@ -259,7 +275,7 @@ fun SetRecurringDialog(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (selectedType == TransactionType.INCOME) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING BILL AMOUNT ($currencySymbol)",
+                            text = if (selectedType == TransactionType.INCOME) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING EXPENSE AMOUNT ($currencySymbol)",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -399,65 +415,75 @@ fun SetRecurringDialog(
                         }
                     }
 
-                    // Segmented Toggle Switch Pill (Bill/Expense vs Income)
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Row(
+                    // Segmented Toggle Switch Pill (TYPE: Expense vs Income)
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "TYPE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp,
+                            modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                .fillMaxWidth()
+                                .height(48.dp)
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selectedType == TransactionType.EXPENSE) ExpenseRed.copy(alpha = 0.25f) else Color.Transparent
-                                    )
-                                    .clickable {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        selectedType = TransactionType.EXPENSE
-                                    },
-                                contentAlignment = Alignment.Center
+                                    .fillMaxSize()
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "Recurring Bill 🔴",
-                                    fontWeight = if (selectedType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
-                                )
-                            }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (selectedType == TransactionType.EXPENSE) ExpenseRed.copy(alpha = 0.25f) else Color.Transparent
+                                        )
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            selectedType = TransactionType.EXPENSE
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Expense 🔴",
+                                        fontWeight = if (selectedType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    )
+                                }
 
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selectedType == TransactionType.INCOME) IncomeGreen.copy(alpha = 0.25f) else Color.Transparent
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (selectedType == TransactionType.INCOME) getIncomeColor().copy(alpha = 0.25f) else Color.Transparent
+                                        )
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            selectedType = TransactionType.INCOME
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Income 🟢",
+                                        fontWeight = if (selectedType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedType == TransactionType.INCOME) getIncomeColor() else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
                                     )
-                                    .clickable {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        selectedType = TransactionType.INCOME
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Recurring Income 🟢",
-                                    fontWeight = if (selectedType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
-                                )
+                                }
                             }
                         }
                     }
@@ -553,6 +579,81 @@ fun SetRecurringDialog(
                                     expandedCategory = true
                                 }
                         )
+                    }
+
+                    // Optional Target Debt Account Field - lets this recurring bill represent an
+                    // actual planned monthly debt payment: when posted, it reduces that Credit
+                    // Card / Loan account's balance the same way a one-off transfer does (see
+                    // AccountBalanceCalculator), instead of just being a generic expense.
+                    val recurringCategoryName = selectedCategory?.name?.lowercase() ?: ""
+                    val isDebtOrMortgageCategory = recurringCategoryName.contains("credit") ||
+                        recurringCategoryName.contains("card") ||
+                        recurringCategoryName.contains("loan") ||
+                        recurringCategoryName.contains("debt") ||
+                        recurringCategoryName.contains("mortgage") ||
+                        recurringCategoryName.contains("rent")
+                    val shouldShowDebtAccountField = selectedType == TransactionType.EXPENSE &&
+                        availableDebtAccounts.isNotEmpty() &&
+                        (isDebtOrMortgageCategory || selectedTargetDebtAccount != null)
+
+                    if (shouldShowDebtAccountField) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                val targetDebtText = selectedTargetDebtAccount?.let { acc ->
+                                    val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                    val dispBal = kotlin.math.abs(rawBal)
+                                    "${acc.name} ($currencySymbol%.2f owed)".format(dispBal)
+                                } ?: "None (Standard Expense)"
+
+                                OutlinedTextField(
+                                    value = targetDebtText,
+                                    onValueChange = {},
+                                    enabled = false,
+                                    label = { Text("Apply Payment Toward Debt (Optional)") },
+                                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            showTargetDebtAccountModal = true
+                                        }
+                                )
+                            }
+
+                            selectedTargetDebtAccount?.let { debtAcc ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Posting this bill will reduce ${debtAcc.name} debt balance",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     // Start/Next Due Date
@@ -698,7 +799,7 @@ fun SetRecurringDialog(
                                 val categoryId = selectedCategory?.id ?: "cat_other"
                                 if (title.isNotBlank() && amount > 0.0) {
                                     val remainingOccurrences = if (hasLimitedOccurrences) occurrencesText.toIntOrNull() else null
-                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp)
+                                    onConfirm(title, amount, selectedType, categoryId, selectedFrequency, remainingOccurrences, selectedTimestamp, selectedTargetDebtAccount?.id)
                                 }
                             },
                             enabled = title.isNotBlank() &&
@@ -748,6 +849,37 @@ fun SetRecurringDialog(
             onAddCustomCategory = {
                 expandedCategory = false
                 showNewCategoryDialog = true
+            },
+            onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
+        )
+    }
+
+    if (showTargetDebtAccountModal) {
+        AccountSelectionModal(
+            accounts = availableDebtAccounts,
+            selectedAccount = selectedTargetDebtAccount,
+            currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
+            onDismiss = { showTargetDebtAccountModal = false },
+            onSelectAccount = { acc ->
+                selectedTargetDebtAccount = acc
+                showTargetDebtAccountModal = false
+            },
+            onAddCustomAccount = {
+                showTargetDebtAccountModal = false
+                showNewAccountDialog = true
+            }
+        )
+    }
+
+    if (showNewAccountDialog) {
+        AddCustomAccountDialog(
+            currencySymbol = currencySymbol,
+            onDismiss = { showNewAccountDialog = false },
+            onConfirm = { newAcc ->
+                onAddCustomAccount?.invoke(newAcc)
+                selectedTargetDebtAccount = newAcc
+                showNewAccountDialog = false
             }
         )
     }

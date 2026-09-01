@@ -49,7 +49,7 @@ import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -76,7 +76,8 @@ fun NetWorthHistoryModal(
             it.type == AccountType.CHECKING ||
             it.type == AccountType.SAVINGS ||
             it.type == AccountType.CASH ||
-            it.type == AccountType.INVESTMENT
+            it.type == AccountType.INVESTMENT ||
+            it.type == AccountType.RETIREMENT
         }
     }
     val debtAccounts = remember(accounts) {
@@ -186,7 +187,7 @@ fun NetWorthHistoryModal(
                                     Icon(
                                         imageVector = if (isOverallPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                                         contentDescription = null,
-                                        tint = if (isOverallPositive) IncomeGreen else ExpenseRed,
+                                        tint = if (isOverallPositive) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor(),
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -196,28 +197,6 @@ fun NetWorthHistoryModal(
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
-
-                                if (earliestSnapshot != null) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(
-                                                (if (isOverallPositive) IncomeGreen else ExpenseRed).copy(alpha = 0.15f)
-                                            )
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = "%s$currencySymbol%.2f (%.1f%%)".format(
-                                                if (isOverallPositive) "+" else "",
-                                                overallChange,
-                                                overallChangePct
-                                            ),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isOverallPositive) IncomeGreen else ExpenseRed
-                                        )
-                                    }
                                 }
                             }
 
@@ -251,16 +230,16 @@ fun NetWorthHistoryModal(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = IncomeGreen.copy(alpha = 0.1f)
+                                containerColor = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.1f)
                             ),
-                            border = BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.3f))
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.AccountBalance,
                                         contentDescription = null,
-                                        tint = IncomeGreen,
+                                        tint = com.selfbudget.app.ui.theme.getIncomeColor(),
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -268,7 +247,7 @@ fun NetWorthHistoryModal(
                                         text = "Total Assets",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = IncomeGreen
+                                        color = com.selfbudget.app.ui.theme.getIncomeColor()
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -391,7 +370,7 @@ fun NetWorthHistoryModal(
                                                     Icon(
                                                         imageVector = if (isGain) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                                         contentDescription = null,
-                                                        tint = if (isGain) IncomeGreen else ExpenseRed,
+                                                        tint = if (isGain) getIncomeColor() else ExpenseRed,
                                                         modifier = Modifier.size(12.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(2.dp))
@@ -402,7 +381,7 @@ fun NetWorthHistoryModal(
                                                         ),
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.SemiBold,
-                                                        color = if (isGain) IncomeGreen else ExpenseRed
+                                                        color = if (isGain) getIncomeColor() else ExpenseRed
                                                     )
                                                 }
                                             }
@@ -425,7 +404,7 @@ fun NetWorthHistoryModal(
                     }
 
                     // Generous bottom spacer for comfortable scrolling
-                    Spacer(modifier = Modifier.height(48.dp))
+                    Spacer(modifier = Modifier.height(120.dp))
                 }
             }
         }

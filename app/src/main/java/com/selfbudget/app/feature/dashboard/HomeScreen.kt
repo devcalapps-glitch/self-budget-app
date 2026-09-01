@@ -121,7 +121,7 @@ import com.selfbudget.app.feature.transaction.EditTransactionDialog
 import com.selfbudget.app.feature.transaction.TransferDialog
 import com.selfbudget.app.ui.HomeUiState
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -149,16 +149,17 @@ fun HomeScreen(
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onSetBudget: (categoryId: String, limit: Double, rolloverEnabled: Boolean) -> Unit,
     onDeleteBudget: (categoryId: String) -> Unit = {},
-    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?) -> Unit,
+    onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?, transferAccountId: String?) -> Unit,
     onDeleteRecurring: (RecurringTransactionEntity) -> Unit,
     onPostRecurring: (RecurringTransactionEntity) -> Unit,
     onUpdateRecurring: (RecurringTransactionEntity) -> Unit = {},
     onAddCustomCategory: (CategoryEntity) -> Unit,
+    onToggleCategoryArchive: (CategoryEntity) -> Unit = {},
     onAddCustomAccount: (AccountEntity) -> Unit,
     onUpdateAccount: (AccountEntity) -> Unit,
     onDeleteAccount: (AccountEntity) -> Unit,
     onAddTransfer: (fromAccountId: String, toAccountId: String, amount: Double, note: String?) -> Unit = { _, _, _, _ -> },
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?) -> Unit = { _, _, _ -> },
+    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit = { _, _, _, _ -> },
     onDeleteGoal: (com.selfbudget.app.data.model.GoalEntity) -> Unit = {},
     onContributeToGoal: (com.selfbudget.app.data.model.GoalEntity, Double) -> Unit = { _, _ -> },
     onUpdateGoal: (com.selfbudget.app.data.model.GoalEntity) -> Unit = {},
@@ -168,9 +169,11 @@ fun HomeScreen(
     onSetBiometricEnabled: (Boolean) -> Unit,
     onExportBackupJson: ((String) -> Unit, (String) -> Unit) -> Unit = { _, _ -> },
     onRestoreBackupJson: (jsonString: String, onSuccess: (Int) -> Unit, onError: (String) -> Unit) -> Unit = { _, _, _ -> },
+    onImportData: ((com.selfbudget.app.core.util.ParsedImportData, (Int) -> Unit, (String) -> Unit) -> Unit)? = null,
     onDriveSyncClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onDriveRestoreClick: (account: com.google.android.gms.auth.api.signin.GoogleSignInAccount, onResult: (String) -> Unit) -> Unit = { _, _ -> },
     onResetData: () -> Unit = {},
+    onResetTransactionsOnly: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 5 })
@@ -184,6 +187,7 @@ fun HomeScreen(
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showAddIncomeDialog by remember { mutableStateOf(false) }
     var showAddGoalDialog by remember { mutableStateOf(false) }
+    var showAddAccountFromMenuDialog by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var pendingNewBudget by remember { mutableStateOf(false) }
     var pendingNewRecurring by remember { mutableStateOf(false) }
@@ -349,6 +353,7 @@ fun HomeScreen(
                     onContributeToGoal = onContributeToGoal,
                     onUpdateGoal = onUpdateGoal,
                     onAddCustomCategory = onAddCustomCategory,
+                    onAddCustomAccount = onAddCustomAccount,
                     requestNewBudget = pendingNewBudget,
                     onNewBudgetRequestHandled = { pendingNewBudget = false }
                 )
@@ -361,11 +366,14 @@ fun HomeScreen(
                     onNextMonth = onNextMonth,
                     onSelectMonthYear = onSelectMonthYear,
                     currencySymbol = uiState.currencySymbol,
+                    accounts = uiState.accounts,
+                    accountBalances = uiState.accountBalances,
                     onAddRecurring = onAddRecurring,
                     onDeleteRecurring = onDeleteRecurring,
                     onPostTransaction = onPostRecurring,
                     onUpdateRecurring = onUpdateRecurring,
                     onAddCustomCategory = onAddCustomCategory,
+                    onAddCustomAccount = onAddCustomAccount,
                     requestNewRecurring = pendingNewRecurring,
                     onNewRecurringRequestHandled = { pendingNewRecurring = false }
                 )
@@ -379,7 +387,8 @@ fun HomeScreen(
                     currencySymbol = uiState.currencySymbol,
                     netWorthHistory = uiState.netWorthHistory,
                     accounts = uiState.accounts,
-                    accountBalances = uiState.accountBalances
+                    accountBalances = uiState.accountBalances,
+                    goals = uiState.goals
                 )
                 4 -> SearchScreen(
                     transactions = uiState.transactions,
@@ -415,6 +424,10 @@ fun HomeScreen(
                         transactions = uiState.transactions,
                         categories = uiState.categories,
                         accounts = uiState.accounts,
+                        recurringList = uiState.recurringList,
+                        budgets = uiState.budgets,
+                        goals = uiState.goals,
+                        accountBalances = uiState.accountBalances,
                         exchangeRates = uiState.exchangeRates,
                         onSetCurrency = onSetCurrency,
                         onSetThemeMode = onSetThemeMode,
@@ -422,9 +435,12 @@ fun HomeScreen(
                         onSetExchangeRate = onSetExchangeRate,
                         onExportBackupJson = onExportBackupJson,
                         onRestoreBackupJson = onRestoreBackupJson,
+                        onImportData = onImportData,
                         onDriveSyncClick = onDriveSyncClick,
                         onDriveRestoreClick = onDriveRestoreClick,
                         onResetData = onResetData,
+                        onResetTransactionsOnly = onResetTransactionsOnly,
+                        onToggleCategoryArchive = onToggleCategoryArchive,
                         onSignOut = {
                             showProfileSettings = false
                             onSignOut()
@@ -468,6 +484,10 @@ fun HomeScreen(
                     onPickGoal = {
                         showAddMenu = false
                         showAddGoalDialog = true
+                    },
+                    onPickAccount = {
+                        showAddMenu = false
+                        showAddAccountFromMenuDialog = true
                     }
                 )
             }
@@ -479,9 +499,20 @@ fun HomeScreen(
                 accountBalances = uiState.accountBalances,
                 currencySymbol = uiState.currencySymbol,
                 onDismiss = { showAddGoalDialog = false },
-                onConfirm = { name, targetAmount, linkedAccountId ->
+                onConfirm = { name, targetAmount, linkedAccountId, targetDate ->
                     showAddGoalDialog = false
-                    onAddGoal(name, targetAmount, linkedAccountId)
+                    onAddGoal(name, targetAmount, linkedAccountId, targetDate)
+                }
+            )
+        }
+
+        if (showAddAccountFromMenuDialog) {
+            com.selfbudget.app.core.ui.AddCustomAccountDialog(
+                currencySymbol = uiState.currencySymbol,
+                onDismiss = { showAddAccountFromMenuDialog = false },
+                onConfirm = { newAcc ->
+                    onAddCustomAccount(newAcc)
+                    showAddAccountFromMenuDialog = false
                 }
             )
         }
@@ -490,6 +521,7 @@ fun HomeScreen(
             AddExpenseDialog(
                 categories = uiState.categories,
                 accounts = uiState.accounts,
+                accountBalances = uiState.accountBalances,
                 budgets = uiState.budgets,
                 allTransactions = uiState.transactions,
                 recurringList = uiState.recurringList,
@@ -511,6 +543,7 @@ fun HomeScreen(
             AddIncomeDialog(
                 categories = uiState.categories,
                 accounts = uiState.accounts,
+                accountBalances = uiState.accountBalances,
                 allTransactions = uiState.transactions,
                 recurringList = uiState.recurringList,
                 currencySymbol = uiState.currencySymbol,
@@ -529,8 +562,10 @@ fun HomeScreen(
                 transaction = tx,
                 categories = uiState.categories,
                 accounts = uiState.accounts,
+                accountBalances = uiState.accountBalances,
                 budgets = uiState.budgets,
                 recurringList = uiState.recurringList,
+                allTransactions = uiState.transactions,
                 currencySymbol = uiState.currencySymbol,
                 onDismiss = { editingTransaction = null },
                 onConfirmUpdate = { updatedTx ->
@@ -542,7 +577,7 @@ fun HomeScreen(
                     editingTransaction = null
                 },
                 onAddRecurring = { title, amount, type, categoryId, frequency ->
-                    onAddRecurring(title, amount, type, categoryId, frequency, null, null)
+                    onAddRecurring(title, amount, type, categoryId, frequency, null, null, null)
                 },
                 onDeleteRecurring = { rec ->
                     onDeleteRecurring(rec)
@@ -639,7 +674,7 @@ fun HomeScreen(
                                     text = "${if (isIncome) "+" else "-"}${uiState.currencySymbol}%.2f".format(txToDelete.amount),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isIncome) IncomeGreen else ExpenseRed
+                                    color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                                 )
                             }
                         }
@@ -696,7 +731,8 @@ private fun AddEntryPointScreen(
     onPickExpense: () -> Unit,
     onPickBudget: () -> Unit,
     onPickRecurring: () -> Unit,
-    onPickGoal: () -> Unit
+    onPickGoal: () -> Unit,
+    onPickAccount: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -724,112 +760,147 @@ private fun AddEntryPointScreen(
                 )
             }
 
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val primaryContainerColor = MaterialTheme.colorScheme.primaryContainer
+            val secondaryColor = MaterialTheme.colorScheme.secondary
+            val secondaryContainerColor = MaterialTheme.colorScheme.secondaryContainer
+            val tertiaryColor = MaterialTheme.colorScheme.tertiary
+            val tertiaryContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+            val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+            val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+            val entries = listOf(
+                    AddEntryPointOption(
+                        title = "Add Income",
+                        subtitle = "Paycheck, freelance, or gift",
+                        icon = Icons.Default.ArrowUpward,
+                        iconBadgeColor = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f),
+                        iconTint = com.selfbudget.app.ui.theme.getIncomeColor(),
+                        onClick = onPickIncome
+                    ),
+                    AddEntryPointOption(
+                        title = "Add Expense",
+                        subtitle = "Something you spent money on",
+                        icon = Icons.Default.ArrowDownward,
+                        iconBadgeColor = com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f),
+                        iconTint = com.selfbudget.app.ui.theme.getExpenseColor(),
+                        onClick = onPickExpense
+                    ),
+                    AddEntryPointOption(
+                        title = "Create a Savings Goal",
+                        subtitle = "Emergency fund, trip, purchase",
+                        icon = Icons.Default.Savings,
+                        iconBadgeColor = primaryContainerColor,
+                        iconTint = primaryColor,
+                        onClick = onPickGoal
+                    ),
+                    AddEntryPointOption(
+                        title = "Create a Budget",
+                        subtitle = "Monthly limit for a category",
+                        icon = Icons.Default.PieChart,
+                        iconBadgeColor = secondaryContainerColor,
+                        iconTint = secondaryColor,
+                        onClick = onPickBudget
+                    ),
+                    AddEntryPointOption(
+                        title = "Add a Recurring Item",
+                        subtitle = "Subscription, bill, or paycheck",
+                        icon = Icons.Default.Repeat,
+                        iconBadgeColor = tertiaryContainerColor,
+                        iconTint = tertiaryColor,
+                        onClick = onPickRecurring
+                    ),
+                    AddEntryPointOption(
+                        title = "Add an Account / Wallet",
+                        subtitle = "Bank, card, cash, or loan",
+                        icon = Icons.Default.AccountBalance,
+                        iconBadgeColor = surfaceVariantColor,
+                        iconTint = onSurfaceVariantColor,
+                        onClick = onPickAccount
+                    )
+                )
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
-                AddEntryPointCard(
-                    title = "Add Income",
-                    subtitle = "Log a paycheck, freelance payment, or gift",
-                    icon = Icons.Default.ArrowUpward,
-                    iconBadgeColor = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f),
-                    iconTint = com.selfbudget.app.ui.theme.getIncomeColor(),
-                    onClick = onPickIncome
-                )
-                AddEntryPointCard(
-                    title = "Add Expense",
-                    subtitle = "Record something you spent money on",
-                    icon = Icons.Default.ArrowDownward,
-                    iconBadgeColor = com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f),
-                    iconTint = com.selfbudget.app.ui.theme.getExpenseColor(),
-                    onClick = onPickExpense
-                )
-                AddEntryPointCard(
-                    title = "Create a Savings Goal",
-                    subtitle = "Set a target for an emergency fund, vacation, or purchase",
-                    icon = Icons.Default.Savings,
-                    iconBadgeColor = MaterialTheme.colorScheme.primaryContainer,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    onClick = onPickGoal
-                )
-                AddEntryPointCard(
-                    title = "Create a Budget",
-                    subtitle = "Set a monthly spending limit for a category",
-                    icon = Icons.Default.PieChart,
-                    iconBadgeColor = MaterialTheme.colorScheme.secondaryContainer,
-                    iconTint = MaterialTheme.colorScheme.secondary,
-                    onClick = onPickBudget
-                )
-                AddEntryPointCard(
-                    title = "Add a Recurring Item",
-                    subtitle = "Track a subscription, bill, or recurring paycheck",
-                    icon = Icons.Default.Repeat,
-                    iconBadgeColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    iconTint = MaterialTheme.colorScheme.tertiary,
-                    onClick = onPickRecurring
-                )
+                Spacer(modifier = Modifier.height(6.dp))
+                entries.chunked(2).forEach { rowEntries ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowEntries.forEach { entry ->
+                            AddEntryPointGridCard(
+                                option = entry,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // Odd count safety net (currently always 6, but keeps the last row from
+                        // stretching a single card to full width if an entry is ever added/removed).
+                        if (rowEntries.size < 2) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(96.dp))
             }
         }
     }
 }
 
+private data class AddEntryPointOption(
+    val title: String,
+    val subtitle: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val iconBadgeColor: Color,
+    val iconTint: Color,
+    val onClick: () -> Unit
+)
+
 @Composable
-private fun AddEntryPointCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconBadgeColor: Color,
-    iconTint: Color,
-    onClick: () -> Unit
+private fun AddEntryPointGridCard(
+    option: AddEntryPointOption,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
+        onClick = option.onClick,
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-        modifier = Modifier.fillMaxWidth()
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+        modifier = modifier.height(132.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxSize()
+                .padding(14.dp)
         ) {
             Surface(
                 shape = CircleShape,
-                color = iconBadgeColor,
-                modifier = Modifier.size(52.dp)
+                color = option.iconBadgeColor,
+                modifier = Modifier.size(38.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
+                    Icon(option.icon, contentDescription = null, tint = option.iconTint, modifier = Modifier.size(18.dp))
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = option.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = option.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -898,6 +969,10 @@ fun DashboardContent(
 
             val totalLoggedIncome = remember(loggedIncomeTxs) {
                 Money.sum(loggedIncomeTxs.map { it.amount })
+            }
+
+            val expectedRecurringIncome = remember(uiState.recurringList) {
+                IncomeCalculator.computeExpectedMonthlyIncome(uiState.recurringList)
             }
 
             val budgetedCategoryIds = remember(uiState.budgets) {
@@ -974,9 +1049,9 @@ fun DashboardContent(
                 Money.sum(allMonthTransactions.filter { it.type == TransactionType.EXPENSE }.map { it.amount })
             }
 
-            val totalCommittedAllocated = Money.sum(listOf(totalCategoryBudgets, unbudgetedBillsAndExpenses, totalGoalCommitments))
-            val hasIncomeLogged = effectiveMonthlyIncome > 0.0
-            val unallocatedFreeCash = Money.subtract(effectiveMonthlyIncome, totalCommittedAllocated)
+            val liveNetCashFlow = remember(totalLoggedIncome, totalMonthlySpent) {
+                Money.subtract(totalLoggedIncome, totalMonthlySpent)
+            }
 
             androidx.compose.material3.Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1023,26 +1098,23 @@ fun DashboardContent(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Free Cash / Over Budget headline figure
+                    // Live Net Cash Flow headline (100% realized: Posted Income - Actual Spent)
                     Text(
                         text = if (!isBalanceVisible) "$sym ••••••"
-                        else if (!hasIncomeLogged) "$sym%.2f Allocated".format(totalCommittedAllocated)
-                        else if (unallocatedFreeCash >= 0) "$sym%.2f Free".format(unallocatedFreeCash)
-                        else "$sym%.2f Over Budget".format(-unallocatedFreeCash),
+                        else if (liveNetCashFlow >= 0) "+$sym%.2f Net Saved".format(liveNetCashFlow)
+                        else "-$sym%.2f Net Deficit".format(-liveNetCashFlow),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (!hasIncomeLogged) MaterialTheme.colorScheme.primary
-                        else if (unallocatedFreeCash >= 0) com.selfbudget.app.ui.theme.getIncomeColor()
-                        else ExpenseRed
+                        color = if (liveNetCashFlow >= 0) com.selfbudget.app.ui.theme.getIncomeColor() else ExpenseRed
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    val maxCashFlowVal = maxOf(effectiveMonthlyIncome, totalCategoryBudgets, unbudgetedBillsAndExpenses, totalMonthlySpent)
+                    val maxCashFlowVal = maxOf(totalLoggedIncome, totalCategoryBudgets, totalMonthlySpent)
                     val dynamicNumFontSize = when {
-                        maxCashFlowVal >= 1_000_000.0 -> 10.5.sp
-                        maxCashFlowVal >= 100_000.0 -> 12.sp
-                        else -> 13.5.sp
+                        maxCashFlowVal >= 1_000_000.0 -> 11.sp
+                        maxCashFlowVal >= 100_000.0 -> 12.5.sp
+                        else -> 14.sp
                     }
 
                     Row(
@@ -1052,13 +1124,13 @@ fun DashboardContent(
                     ) {
                         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                             Text(
-                                text = if (totalLoggedIncome < effectiveMonthlyIncome) "Income (Est.)" else "Income",
+                                text = "Income",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (isBalanceVisible) "$sym%.2f".format(effectiveMonthlyIncome) else "$sym •••",
+                                text = if (isBalanceVisible) "$sym%.2f".format(totalLoggedIncome) else "$sym •••",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = dynamicNumFontSize,
                                 letterSpacing = (-0.3).sp,
@@ -1067,6 +1139,7 @@ fun DashboardContent(
                                 color = com.selfbudget.app.ui.theme.getIncomeColor()
                             )
                         }
+
                         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Budgets", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
@@ -1080,24 +1153,14 @@ fun DashboardContent(
                                 color = MaterialTheme.colorScheme.secondary
                             )
                         }
-                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Unbudgeted", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isBalanceVisible) "$sym%.2f".format(unbudgetedBillsAndExpenses) else "$sym •••",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = dynamicNumFontSize,
-                                letterSpacing = (-0.3).sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                        val expectedCommitments = totalCategoryBudgets + unbudgetedBillsAndExpenses
-                        val isPaidOverSpent = (expectedCommitments > 0 && totalMonthlySpent > expectedCommitments) ||
-                                (effectiveMonthlyIncome > 0 && totalMonthlySpent > effectiveMonthlyIncome)
+
+                        val isPaidOverSpent = totalCategoryBudgets > 0 && totalMonthlySpent > totalCategoryBudgets
                         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                            Text("Paid", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "Spent",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isPaidOverSpent) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isBalanceVisible) "$sym%.2f".format(totalMonthlySpent) else "$sym •••",
@@ -1111,13 +1174,35 @@ fun DashboardContent(
                         }
                     }
 
-                    if (!hasIncomeLogged && totalCommittedAllocated > 0) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Log monthly income to calculate free cash.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    if (totalCategoryBudgets > 0) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        val pctUsed = (totalMonthlySpent / totalCategoryBudgets).toFloat()
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { pctUsed.coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = if (totalMonthlySpent > totalCategoryBudgets) ExpenseRed else MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (totalMonthlySpent > totalCategoryBudgets) {
+                                    "⚠️ Over budget ceiling by $sym%.2f".format(totalMonthlySpent - totalCategoryBudgets)
+                                } else {
+                                    "✅ %.1f%% of $sym%.2f target ceiling used".format(pctUsed * 100, totalCategoryBudgets)
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (totalMonthlySpent > totalCategoryBudgets) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -1158,20 +1243,25 @@ fun DashboardContent(
                     }
                 }
 
+                val prioritizedAccounts = remember(uiState.accounts) {
+                    uiState.accounts.sortedWith(
+                        compareBy(
+                            { !it.isDefault },
+                            { com.selfbudget.app.core.ui.getAccountTypePriority(it.type) },
+                            { it.name.lowercase() }
+                        )
+                    )
+                }
+
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(uiState.accounts.take(3)) { acc ->
+                    items(prioritizedAccounts.take(3)) { acc ->
                         val accColor = try {
                             Color(android.graphics.Color.parseColor(acc.colorHex))
                         } catch (e: Exception) {
                             MaterialTheme.colorScheme.primary
                         }
 
-                        val icon = when (acc.type) {
-                            AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-                            AccountType.CASH -> Icons.Default.Payments
-                            AccountType.SAVINGS -> Icons.Default.Savings
-                            else -> Icons.Default.AccountBalance
-                        }
+                        val icon = com.selfbudget.app.core.ui.getAccountIcon(acc.type)
 
                         androidx.compose.material3.Card(
                             shape = RoundedCornerShape(16.dp),
@@ -1181,78 +1271,103 @@ fun DashboardContent(
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
                             modifier = Modifier
-                                .width(135.dp)
+                                .width(140.dp)
+                                .height(112.dp)
                                 .clickable { selectedAccountForEdit = acc }
                         ) {
-                            Column(modifier = Modifier.padding(11.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(accColor.copy(alpha = 0.2f)),
-                                        contentAlignment = Alignment.Center
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(11.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = accColor,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(accColor.copy(alpha = 0.2f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = null,
+                                                tint = accColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = acc.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = acc.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { sym }
-                                val liveBalance = uiState.accountBalances[acc.id] ?: acc.initialBalance
-                                Text(
-                                    text = if (isBalanceVisible) "$accSym%.2f".format(liveBalance) else "$accSym ••••••",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
+
+                                Column {
+                                    val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { sym }
+                                    val rawBalance = uiState.accountBalances[acc.id] ?: acc.initialBalance
+                                    val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                    val displayBalance = if (isLiability) kotlin.math.abs(rawBalance) else rawBalance
+                                    val linkedGoals = uiState.goals.filter { it.linkedAccountId == acc.id }
+                                    val earmarkedAmount = linkedGoals.sumOf { if (it.savedAmount > 0) it.savedAmount else minOf(rawBalance, it.targetAmount) }
+                                    val availableToSpend = (displayBalance - earmarkedAmount).coerceAtLeast(0.0)
+
+                                    Text(
+                                        text = if (isBalanceVisible) {
+                                            if (earmarkedAmount > 0 && !isLiability) "$accSym%.2f Avail".format(availableToSpend) else "$accSym%.2f".format(displayBalance)
+                                        } else "$accSym ••••••",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+
+                                    val subText = when {
+                                        !isBalanceVisible -> "$accSym •••"
+                                        earmarkedAmount > 0 && !isLiability -> "Total: $accSym%.2f".format(displayBalance)
+                                        acc.type == AccountType.CREDIT_CARD -> acc.creditLimit?.let { "Limit: $accSym%.0f".format(it) } ?: "Credit Card"
+                                        acc.type == AccountType.LOAN -> "Loan Account"
+                                        acc.type == AccountType.RETIREMENT -> "Non-Liquid"
+                                        else -> "Liquid Cash"
+                                    }
+                                    Text(
+                                        text = subText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 9.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
 
                     item {
-                        androidx.compose.material3.Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        Box(
                             modifier = Modifier
-                                .width(60.dp)
-                                .height(88.dp)
-                                .clickable { showAddAccountDialog = true }
+                                .height(112.dp)
+                                .padding(horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                onClick = { showAddAccountDialog = true },
+                                shape = CircleShape,
+                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(40.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
                                         contentDescription = "Add Account",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -1407,8 +1522,8 @@ fun DashboardContent(
                                     .size(40.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (isIncome) IncomeGreen.copy(alpha = 0.15f)
-                                        else ExpenseRed.copy(alpha = 0.15f)
+                                        if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
+                                        else com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -1417,7 +1532,7 @@ fun DashboardContent(
                                                   else if (isIncome) Icons.Default.ArrowDownward
                                                   else Icons.Default.ArrowUpward,
                                     contentDescription = null,
-                                    tint = if (isIncome) IncomeGreen else ExpenseRed,
+                                    tint = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor(),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -1439,7 +1554,7 @@ fun DashboardContent(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val isIncome = transaction.type == TransactionType.INCOME
                             val amountPrefix = if (isIncome) "+$sym" else "-$sym"
-                            val amountColor = if (isIncome) (if (isSystemInDarkTheme()) Color(0xFF4ADE80) else IncomeGreen) else (if (isSystemInDarkTheme()) Color(0xFFF87171) else ExpenseRed)
+                            val amountColor = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
 
                             Text(
                                 text = if (isBalanceVisible) "$amountPrefix%.2f".format(transaction.amount) else "$sym ••••••",
@@ -1592,7 +1707,7 @@ fun DashboardContent(
                                 text = "${if (isIncome) "+" else "-"}$sym%.2f".format(txToDelete.amount),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isIncome) IncomeGreen else ExpenseRed
+                                color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                             )
                         }
                     }
@@ -1638,7 +1753,9 @@ fun DashboardContent(
     selectedAccountForEdit?.let { acc ->
         EditCustomAccountDialog(
             account = acc,
+            currentBalance = uiState.accountBalances[acc.id],
             currencySymbol = uiState.currencySymbol,
+            goals = uiState.goals,
             onDismiss = { selectedAccountForEdit = null },
             onConfirm = { updatedAcc ->
                 onUpdateAccount(updatedAcc)
@@ -1667,6 +1784,7 @@ fun DashboardContent(
             accounts = uiState.accounts,
             currencySymbol = uiState.currencySymbol,
             accountBalances = uiState.accountBalances,
+            goals = uiState.goals,
             onDismiss = { showAllAccountsSheet = false },
             onEditAccount = { acc ->
                 showAllAccountsSheet = false
@@ -1683,11 +1801,13 @@ fun DashboardContent(
         TransferDialog(
             accounts = uiState.accounts,
             accountBalances = uiState.accountBalances,
+            currencySymbol = uiState.currencySymbol,
             onDismiss = { showTransferDialog = false },
             onConfirm = { fromId, toId, amount, note ->
                 onAddTransfer(fromId, toId, amount, note)
                 showTransferDialog = false
-            }
+            },
+            onAddCustomAccount = onAddCustomAccount
         )
     }
 }
@@ -1859,7 +1979,7 @@ fun FullTransactionHistoryDialog(
                             val category = categoryMap[transaction.categoryId]
                             val isIncome = transaction.type == TransactionType.INCOME
                             val amountPrefix = if (isIncome) "+$currencySymbol" else "-$currencySymbol"
-                            val amountColor = if (isIncome) (if (isSystemInDarkTheme()) Color(0xFF4ADE80) else IncomeGreen) else (if (isSystemInDarkTheme()) Color(0xFFF87171) else ExpenseRed)
+                            val amountColor = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
 
                             androidx.compose.material3.Card(
                                 modifier = Modifier
@@ -1888,15 +2008,15 @@ fun FullTransactionHistoryDialog(
                                                 .size(40.dp)
                                                 .clip(CircleShape)
                                                 .background(
-                                                    if (isIncome) IncomeGreen.copy(alpha = 0.15f)
-                                                    else ExpenseRed.copy(alpha = 0.15f)
+                                                    if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
+                                                    else com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f)
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = if (isIncome) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
                                                 contentDescription = null,
-                                                tint = if (isIncome) IncomeGreen else ExpenseRed,
+                                                tint = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor(),
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }

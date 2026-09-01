@@ -56,15 +56,15 @@ flowchart TD
     subgraph UI_Layer ["Presentation Layer (Jetpack Compose UI Screens & Modals)"]
         BrandLogo["Brand Logo System\n- ic_app_logo.xml\n- ic_launcher_foreground.xml\n- AppLogoBadge Component\n- Android 12+ Splash Theme"]
 
-        HomeScreen["HomeScreen (Dashboard)\n- Cash Flow Hero Card\n- Safe-to-Spend Summary\n- Accounts Carousel (Max 3 + Add)\n- Recent Activity List"]
+        HomeScreen["HomeScreen (Dashboard)\n- Cash Flow Hero Card\n- Safe-to-Spend Summary\n- Accounts Carousel (Max 3 + Edit Mode Toggle + View All)\n- Recent Activity List"]
         BudgetScreen["BudgetScreen (Plan Tab)\n- Segmented Toggle (Budget vs Goals)\n- Total Budget Hero Card\n- Daily Pace Safeguard Banner\n- Category Budget Cards"]
         RecurringScreen["RecurringScreen (Recurring Tab)\n- Monthly Commitments Summary\n- Paychecks vs Bills Cards\n- Recurring Items List"]
-        AnalyticsScreen["AnalyticsScreen (Analytics Tab)\n- Timeframe Toggle (Monthly / Annual YTD)\n- Spending Breakdown Pie/Bars\n- Days-Elapsed Extrapolated Annual Pace\n- Net Worth History Modal"]
-        AccountsScreen["AccountsScreen (Accounts Tab)\n- Account Balances & Types\n- Quick Transfer Modal"]
+        AnalyticsScreen["AnalyticsScreen (Analytics Tab)\n- Timeframe Toggle (Monthly / Annual YTD)\n- Spending Breakdown Ring/Bars\n- Debt Payoff Comparative Breakdown\n- Days-Elapsed Extrapolated Annual Pace\n- Net Worth History Modal"]
+        AccountsScreen["AccountsScreen (Accounts Tab)\n- Account Balances & Types\n- Quick Transfer Modal\n- Edit Mode & Account Detail Activity Feeds"]
         SearchScreen["SearchScreen (Activity Tab)\n- Filtered Search & Dynamic Summaries"]
 
-        Dialogs["Modal Form Dialogs\n- AddIncomeDialog\n- AddExpenseDialog\n- EditTransactionDialog\n- SetBudgetDialog\n- TransferDialog\n- SetRecurringDialog"]
-        EntryPoint["AddEntryPointScreen\nSingle global '+' chooser (Income / Expense / Budget / Recurring) -\nreplaces one FAB per tab so each kind of entry has exactly one door in"]
+        Dialogs["Modal Form Dialogs\n- AddIncomeDialog\n- AddExpenseDialog\n- EditTransactionDialog\n- SetBudgetDialog\n- TransferDialog\n- SetRecurringDialog\n- AddCustomAccountDialog\n- EditCustomAccountDialog"]
+        EntryPoint["AddEntryPointScreen\nSingle global '+' chooser (Income / Expense / Budget / Recurring / Account & Wallet) -\nreplaces per-tab FABs so each entry type has exactly one unified door in"]
 
         EntryPoint --> Dialogs
 
@@ -174,8 +174,8 @@ $$\text{Daily Pace Max} = \max\left(0.0, \, \frac{\text{Remaining Budget}}{\text
 ### 2.5 Net Worth & Account Balance Engine ([`AccountBalanceCalculator.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/AccountBalanceCalculator.kt))
 
 #### 1. Signed Balance Convention & Liability Accounts:
-- **Asset Accounts** (Checking, Savings, Cash, Investment): Income increases balance (+), Expenses decrease balance (-).
-- **Liability Accounts** (Credit Card, Loan): Negative balance represents debt owed (e.g. -$150 = $150 owed). Purchases charged on credit card decrease balance (-tx.amount, making debt more negative). Payments targeting credit card/loan debt increase balance (+tx.amount, reducing debt toward $0).
+- **Asset Accounts**: Income increases balance (+), Expenses decrease balance (-).
+- **Display Layer Formatting (Monarch/Mint Convention)**: In presentation components ([`HomeScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/dashboard/HomeScreen.kt), [`AccountsScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/accounts/AccountsScreen.kt), [`AccountsViewAllModal.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/ui/AccountsViewAllModal.kt), [`AccountSelectionModal.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/ui/AccountSelectionModal.kt)), credit card and loan debt balances are displayed as positive unsigned values (e.g. `$150.00`) under their labeled liability categories, matching standard consumer finance expectations while maintaining negative values in backend Net Worth equations. Purchases charged on credit card decrease balance (-tx.amount, making debt more negative). Payments targeting credit card/loan debt increase balance (+tx.amount, reducing debt toward $0).
 
 #### 2. Net Worth Calculation:
 $$\text{Net Worth} = \sum_{a \in \text{Accounts}} \text{Account Balance}_a$$
@@ -244,6 +244,18 @@ Box(modifier = Modifier.fillMaxSize()) {
 }
 ```
 
+### 2.8 Persistent Forward-Inheriting Monthly Budgeting ([`BudgetCalculator.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/BudgetCalculator.kt))
+
+#### 1. Forward Baseline Inheritance (Monarch/Mint Model):
+When a category budget is set for month $M$, it establishes an active recurring monthly baseline. For any target month $T$, the effective budget is resolved by finding the most recent budget set on or before $T$:
+
+$$\text{EffectiveBudget}(c, T) = \text{Latest}\left(\{ b \in \text{Budgets}(c) \mid b.\text{monthYear} \le T \land b.\text{amountLimit} > 0 \}\right)$$
+
+#### 2. Historical Immutability & Future Isolation:
+- **Past Months ($P < M$)**: Editing a budget in month $M$ creates a record at $M$. Any past month $P$ queries records where $\text{monthYear} \le P$, ensuring past analytics, spending reports, and historical cash flow are **100% immutable**.
+- **Future Months ($F > M$)**: Future months automatically inherit month $M$'s new baseline without requiring manual monthly recreation.
+- **Deletions & Ceilings**: Deleting a category budget in month $M$ stores a record with $\text{amountLimit} = 0.0$ at month $M$. Future months recognize this as no budget, while months prior to $M$ retain their historical limits.
+
 ---
 
 ## 5. Comprehensive UI Field Population Matrix
@@ -263,7 +275,9 @@ Box(modifier = Modifier.fillMaxSize()) {
 | **Recurring** (`RecurringScreen.kt`) | **Paychecks Card** | `Money.sum(NormalizedIncomeList)` | `RecurringFrequencyNormalizer` |
 | **Recurring** (`RecurringScreen.kt`) | **Bills & Subs Card** | `Money.sum(NormalizedExpenseList)` | `RecurringFrequencyNormalizer` |
 | **Analytics** (`AnalyticsScreen.kt`) | **Annual Spending Pace** | $\text{Money.round}\left(\frac{\text{YTD Expense Spend}}{\text{Day of Year}} \times \text{Days in Year}\right)$ | `TransactionEntity` year-to-date sum & `Calendar` |
+| **Analytics** (`AnalyticsScreen.kt`) | **Debt Payoff MoM Comparison** | $\text{diffAmount} = \text{TotalDebtPayoff}_m - \text{TotalDebtPayoff}_{m-1}$; $\text{diffPercent} = (\text{diffAmount} / \text{prevTotal}) \times 100$ | `TransactionEntity` targeting liability accounts |
 | **Savings Goals** (`GoalsSection.kt`) | **Goal Progress Bar** | `if (target > 0) (current / target).toFloat() else 0f` | `GoalEntity`, `AccountBalanceCalculator` |
+| **Accounts** (`AccountsSection.kt`, `AccountsViewAllModal.kt`) | **Edit Mode vs Activity View** | `if (isEditMode) openEditAccountDialog else openAccountDetailActivityView` | `AccountEntity`, `TransactionEntity` by `accountId` |
 
 ---
 
@@ -273,8 +287,9 @@ Box(modifier = Modifier.fillMaxSize()) {
 2.  **Recurring Transaction Deduplication (`F-97`, `F-103`)**: Matched by `(userId, categoryId, title, frequency)` inside `MainViewModel.upsertRecurring` — the single entry point both the transaction form's recurring toggle and the Recurring tab's own form call into, so the same duplicate check applies no matter which surface created the bill.
 3.  **Cent-Safe Conversion Guard (`F-98`)**: `Money.kt` applies `.setScale(0, HALF_UP)` prior to `.toLong()`.
 4.  **Goal Divide-by-Zero Guard**: Progress guarded against `targetAmount <= 0.0`.
-5.  **150.dp Scroll Clearance (`F-99`, `F-100`)**: End of all scroll containers includes `Spacer(modifier = Modifier.height(150.dp))`.
+5.  **150.dp Scroll Clearance (`F-99`, `F-100`, `F-116`)**: End of all main scroll containers includes `Spacer(modifier = Modifier.height(150.dp))`, and View Details modal sheets include `120.dp`–`150.dp` scroll clearance.
 6.  **Manual Budget Override Protection (`F-103`)**: `BudgetEntity.isAutoSynced` prevents the recurring-bill budget-ceiling sync from overwriting a category limit the user set by hand (see §2.7).
+7.  **Destructive Action Isolation (`F-112`)**: Clean Sweep / Reset All App Data is isolated inside the dedicated `Data & Account Management` page in Settings, protected by a dual-step glowing red trash badge Material 3 confirmation dialog.
 
 ---
 

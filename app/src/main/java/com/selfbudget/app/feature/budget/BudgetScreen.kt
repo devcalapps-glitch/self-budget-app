@@ -63,7 +63,7 @@ import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.feature.dashboard.GoalsSection
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.util.Calendar
 
 data class CategoryBudgetUiModel(
@@ -99,11 +99,12 @@ fun BudgetScreen(
     goals: List<GoalEntity> = emptyList(),
     accounts: List<AccountEntity> = emptyList(),
     accountBalances: Map<String, Double> = emptyMap(),
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?) -> Unit = { _, _, _ -> },
+    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit = { _, _, _, _ -> },
     onDeleteGoal: (GoalEntity) -> Unit = {},
     onContributeToGoal: (GoalEntity, Double) -> Unit = { _, _ -> },
     onUpdateGoal: (GoalEntity) -> Unit = {},
     onAddCustomCategory: ((CategoryEntity) -> Unit)? = null,
+    onAddCustomAccount: (AccountEntity) -> Unit = {},
     // Lets the single global "+" (owned by HomeScreen) open this screen's "new budget" dialog
     // from anywhere in the app, instead of this screen needing its own floating add button.
     requestNewBudget: Boolean = false,
@@ -271,7 +272,7 @@ fun BudgetScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Monthly Budget",
+                            text = "Budget",
                             fontWeight = if (viewMode == 0) FontWeight.Bold else FontWeight.Medium,
                             color = if (viewMode == 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
@@ -290,9 +291,28 @@ fun BudgetScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Savings Goals",
+                            text = "Goals",
                             fontWeight = if (viewMode == 1) FontWeight.Bold else FontWeight.Medium,
                             color = if (viewMode == 1) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (viewMode == 2) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                            )
+                            .clickable { viewMode = 2 },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Payoff",
+                            fontWeight = if (viewMode == 2) FontWeight.Bold else FontWeight.Medium,
+                            color = if (viewMode == 2) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
                     }
@@ -310,7 +330,14 @@ fun BudgetScreen(
                     onAddGoal = onAddGoal,
                     onDeleteGoal = onDeleteGoal,
                     onContributeToGoal = onContributeToGoal,
-                    onUpdateGoal = onUpdateGoal
+                    onUpdateGoal = onUpdateGoal,
+                    onAddCustomAccount = onAddCustomAccount
+                )
+            } else if (viewMode == 2) {
+                DebtPayoffPlannerSection(
+                    accounts = accounts,
+                    accountBalances = accountBalances,
+                    currencySymbol = currencySymbol
                 )
             } else {
                 // Total Budget Overview Hero Card
@@ -359,7 +386,7 @@ fun BudgetScreen(
                                 .fillMaxWidth()
                                 .height(10.dp)
                                 .clip(RoundedCornerShape(5.dp)),
-                            color = if (totalSpentInBudgets > totalBudget) ExpenseRed else IncomeGreen,
+                            color = if (totalSpentInBudgets > totalBudget) com.selfbudget.app.ui.theme.getExpenseColor() else com.selfbudget.app.ui.theme.getIncomeColor(),
                             trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         )
 
@@ -633,25 +660,25 @@ fun BudgetScreen(
                                                 .weight(1f)
                                                 .height(10.dp)
                                                 .clip(RoundedCornerShape(5.dp)),
-                                            color = if (model.isOverBudget) ExpenseRed
+                                            color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor()
                                             else if (model.isWarning) Color(0xFFFF9800)
-                                            else IncomeGreen,
+                                            else com.selfbudget.app.ui.theme.getIncomeColor(),
                                             trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                                         )
 
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = if (model.isOverBudget) ExpenseRed.copy(alpha = 0.15f)
+                                            color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f)
                                             else if (model.isWarning) Color(0xFFFF9800).copy(alpha = 0.15f)
-                                            else IncomeGreen.copy(alpha = 0.15f)
+                                            else com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
                                         ) {
                                             Text(
                                                 text = "%.0f%%".format(model.percentage * 100f),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (model.isOverBudget) ExpenseRed
+                                                color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor()
                                                         else if (model.isWarning) Color(0xFFFF9800)
-                                                        else IncomeGreen,
+                                                        else com.selfbudget.app.ui.theme.getIncomeColor(),
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
@@ -689,7 +716,7 @@ fun BudgetScreen(
                                                     "$currencySymbol%.2f safe to spend".format(model.safeToSpendAmount),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (model.isOverBudget) ExpenseRed else IncomeGreen
+                                                color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor() else com.selfbudget.app.ui.theme.getIncomeColor()
                                             )
                                         }
                                     }

@@ -60,16 +60,18 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
+import com.selfbudget.app.data.model.GoalEntity
 
 @Composable
 fun AccountsViewAllModal(
     accounts: List<AccountEntity>,
     currencySymbol: String = "$",
     accountBalances: Map<String, Double> = emptyMap(),
+    goals: List<GoalEntity> = emptyList(),
     onDismiss: () -> Unit,
     onEditAccount: (AccountEntity) -> Unit,
     onAddAccount: () -> Unit
@@ -81,7 +83,13 @@ fun AccountsViewAllModal(
     val filteredAccounts = remember(accounts, searchQuery) {
         accounts.filter { acc ->
             searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
-        }
+        }.sortedWith(
+            compareBy(
+                { !it.isDefault },
+                { getAccountTypePriority(it.type) },
+                { it.name.lowercase() }
+            )
+        )
     }
 
     Dialog(
@@ -210,13 +218,7 @@ fun AccountsViewAllModal(
                                     MaterialTheme.colorScheme.primary
                                 }
 
-                                val icon = when (acc.type) {
-                                    AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-                                    AccountType.CASH -> Icons.Default.Payments
-                                    AccountType.SAVINGS -> Icons.Default.Savings
-                                    AccountType.LOAN -> Icons.Default.Wallet
-                                    else -> Icons.Default.AccountBalance
-                                }
+                                val icon = getAccountIcon(acc.type)
 
                                 val typeLabel = when (acc.type) {
                                     AccountType.CHECKING -> "Checking"
@@ -225,11 +227,17 @@ fun AccountsViewAllModal(
                                     AccountType.CASH -> "Cash Wallet"
                                     AccountType.INVESTMENT -> "Investment"
                                     AccountType.LOAN -> "Loan / Mortgage"
+                                    AccountType.RETIREMENT -> "Retirement (Non-Liquid)"
                                 }
 
                                 val rawBalance = accountBalances[acc.id] ?: acc.initialBalance
-                                val currentBalance = if (acc.type == AccountType.CREDIT_CARD || acc.type == AccountType.LOAN) -kotlin.math.abs(rawBalance) else rawBalance
+                                val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                val currentBalance = if (isLiability) kotlin.math.abs(rawBalance) else rawBalance
                                 val sym = if (acc.currencyCode.isNotBlank()) Currencies.symbolFor(acc.currencyCode) else currencySymbol
+
+                                val linkedGoals = goals.filter { it.linkedAccountId == acc.id }
+                                val earmarked = linkedGoals.sumOf { if (it.savedAmount > 0) it.savedAmount else minOf(rawBalance, it.targetAmount) }
+                                val availableToSpend = (currentBalance - earmarked).coerceAtLeast(0.0)
 
                                 Card(
                                     shape = RoundedCornerShape(16.dp),
@@ -283,7 +291,7 @@ fun AccountsViewAllModal(
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
-                                                    text = typeLabel,
+                                                    text = if (earmarked > 0 && !isLiability) "$typeLabel • Total: $sym%.2f".format(currentBalance) else typeLabel,
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                                 )
@@ -291,11 +299,12 @@ fun AccountsViewAllModal(
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val displayBalance = if (earmarked > 0 && !isLiability) availableToSpend else currentBalance
                                             Text(
-                                                text = if (currentBalance < 0) "-$sym%.2f".format(-currentBalance) else "$sym%.2f".format(currentBalance),
+                                                text = "$sym%.2f".format(displayBalance) + (if (earmarked > 0 && !isLiability) " Avail" else ""),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (currentBalance < 0) ExpenseRed else IncomeGreen
+                                                color = if (isLiability) MaterialTheme.colorScheme.onSurface else if (displayBalance >= 0) getIncomeColor() else ExpenseRed
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Icon(

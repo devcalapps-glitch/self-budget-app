@@ -1,6 +1,7 @@
 package com.selfbudget.app.core.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -66,6 +67,9 @@ fun getCategoryIcon(iconName: String?, categoryName: String? = null): ImageVecto
         // Side Hustle / Work / Job
         key.contains("work") || nameKey.contains("hustle") || nameKey.contains("work") || nameKey.contains("job") -> Icons.Default.Work
         
+        // Account Transfer / Swap
+        key.contains("compare") || key.contains("transfer") || key.contains("swap") || nameKey.contains("transfer") -> Icons.AutoMirrored.Filled.CompareArrows
+
         // Other / Miscellaneous
         key.contains("more") || nameKey.contains("other") -> Icons.Default.MoreHoriz
         

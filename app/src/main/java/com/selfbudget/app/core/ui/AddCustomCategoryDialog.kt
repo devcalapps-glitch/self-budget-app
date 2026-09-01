@@ -19,15 +19,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -57,23 +74,44 @@ import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.util.UUID
 
 @Composable
 fun AddCustomCategoryDialog(
     initialType: TransactionType = TransactionType.EXPENSE,
+    lockType: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (CategoryEntity) -> Unit
 ) {
     var categoryName by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(initialType) }
     var selectedColorHex by remember { mutableStateOf("#3F51B5") }
+    var selectedIconName by remember { mutableStateOf("Category") }
 
     val presetColors = listOf(
         "#3F51B5", "#E91E63", "#9C27B0", "#009688",
         "#FF9800", "#795548", "#607D8B", "#4CAF50",
         "#15803D", "#D32F2F"
+    )
+
+    val presetIcons = listOf(
+        "Restaurant" to Icons.Default.Restaurant,
+        "Shopping" to Icons.Default.ShoppingBag,
+        "Home" to Icons.Default.Home,
+        "Transport" to Icons.Default.DirectionsBus,
+        "Receipt" to Icons.AutoMirrored.Filled.ReceiptLong,
+        "Subscriptions" to Icons.Default.Subscriptions,
+        "Movie" to Icons.Default.Movie,
+        "Medical" to Icons.Default.MedicalServices,
+        "Wallet" to Icons.Default.AccountBalanceWallet,
+        "CreditCard" to Icons.Default.CreditCard,
+        "Trending" to Icons.AutoMirrored.Filled.TrendingUp,
+        "Transfer" to Icons.AutoMirrored.Filled.CompareArrows,
+        "Work" to Icons.Default.Work,
+        "Gift" to Icons.Default.CardGiftcard,
+        "More" to Icons.Default.MoreHoriz,
+        "Category" to Icons.Default.Category
     )
 
     val isDark = isSystemInDarkTheme()
@@ -131,7 +169,7 @@ fun AddCustomCategoryDialog(
                                     val newCat = CategoryEntity(
                                         id = "cat_custom_${UUID.randomUUID()}",
                                         name = categoryName.trim(),
-                                        iconName = "Category",
+                                        iconName = selectedIconName,
                                         colorHex = selectedColorHex,
                                         type = selectedType,
                                         isDefault = false
@@ -192,7 +230,7 @@ fun AddCustomCategoryDialog(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Category,
+                                        imageVector = getCategoryIcon(selectedIconName, categoryName),
                                         contentDescription = null,
                                         tint = selectedAccentColor,
                                         modifier = Modifier.size(24.dp)
@@ -211,7 +249,7 @@ fun AddCustomCategoryDialog(
                                     Text(
                                         text = if (selectedType == TransactionType.INCOME) "Income Category" else "Expense Category",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (selectedType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
+                                        color = if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -227,52 +265,75 @@ fun AddCustomCategoryDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Row(
+                    if (lockType) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = (if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed).copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, (if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed).copy(alpha = 0.3f)),
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                .fillMaxWidth()
+                                .height(44.dp)
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(11.dp))
-                                    .background(if (selectedType == TransactionType.EXPENSE) ExpenseRed.copy(alpha = 0.2f) else Color.Transparent)
-                                    .clickable { selectedType = TransactionType.EXPENSE },
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "💸 Expense Category",
-                                    fontWeight = if (selectedType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = if (selectedType == TransactionType.INCOME) "💰 Income Category" else "💸 Expense Category",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed,
                                     fontSize = 14.sp
                                 )
                             }
-
-                            Box(
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(11.dp))
-                                    .background(if (selectedType == TransactionType.INCOME) IncomeGreen.copy(alpha = 0.2f) else Color.Transparent)
-                                    .clickable { selectedType = TransactionType.INCOME },
-                                contentAlignment = Alignment.Center
+                                    .fillMaxSize()
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "💰 Income Category",
-                                    fontWeight = if (selectedType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .background(if (selectedType == TransactionType.EXPENSE) ExpenseRed.copy(alpha = 0.2f) else Color.Transparent)
+                                        .clickable { selectedType = TransactionType.EXPENSE },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "💸 Expense Category",
+                                        fontWeight = if (selectedType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 14.sp
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .background(if (selectedType == TransactionType.INCOME) getIncomeColor().copy(alpha = 0.2f) else Color.Transparent)
+                                        .clickable { selectedType = TransactionType.INCOME },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "💰 Income Category",
+                                        fontWeight = if (selectedType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -290,6 +351,47 @@ fun AddCustomCategoryDialog(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Category Icon Picker
+                    Column {
+                        Text(
+                            text = "Category Icon",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(presetIcons) { (iconKey, iconVector) ->
+                                val isSelected = selectedIconName.equals(iconKey, ignoreCase = true)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isSelected) selectedAccentColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(
+                                        1.5.dp,
+                                        if (isSelected) selectedAccentColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                    ),
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clickable { selectedIconName = iconKey }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = iconVector,
+                                            contentDescription = iconKey,
+                                            tint = if (isSelected) selectedAccentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Color Badge Accent Swatch Selection
                     Column {
@@ -366,7 +468,7 @@ fun AddCustomCategoryDialog(
                                     val newCat = CategoryEntity(
                                         id = "cat_custom_${UUID.randomUUID()}",
                                         name = categoryName.trim(),
-                                        iconName = "Category",
+                                        iconName = selectedIconName,
                                         colorHex = selectedColorHex,
                                         type = selectedType,
                                         isDefault = false

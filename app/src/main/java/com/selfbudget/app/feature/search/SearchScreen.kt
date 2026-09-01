@@ -73,7 +73,7 @@ import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -340,7 +340,7 @@ fun SearchScreen(
                         text = "+$currencySymbol%.2f".format(totalFilteredIncome),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = IncomeGreen
+                        color = getIncomeColor()
                     )
                 }
                 if (totalFilteredExpense > 0) {
@@ -410,8 +410,8 @@ fun SearchScreen(
                                 }
                                 val iconColor = when {
                                     isTransfer -> MaterialTheme.colorScheme.primary
-                                    isIncome -> IncomeGreen
-                                    else -> ExpenseRed
+                                    isIncome -> com.selfbudget.app.ui.theme.getIncomeColor()
+                                    else -> com.selfbudget.app.ui.theme.getExpenseColor()
                                 }
 
                                 Box(
@@ -441,7 +441,7 @@ fun SearchScreen(
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                                     )
-                                    if (!tx.note.isNull_or_blank()) {
+                                    if (!tx.note.isNullOrBlank()) {
                                         Text(
                                             text = "Note: ${tx.note}",
                                             fontSize = 11.sp,
@@ -459,8 +459,8 @@ fun SearchScreen(
                                 }
                                 val amountColor = when {
                                     isTransfer -> MaterialTheme.colorScheme.primary
-                                    isIncome -> IncomeGreen
-                                    else -> ExpenseRed
+                                    isIncome -> com.selfbudget.app.ui.theme.getIncomeColor()
+                                    else -> com.selfbudget.app.ui.theme.getExpenseColor()
                                 }
 
                                 Text(
@@ -803,7 +803,7 @@ fun SearchScreen(
                                 text = "${if (isIncome) "+$currencySymbol" else "-$currencySymbol"}%.2f".format(txToDelete.amount),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isIncome) IncomeGreen else ExpenseRed
+                                color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                             )
                         }
                     }

@@ -121,7 +121,7 @@ import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -139,6 +139,7 @@ import java.util.UUID
 fun AddExpenseDialog(
     categories: List<CategoryEntity>,
     accounts: List<AccountEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
     budgets: List<BudgetEntity> = emptyList(),
     allTransactions: List<TransactionEntity> = emptyList(),
     recurringList: List<RecurringTransactionEntity> = emptyList(),
@@ -205,7 +206,7 @@ fun AddExpenseDialog(
     // Android will restore focus onto the last real field (e.g. Amount) unless something else
     // already holds it — clearFocus() alone loses that race.
     LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
-        focusAnchor.requestFocus()
+        runCatching { focusAnchor.requestFocus() }
         keyboardController?.hide()
     }
 
@@ -726,8 +727,16 @@ fun AddExpenseDialog(
                                 expandedAccountDropdown = true
                             }
                     ) {
+                        val paymentAccountText = selectedAccount?.let { acc ->
+                            val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                            val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                            val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
+                            val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                            "${acc.name} ($accSym%.2f)".format(dispBal)
+                        } ?: "Select Payment Account"
+
                         OutlinedTextField(
-                            value = selectedAccount?.name ?: "Select Payment Account",
+                            value = paymentAccountText,
                             onValueChange = {},
                             enabled = false,
                             label = { Text("Payment Account") },
@@ -823,8 +832,15 @@ fun AddExpenseDialog(
                                         showTargetDebtAccountModal = true
                                     }
                             ) {
+                                val targetDebtText = selectedTargetDebtAccount?.let { acc ->
+                                    val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                    val dispBal = kotlin.math.abs(rawBal)
+                                    val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                                    "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                } ?: "None (Standard Expense)"
+
                                 OutlinedTextField(
-                                    value = selectedTargetDebtAccount?.name ?: "None (Standard Expense)",
+                                    value = targetDebtText,
                                     onValueChange = {},
                                     enabled = false,
                                     label = { Text("Apply Payment Toward Debt (Optional)") },
@@ -1163,7 +1179,7 @@ fun AddExpenseDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Surface(
                                 shape = CircleShape,
-                                color = if (receiptImageUri != null) IncomeGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer,
+                                color = if (receiptImageUri != null) getIncomeColor().copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer,
                                 shadowElevation = 6.dp,
                                 modifier = Modifier
                                     .size(72.dp)
@@ -1177,7 +1193,7 @@ fun AddExpenseDialog(
                                     Icon(
                                         imageVector = if (isScanningOcr) Icons.Default.AutoAwesome else (if (receiptImageUri != null) Icons.Default.Check else Icons.Default.CameraAlt),
                                         contentDescription = "Scan Receipt Camera",
-                                        tint = if (receiptImageUri != null) IncomeGreen else MaterialTheme.colorScheme.secondary,
+                                        tint = if (receiptImageUri != null) getIncomeColor() else MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(36.dp)
                                     )
                                 }
@@ -1188,7 +1204,7 @@ fun AddExpenseDialog(
                             Text(
                                 text = if (isScanningOcr) "Scanning..." else (if (receiptImageUri != null) "Scanned ✓" else "Scan Receipt"),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (receiptImageUri != null) IncomeGreen else MaterialTheme.colorScheme.secondary,
+                                color = if (receiptImageUri != null) getIncomeColor() else MaterialTheme.colorScheme.secondary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -1295,7 +1311,8 @@ fun AddExpenseDialog(
     // Upgraded Custom Category Creation Modal
     if (showNewCategoryDialog) {
         AddCustomCategoryDialog(
-            initialType = selectedType,
+            initialType = TransactionType.EXPENSE,
+            lockType = true,
             onDismiss = { showNewCategoryDialog = false },
             onConfirm = { newCat ->
                 onAddCustomCategory?.invoke(newCat)
@@ -1319,7 +1336,8 @@ fun AddExpenseDialog(
             onAddCustomCategory = {
                 expandedCategoryDropdown = false
                 showNewCategoryDialog = true
-            }
+            },
+            onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
         )
     }
 
@@ -1328,6 +1346,7 @@ fun AddExpenseDialog(
             accounts = availableAccounts,
             selectedAccount = selectedAccount,
             currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
             onDismiss = { expandedAccountDropdown = false },
             onSelectAccount = { acc ->
                 selectedAccount = acc
@@ -1345,6 +1364,7 @@ fun AddExpenseDialog(
             accounts = availableDebtAccounts,
             selectedAccount = selectedTargetDebtAccount,
             currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
             onDismiss = { showTargetDebtAccountModal = false },
             onSelectAccount = { acc ->
                 selectedTargetDebtAccount = acc

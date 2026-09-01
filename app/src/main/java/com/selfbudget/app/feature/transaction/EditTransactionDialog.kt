@@ -119,12 +119,27 @@ import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import com.selfbudget.app.data.model.RecurringTransactionEntity
+
+private data class TransactionEditSnapshot(
+    val title: String,
+    val amountText: String,
+    val type: TransactionType,
+    val timestamp: Long,
+    val accountId: String?,
+    val categoryId: String?,
+    val targetDebtAccountId: String?,
+    val receiptUri: Uri?,
+    val isRecurring: Boolean,
+    val frequency: RecurringFrequency,
+    val setAsBudget: Boolean,
+    val budgetLimitText: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,6 +147,7 @@ fun EditTransactionDialog(
     transaction: TransactionEntity,
     categories: List<CategoryEntity>,
     accounts: List<AccountEntity> = emptyList(),
+    accountBalances: Map<String, Double> = emptyMap(),
     budgets: List<BudgetEntity> = emptyList(),
     recurringList: List<RecurringTransactionEntity> = emptyList(),
     allTransactions: List<TransactionEntity> = emptyList(),
@@ -189,19 +205,6 @@ fun EditTransactionDialog(
     var isScanningOcr by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
-    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    val scrollState = rememberScrollState()
-    val focusAnchor = remember { FocusRequester() }
-
-    // Move focus to an inert anchor (not just clear it) whenever selection modals open or close.
-    // Dismissing the nested picker Dialog hands window focus back to this dialog's window, and
-    // Android will restore focus onto the last real field (e.g. Amount) unless something else
-    // already holds it — clearFocus() alone loses that race.
-    LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
-        focusAnchor.requestFocus()
-        keyboardController?.hide()
-    }
-
     val availableCategories = remember(categories) {
         val dbCategories = if (categories.isNotEmpty()) categories else AppDatabase.DEFAULT_CATEGORIES
         (dbCategories + AppDatabase.DEFAULT_CATEGORIES).distinctBy { it.id }
@@ -218,6 +221,42 @@ fun EditTransactionDialog(
         if (selectedCategory == null || selectedCategory?.type != selectedType) {
             selectedCategory = filteredCategories.firstOrNull()
         }
+    }
+
+    // Dialog opens read-only; tapping the header "Edit" button is the deliberate action that
+    // unlocks the form. editBaseline is captured at that moment (after recurring/budget defaults
+    // have already resolved from the loaded transaction) so isDirty reflects real user changes.
+    var isEditMode by remember { mutableStateOf(false) }
+    var editBaseline by remember { mutableStateOf<TransactionEditSnapshot?>(null) }
+
+    fun captureEditSnapshot() = TransactionEditSnapshot(
+        title = title,
+        amountText = amountText,
+        type = selectedType,
+        timestamp = selectedTimestamp,
+        accountId = selectedAccount?.id,
+        categoryId = selectedCategory?.id,
+        targetDebtAccountId = selectedTargetDebtAccount?.id,
+        receiptUri = receiptImageUri,
+        isRecurring = isRecurring,
+        frequency = selectedFrequency,
+        setAsBudget = setAsBudget,
+        budgetLimitText = budgetLimitText
+    )
+
+    val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
+
+    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val scrollState = rememberScrollState()
+    val focusAnchor = remember { FocusRequester() }
+
+    // Move focus to an inert anchor (not just clear it) whenever selection modals open or close.
+    // Dismissing the nested picker Dialog hands window focus back to this dialog's window, and
+    // Android will restore focus onto the last real field (e.g. Amount) unless something else
+    // already holds it — clearFocus() alone loses that race.
+    LaunchedEffect(expandedAccountDropdown, expandedCategoryDropdown, showDatePickerModal, showTargetDebtAccountModal) {
+        runCatching { focusAnchor.requestFocus() }
+        keyboardController?.hide()
     }
 
     var note by remember(transaction) { mutableStateOf(transaction.note ?: "") }
@@ -346,7 +385,7 @@ fun EditTransactionDialog(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Edit Transaction",
+                            text = if (isEditMode) "Edit Transaction" else "Transaction Details",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -358,8 +397,15 @@ fun EditTransactionDialog(
                     },
                     actions = {
                         Button(
-                            onClick = { submitForm() },
-                            enabled = title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0,
+                            onClick = {
+                                if (isEditMode) {
+                                    submitForm()
+                                } else {
+                                    editBaseline = captureEditSnapshot()
+                                    isEditMode = true
+                                }
+                            },
+                            enabled = !isEditMode || (isDirty && title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -367,7 +413,7 @@ fun EditTransactionDialog(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.padding(end = 12.dp)
                         ) {
-                            Text("Save", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 )
@@ -380,6 +426,8 @@ fun EditTransactionDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    val themeColor = if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed
+
                     // Inert focus target used to steal focus away from real fields when a
                     // selection modal opens/closes (see focusAnchor LaunchedEffect above).
                     Box(
@@ -389,7 +437,28 @@ fun EditTransactionDialog(
                             .focusable()
                     )
 
-                    val themeColor = if (selectedType == TransactionType.INCOME) IncomeGreen else ExpenseRed
+                    if (!isEditMode) {
+                        TransactionViewModeSummary(
+                            transaction = transaction,
+                            themeColor = themeColor,
+                            currencySymbol = currencySymbol,
+                            dateFormatter = dateFormatter,
+                            accountName = selectedAccount?.name,
+                            categoryName = selectedCategory?.name,
+                            debtAccountName = selectedTargetDebtAccount?.name,
+                            isRecurringActive = isRecurring && existingRecurring != null,
+                            recurringFrequency = selectedFrequency,
+                            isBudgetActive = setAsBudget && existingCategoryBudget != null,
+                            budgetLimitText = budgetLimitText,
+                            onEditClick = {
+                                editBaseline = captureEditSnapshot()
+                                isEditMode = true
+                            },
+                            onDeleteClick = { showDeleteConfirmation = true },
+                            onClose = onDismiss,
+                            canDelete = onDelete != null
+                        )
+                    } else {
 
                     // Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
                     Column(
@@ -625,8 +694,16 @@ fun EditTransactionDialog(
                                 expandedAccountDropdown = true
                             }
                     ) {
+                        val accountText = selectedAccount?.let { acc ->
+                            val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                            val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                            val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
+                            val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                            "${acc.name} ($accSym%.2f)".format(dispBal)
+                        } ?: if (selectedType == TransactionType.INCOME) "Select Deposit Account" else "Select Payment Account"
+
                         OutlinedTextField(
-                            value = selectedAccount?.name ?: if (selectedType == TransactionType.INCOME) "Select Deposit Account" else "Select Payment Account",
+                            value = accountText,
                             onValueChange = {},
                             enabled = false,
                             label = { Text(if (selectedType == TransactionType.INCOME) "Deposit Account" else "Payment Account") },
@@ -692,8 +769,15 @@ fun EditTransactionDialog(
                     if (shouldShowDebtAccountField) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(modifier = Modifier.fillMaxWidth()) {
+                                val targetDebtText = selectedTargetDebtAccount?.let { acc ->
+                                    val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                    val dispBal = kotlin.math.abs(rawBal)
+                                    val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                                    "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                } ?: "None (Standard Expense)"
+
                                 OutlinedTextField(
-                                    value = selectedTargetDebtAccount?.name ?: "None (Standard Expense)",
+                                    value = targetDebtText,
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Apply Payment Toward Debt (Optional)") },
@@ -1028,6 +1112,8 @@ fun EditTransactionDialog(
                         }
                     }
 
+                    } // end isEditMode form content
+
                     Spacer(modifier = Modifier.height(150.dp))
                 }
             }
@@ -1183,7 +1269,7 @@ fun EditTransactionDialog(
                                 text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(transaction.amount),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isIncome) IncomeGreen else ExpenseRed
+                                color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
                             )
                         }
                     }
@@ -1239,7 +1325,8 @@ fun EditTransactionDialog(
             onAddCustomCategory = {
                 expandedCategoryDropdown = false
                 showNewCategoryDialog = true
-            }
+            },
+            onArchiveCategory = onAddCustomCategory?.let { { cat -> onAddCustomCategory.invoke(cat.copy(isArchived = true)) } }
         )
     }
 
@@ -1248,6 +1335,7 @@ fun EditTransactionDialog(
             accounts = availableAccounts,
             selectedAccount = selectedAccount,
             currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
             onDismiss = { expandedAccountDropdown = false },
             onSelectAccount = { acc ->
                 selectedAccount = acc
@@ -1265,6 +1353,7 @@ fun EditTransactionDialog(
             accounts = availableDebtAccounts,
             selectedAccount = selectedTargetDebtAccount,
             currencySymbol = currencySymbol,
+            accountBalances = accountBalances,
             onDismiss = { showTargetDebtAccountModal = false },
             onSelectAccount = { acc ->
                 selectedTargetDebtAccount = acc
@@ -1275,5 +1364,199 @@ fun EditTransactionDialog(
                 showNewAccountDialog = true
             }
         )
+    }
+}
+
+@Composable
+private fun TransactionViewModeSummary(
+    transaction: TransactionEntity,
+    themeColor: Color,
+    currencySymbol: String,
+    dateFormatter: SimpleDateFormat,
+    accountName: String?,
+    categoryName: String?,
+    debtAccountName: String?,
+    isRecurringActive: Boolean,
+    recurringFrequency: RecurringFrequency,
+    isBudgetActive: Boolean,
+    budgetLimitText: String,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onClose: () -> Unit,
+    canDelete: Boolean
+) {
+    val isIncome = transaction.type == TransactionType.INCOME
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "AMOUNT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${if (isIncome) "+" else "-"}$currencySymbol${"%.2f".format(transaction.amount)}",
+                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
+            )
+        }
+
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = themeColor.copy(alpha = 0.15f),
+            border = BorderStroke(1.dp, themeColor.copy(alpha = 0.3f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (isIncome) "Income 🟢" else "Expense 🔴",
+                    fontWeight = FontWeight.Bold,
+                    color = themeColor,
+                    fontSize = 14.sp
+                )
+            }
+        }
+
+        ViewModeInfoRow(
+            icon = Icons.Default.Info,
+            label = if (isIncome) "Title / Payer" else "Title / Merchant",
+            value = transaction.title
+        )
+        ViewModeInfoRow(icon = Icons.Default.CalendarToday, label = "Date", value = dateFormatter.format(Date(transaction.timestamp)))
+        ViewModeInfoRow(
+            icon = Icons.Default.AccountBalance,
+            label = if (isIncome) "Deposit Account" else "Payment Account",
+            value = accountName ?: "—"
+        )
+        ViewModeInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
+
+        if (debtAccountName != null) {
+            ViewModeInfoRow(icon = Icons.Default.CreditCard, label = "Applied Toward Debt", value = debtAccountName)
+        }
+
+        if (isRecurringActive) {
+            ViewModeInfoRow(
+                icon = Icons.Default.Repeat,
+                label = "Recurring",
+                value = recurringFrequency.name.lowercase().replaceFirstChar { it.uppercase() },
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (isBudgetActive) {
+            ViewModeInfoRow(
+                icon = Icons.Default.AccountBalanceWallet,
+                label = "Monthly Category Budget",
+                value = "$currencySymbol${budgetLimitText.ifBlank { "0.00" }}/mo",
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                Button(
+                    onClick = onEditClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Edit Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            }
+
+            if (canDelete) {
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                ) {
+                    Text("Delete Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewModeInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor
+                )
+            }
+        }
     }
 }

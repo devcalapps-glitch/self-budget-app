@@ -1,6 +1,7 @@
 package com.selfbudget.app.feature.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
@@ -29,6 +32,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,10 +55,12 @@ fun ProfileScreen(
     transactions: List<TransactionEntity>,
     categories: List<CategoryEntity>,
     onSetCurrency: (String) -> Unit,
+    onToggleCategoryArchive: (CategoryEntity) -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
     val currencies = listOf("$", "€", "£", "₹", "¥", "A$")
+    var showManageCategoriesModal by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -107,6 +116,51 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
                 }
+            }
+        }
+
+        // Manage Custom Categories Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showManageCategoriesModal = true },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Category,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Manage Custom Categories",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "View, archive, or restore custom categories",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -215,5 +269,13 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Text(text = "Sign Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
+    }
+
+    if (showManageCategoriesModal) {
+        com.selfbudget.app.core.ui.ManageCategoriesModal(
+            categories = categories,
+            onDismiss = { showManageCategoriesModal = false },
+            onToggleCategoryArchive = onToggleCategoryArchive
+        )
     }
 }

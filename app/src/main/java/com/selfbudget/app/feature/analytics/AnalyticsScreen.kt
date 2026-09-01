@@ -1,8 +1,5 @@
 package com.selfbudget.app.feature.analytics
 
-import com.selfbudget.app.core.ui.MonthYearHeader
-import com.selfbudget.app.core.util.Money
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,17 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CompareArrows
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -53,15 +46,21 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.selfbudget.app.core.ui.CategoryAnalyticsDetailModal
+import com.selfbudget.app.core.ui.MonthYearHeader
 import com.selfbudget.app.core.ui.NetWorthHistoryModal
+import com.selfbudget.app.core.ui.SavingsGoalsAnalyticsModal
+import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.CategoryEntity
+import com.selfbudget.app.data.model.GoalEntity
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
-import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.IncomeGreen
+import com.selfbudget.app.ui.theme.getExpenseColor
+import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -70,12 +69,6 @@ import java.util.Locale
 enum class AnalyticsTimeframe {
     MONTHLY, ANNUAL
 }
-
-data class CategorySpending(
-    val category: CategoryEntity,
-    val totalAmount: Double,
-    val percentage: Float
-)
 
 @Composable
 fun AnalyticsScreen(
@@ -88,10 +81,15 @@ fun AnalyticsScreen(
     currencySymbol: String = "$",
     netWorthHistory: List<NetWorthSnapshotEntity> = emptyList(),
     accounts: List<AccountEntity> = emptyList(),
-    accountBalances: Map<String, Double> = emptyMap()
+    accountBalances: Map<String, Double> = emptyMap(),
+    goals: List<GoalEntity> = emptyList()
 ) {
     var selectedTimeframe by remember { mutableStateOf(AnalyticsTimeframe.MONTHLY) }
     var showNetWorthModal by remember { mutableStateOf(false) }
+    var showIncomeDetailModal by remember { mutableStateOf(false) }
+    var showExpenseDetailModal by remember { mutableStateOf(false) }
+    var showDebtPayoffModal by remember { mutableStateOf(false) }
+    var showGoalsModal by remember { mutableStateOf(false) }
 
     val sdfMonth = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
     val sdfMonthName = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
@@ -128,63 +126,136 @@ fun AnalyticsScreen(
         Triple(currentName, prevName, prevYearStr)
     }
 
-    // 1. Current Month & Previous Month Transactions
-    val currentMonthTxs = remember(allTransactions, selectedMonthYear) {
+    // 1. Current Month & Previous Month Transactions (Expenses and Income)
+    val currentMonthExpenseTxs = remember(allTransactions, categories, selectedMonthYear) {
+        val catMap = categories.associateBy { it.id }
         allTransactions.filter { tx ->
-            sdfMonth.format(Date(tx.timestamp)) == selectedMonthYear && tx.type == TransactionType.EXPENSE
+            sdfMonth.format(Date(tx.timestamp)) == selectedMonthYear &&
+            tx.type == TransactionType.EXPENSE &&
+            (catMap[tx.categoryId]?.type == TransactionType.EXPENSE || catMap[tx.categoryId] == null)
         }
     }
-    val previousMonthTxs = remember(allTransactions, previousMonthYearStr) {
+    val currentMonthIncomeTxs = remember(allTransactions, categories, selectedMonthYear) {
+        val catMap = categories.associateBy { it.id }
         allTransactions.filter { tx ->
-            sdfMonth.format(Date(tx.timestamp)) == previousMonthYearStr && tx.type == TransactionType.EXPENSE
+            sdfMonth.format(Date(tx.timestamp)) == selectedMonthYear &&
+            tx.type == TransactionType.INCOME &&
+            (catMap[tx.categoryId]?.type == TransactionType.INCOME || catMap[tx.categoryId] == null)
         }
     }
 
-    val totalMonthExpense = remember(currentMonthTxs) { currentMonthTxs.sumOf { it.amount } }
-    val prevTotalExpense = remember(previousMonthTxs) { previousMonthTxs.sumOf { it.amount } }
+    val previousMonthExpenseTxs = remember(allTransactions, categories, previousMonthYearStr) {
+        val catMap = categories.associateBy { it.id }
+        allTransactions.filter { tx ->
+            sdfMonth.format(Date(tx.timestamp)) == previousMonthYearStr &&
+            tx.type == TransactionType.EXPENSE &&
+            (catMap[tx.categoryId]?.type == TransactionType.EXPENSE || catMap[tx.categoryId] == null)
+        }
+    }
+    val previousMonthIncomeTxs = remember(allTransactions, categories, previousMonthYearStr) {
+        val catMap = categories.associateBy { it.id }
+        allTransactions.filter { tx ->
+            sdfMonth.format(Date(tx.timestamp)) == previousMonthYearStr &&
+            tx.type == TransactionType.INCOME &&
+            (catMap[tx.categoryId]?.type == TransactionType.INCOME || catMap[tx.categoryId] == null)
+        }
+    }
 
-    val diffAmount = totalMonthExpense - prevTotalExpense
-    val diffPercent = if (prevTotalExpense > 0) ((diffAmount / prevTotalExpense) * 100) else 0.0
+    val totalMonthExpense = remember(currentMonthExpenseTxs) { currentMonthExpenseTxs.sumOf { it.amount } }
+    val totalMonthIncome = remember(currentMonthIncomeTxs) { currentMonthIncomeTxs.sumOf { it.amount } }
+
+    val prevTotalExpense = remember(previousMonthExpenseTxs) { previousMonthExpenseTxs.sumOf { it.amount } }
+    val prevTotalIncome = remember(previousMonthIncomeTxs) { previousMonthIncomeTxs.sumOf { it.amount } }
+
+    val diffAmountExpense = totalMonthExpense - prevTotalExpense
+    val diffPercentExpense = if (prevTotalExpense > 0) ((diffAmountExpense / prevTotalExpense) * 100) else 0.0
+
+    val diffAmountIncome = totalMonthIncome - prevTotalIncome
+    val diffPercentIncome = if (prevTotalIncome > 0) ((diffAmountIncome / prevTotalIncome) * 100) else 0.0
 
     // 2. Annual (YTD) Transactions & Averages
-    val annualTxs = remember(allTransactions, selectedYearStr) {
+    val annualExpenseTxs = remember(allTransactions, categories, selectedYearStr) {
+        val catMap = categories.associateBy { it.id }
         allTransactions.filter { tx ->
-            sdfYear.format(Date(tx.timestamp)) == selectedYearStr && tx.type == TransactionType.EXPENSE
+            sdfYear.format(Date(tx.timestamp)) == selectedYearStr &&
+            tx.type == TransactionType.EXPENSE &&
+            (catMap[tx.categoryId]?.type == TransactionType.EXPENSE || catMap[tx.categoryId] == null)
         }
     }
-    val totalAnnualExpense = remember(annualTxs) { Money.sum(annualTxs.map { it.amount }) }
-    val monthsLoggedCount = remember(annualTxs) {
-        annualTxs.map { sdfMonth.format(Date(it.timestamp)) }.distinct().size.coerceAtLeast(1)
+    val annualIncomeTxs = remember(allTransactions, categories, selectedYearStr) {
+        val catMap = categories.associateBy { it.id }
+        allTransactions.filter { tx ->
+            sdfYear.format(Date(tx.timestamp)) == selectedYearStr &&
+            tx.type == TransactionType.INCOME &&
+            (catMap[tx.categoryId]?.type == TransactionType.INCOME || catMap[tx.categoryId] == null)
+        }
+    }
+
+    val totalAnnualExpense = remember(annualExpenseTxs) { Money.sum(annualExpenseTxs.map { it.amount }) }
+    val totalAnnualIncome = remember(annualIncomeTxs) { Money.sum(annualIncomeTxs.map { it.amount }) }
+
+    val monthsLoggedCount = remember(annualExpenseTxs, annualIncomeTxs) {
+        (annualExpenseTxs + annualIncomeTxs).map { sdfMonth.format(Date(it.timestamp)) }.distinct().size.coerceAtLeast(1)
     }
     val monthlyAverageExpense = Money.round(totalAnnualExpense / monthsLoggedCount)
+    val monthlyAverageIncome = Money.round(totalAnnualIncome / monthsLoggedCount)
 
-    // Issue 10: Days-elapsed based annual spending pace extrapolation
-    val annualSpendingPace = remember(totalAnnualExpense) {
-        val cal = Calendar.getInstance()
-        val dayOfYear = cal.get(Calendar.DAY_OF_YEAR).coerceAtLeast(1)
-        val daysInYear = cal.getActualMaximum(Calendar.DAY_OF_YEAR)
-        Money.round((totalAnnualExpense / dayOfYear) * daysInYear)
-    }
-
-    // Active timeframe dataset
-    val activeTxs = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) currentMonthTxs else annualTxs
     val activeTotalExpense = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) totalMonthExpense else totalAnnualExpense
+    val activeTotalIncome = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) totalMonthIncome else totalAnnualIncome
 
-    // Category Spending Breakdown for active timeframe
-    val categorySpendings = remember(activeTxs, categories, activeTotalExpense) {
-        val categoryMap = categories.associateBy { it.id }
-        activeTxs
-            .groupBy { it.categoryId }
-            .map { (catId, txs) ->
-                val sum = txs.sumOf { it.amount }
-                val cat = categoryMap[catId] ?: CategoryEntity(
-                    catId, "Unknown", "MoreHoriz", "#607D8B", TransactionType.EXPENSE
-                )
-                val pct = if (activeTotalExpense > 0) (sum / activeTotalExpense).toFloat() else 0f
-                CategorySpending(cat, sum, pct)
-            }
-            .sortedByDescending { it.totalAmount }
+    // 3. Debt Payoff Transactions & Totals
+    val debtAccounts = remember(accounts) {
+        accounts.filter { AccountBalanceCalculator.isLiability(it.type) }
     }
+    val debtAccountIds = remember(debtAccounts) {
+        debtAccounts.map { it.id }.toSet()
+    }
+    val currentMonthDebtPayoffTxs = remember(allTransactions, debtAccountIds, selectedMonthYear) {
+        allTransactions.filter { tx ->
+            sdfMonth.format(Date(tx.timestamp)) == selectedMonthYear &&
+            ((tx.type == TransactionType.EXPENSE && tx.transferAccountId in debtAccountIds) ||
+             (tx.type == TransactionType.TRANSFER && tx.transferAccountId in debtAccountIds))
+        }
+    }
+    val annualDebtPayoffTxs = remember(allTransactions, debtAccountIds, selectedYearStr) {
+        allTransactions.filter { tx ->
+            sdfYear.format(Date(tx.timestamp)) == selectedYearStr &&
+            ((tx.type == TransactionType.EXPENSE && tx.transferAccountId in debtAccountIds) ||
+             (tx.type == TransactionType.TRANSFER && tx.transferAccountId in debtAccountIds))
+        }
+    }
+    val totalMonthDebtPayoff = remember(currentMonthDebtPayoffTxs) { Money.sum(currentMonthDebtPayoffTxs.map { it.amount }) }
+    val totalAnnualDebtPayoff = remember(annualDebtPayoffTxs) { Money.sum(annualDebtPayoffTxs.map { it.amount }) }
+
+    val previousMonthDebtPayoffTxs = remember(allTransactions, debtAccountIds, previousMonthYearStr) {
+        allTransactions.filter { tx ->
+            sdfMonth.format(Date(tx.timestamp)) == previousMonthYearStr &&
+            ((tx.type == TransactionType.EXPENSE && tx.transferAccountId in debtAccountIds) ||
+             (tx.type == TransactionType.TRANSFER && tx.transferAccountId in debtAccountIds))
+        }
+    }
+    val prevTotalDebtPayoff = remember(previousMonthDebtPayoffTxs) { Money.sum(previousMonthDebtPayoffTxs.map { it.amount }) }
+    val diffAmountDebtPayoff = totalMonthDebtPayoff - prevTotalDebtPayoff
+    val diffPercentDebtPayoff = if (prevTotalDebtPayoff > 0) ((diffAmountDebtPayoff / prevTotalDebtPayoff) * 100) else if (totalMonthDebtPayoff > 0) 100.0 else 0.0
+    val monthlyAverageDebtPayoff = Money.round(totalAnnualDebtPayoff / monthsLoggedCount)
+
+    val activeTotalDebtPayoff = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) totalMonthDebtPayoff else totalAnnualDebtPayoff
+
+    // 5. Savings Goals Progress
+    val goalCurrentAmounts = remember(goals, accounts, accountBalances) {
+        goals.map { goal ->
+            val linkedAccount = accounts.firstOrNull { it.id == goal.linkedAccountId }
+            val accountAmount = linkedAccount?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0
+            accountAmount + goal.savedAmount
+        }
+    }
+    val totalGoalsCount = goals.size
+    val goalsMetCount = remember(goals, goalCurrentAmounts) {
+        goals.indices.count { i -> goals[i].targetAmount > 0 && goalCurrentAmounts[i] >= goals[i].targetAmount }
+    }
+    val totalGoalsTarget = remember(goals) { goals.sumOf { it.targetAmount } }
+    val totalGoalsSaved = remember(goalCurrentAmounts) { goalCurrentAmounts.sum() }
+    val goalsOverallProgress = if (totalGoalsTarget > 0) (totalGoalsSaved / totalGoalsTarget).toFloat().coerceIn(0f, 1f) else 0f
 
     LazyColumn(
         modifier = Modifier
@@ -260,136 +331,15 @@ fun AnalyticsScreen(
             }
         }
 
-        // Total Expense Overview Card - hero total, plus timeframe-specific context folded into
-        // the same card (previously a separate "Month-over-Month"/"Annual Pace" card duplicated
-        // the total/average numbers already shown here).
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Total Spending ($currentMonthName)" else "Total Annual Spending ($selectedYearStr YTD)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$currencySymbol%.2f".format(activeTotalExpense),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    if (selectedTimeframe == AnalyticsTimeframe.ANNUAL) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "$currencySymbol%.2f / month average across $monthsLoggedCount months".format(monthlyAverageExpense),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CompareArrows,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "vs. Last Month",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-
-                            // Percentage Change Pill / Badge
-                            val isSavedMoney = diffAmount <= 0
-                            val badgeColor = if (isSavedMoney) IncomeGreen else ExpenseRed
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(badgeColor.copy(alpha = 0.18f))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = if (isSavedMoney) Icons.Default.TrendingDown else Icons.Default.TrendingUp,
-                                        contentDescription = null,
-                                        tint = badgeColor,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "%s%.1f%%".format(if (diffAmount > 0) "+" else "", diffPercent),
-                                        color = badgeColor,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = "$previousMonthName: $currencySymbol%.2f".format(prevTotalExpense),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = if (diffAmount <= 0) {
-                                "🎉 Great job! You spent $currencySymbol%.2f less than last month.".format(Math.abs(diffAmount))
-                            } else {
-                                "⚠️ Notice: You spent $currencySymbol%.2f more than $previousMonthName.".format(diffAmount)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (diffAmount <= 0) IncomeGreen else ExpenseRed,
-                            fontWeight = FontWeight.Medium
-                        )
-                    } else {
-                        Text(
-                            text = "Tracking $monthsLoggedCount month(s) of expense history in $selectedYearStr.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-
-        // Net Worth Summary Card — Tapping opens NetWorthHistoryModal
+        // 1. Net Worth Summary Card (Top Card)
         item {
             val totalAssets = remember(accounts, accountBalances) {
                 accounts.filter {
                     it.type == AccountType.CHECKING ||
                     it.type == AccountType.SAVINGS ||
                     it.type == AccountType.CASH ||
-                    it.type == AccountType.INVESTMENT
+                    it.type == AccountType.INVESTMENT ||
+                    it.type == AccountType.RETIREMENT
                 }.sumOf { accountBalances[it.id] ?: it.initialBalance }
             }
             val totalDebts = remember(accounts, accountBalances) {
@@ -422,9 +372,9 @@ fun AnalyticsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (trendUp) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                                imageVector = if (trendUp) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
-                                tint = if (trendUp) IncomeGreen else ExpenseRed,
+                                tint = if (trendUp) getIncomeColor() else getExpenseColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -464,13 +414,13 @@ fun AnalyticsScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Mini Sparkline Graph Preview
                     val sparklinePoints = remember(netWorthHistory, liveNetWorth) {
                         val points = netWorthHistory.map { it.netWorth }.toMutableList()
                         if (points.isEmpty()) points.add(liveNetWorth)
                         if (points.size == 1) points.add(0, points.first())
                         points
                     }
+                    val sparklineStrokeColor = if (trendUp) getIncomeColor() else getExpenseColor()
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -504,7 +454,7 @@ fun AnalyticsScreen(
                             areaPath.lineTo(w, h)
                             areaPath.close()
 
-                            val strokeColor = if (trendUp) IncomeGreen else ExpenseRed
+                            val strokeColor = sparklineStrokeColor
 
                             drawPath(
                                 path = areaPath,
@@ -535,134 +485,525 @@ fun AnalyticsScreen(
             }
         }
 
+        // 1b. Savings Goals Summary Card
         item {
-            Text(
-                text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Category Breakdown ($currentMonthName)" else "Category Breakdown ($selectedYearStr YTD)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        if (categorySpendings.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showGoalsModal = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.PieChart,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Savings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Savings Goals",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "View Details",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
 
+                    if (totalGoalsCount == 0) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "No Spending Analytics Available",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "No savings goals yet. Set one from the Plan tab to track progress here.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$currencySymbol%.2f of $currencySymbol%.2f".format(totalGoalsSaved, totalGoalsTarget),
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        Text(
-                            text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Log expense entries for $currentMonthName to generate category pie charts and month-over-month trends." else "Log expense entries in $selectedYearStr to generate annual YTD category breakdowns.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                        LinearProgressIndicator(
+                            progress = { goalsOverallProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = getIncomeColor()
                         )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Active Goals",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "$totalGoalsCount",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Goals Met",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "$goalsMetCount / $totalGoalsCount",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = getIncomeColor()
+                                )
+                            }
+                        }
                     }
                 }
             }
-        } else {
-            items(categorySpendings) { item ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        }
+
+        // 2. Total Expense Hero Card (Clickable to view Expense Category details)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showExpenseDetailModal = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Total Spending ($currentMonthName)" else "Total Annual Spending ($selectedYearStr YTD)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "View Details",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$currencySymbol%.2f".format(activeTotalExpense),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+
+                    if (selectedTimeframe == AnalyticsTimeframe.ANNUAL) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$currencySymbol%.2f / month average across $monthsLoggedCount months".format(monthlyAverageExpense),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                val catColor = try {
-                                    Color(android.graphics.Color.parseColor(item.category.colorHex))
-                                } catch (e: Exception) {
-                                    MaterialTheme.colorScheme.primary
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(catColor)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = item.category.name,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
+                                    text = "vs. Last Month",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
 
-                            Text(
-                                text = "$currencySymbol%.2f (%.1f%%)".format(item.totalAmount, item.percentage * 100),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
+                            val isSavedMoney = diffAmountExpense <= 0
+                            val badgeColor = if (isSavedMoney) getIncomeColor() else getExpenseColor()
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(badgeColor.copy(alpha = 0.18f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isSavedMoney) Icons.AutoMirrored.Filled.TrendingDown else Icons.AutoMirrored.Filled.TrendingUp,
+                                        contentDescription = null,
+                                        tint = badgeColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "%s%.1f%%".format(if (diffAmountExpense > 0) "+" else "", diffPercentExpense),
+                                        color = badgeColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        val catColor = try {
-                            Color(android.graphics.Color.parseColor(item.category.colorHex))
-                        } catch (e: Exception) {
-                            MaterialTheme.colorScheme.primary
-                        }
-
-                        LinearProgressIndicator(
-                            progress = { item.percentage.coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = catColor,
-                            trackColor = catColor.copy(alpha = 0.2f)
+                        Text(
+                            text = "$previousMonthName: $currencySymbol%.2f".format(prevTotalExpense),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Tracking $monthsLoggedCount month(s) of expense history in $selectedYearStr. Tap to view category breakdowns.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
         }
+
+        // 3. Total Income Hero Card (Clickable to view Income Category details)
         item {
-            Spacer(modifier = Modifier.height(150.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showIncomeDetailModal = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Total Income ($currentMonthName)" else "Total Annual Income ($selectedYearStr YTD)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "View Details",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$currencySymbol%.2f".format(activeTotalIncome),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = getIncomeColor()
+                    )
+
+                    if (selectedTimeframe == AnalyticsTimeframe.ANNUAL) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$currencySymbol%.2f / month average earned".format(monthlyAverageIncome),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    tint = getIncomeColor(),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "vs. Last Month Income",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            val isHigherIncome = diffAmountIncome >= 0
+                            val badgeColor = if (isHigherIncome) getIncomeColor() else getExpenseColor()
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(badgeColor.copy(alpha = 0.18f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isHigherIncome) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                        contentDescription = null,
+                                        tint = badgeColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "%s%.1f%%".format(if (diffAmountIncome > 0) "+" else "", diffPercentIncome),
+                                        color = badgeColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "$previousMonthName: $currencySymbol%.2f".format(prevTotalIncome),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Total YTD income earned across $monthsLoggedCount month(s) in $selectedYearStr. Tap to view category breakdowns.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Total Debt Payoff Hero Card (Clickable to view Debt Payoff details)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDebtPayoffModal = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Debt Payoff ($currentMonthName)" else "Annual Debt Payoff ($selectedYearStr YTD)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "View Details",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$currencySymbol%.2f".format(activeTotalDebtPayoff),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = getIncomeColor()
+                    )
+
+                    if (selectedTimeframe == AnalyticsTimeframe.ANNUAL) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$currencySymbol%.2f / month average paid down".format(monthlyAverageDebtPayoff),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    tint = getIncomeColor(),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "vs. Last Month Payoff",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            val isHigherPayoff = diffAmountDebtPayoff >= 0
+                            val badgeColor = if (isHigherPayoff) getIncomeColor() else getExpenseColor()
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(badgeColor.copy(alpha = 0.18f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isHigherPayoff) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                        contentDescription = null,
+                                        tint = badgeColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "%s%.1f%%".format(if (diffAmountDebtPayoff > 0) "+" else "", diffPercentDebtPayoff),
+                                        color = badgeColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "$previousMonthName: $currencySymbol%.2f".format(prevTotalDebtPayoff),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Total debt eliminated YTD across $monthsLoggedCount month(s) in $selectedYearStr. Tap to view payoff breakdown by debt account.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(120.dp))
         }
     }
 
@@ -673,6 +1014,58 @@ fun AnalyticsScreen(
             accountBalances = accountBalances,
             currencySymbol = currencySymbol,
             onDismiss = { showNetWorthModal = false }
+        )
+    }
+
+    if (showIncomeDetailModal) {
+        CategoryAnalyticsDetailModal(
+            title = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Income Analytics" else "Annual Income Analytics",
+            subtitle = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) currentMonthName else "$selectedYearStr YTD",
+            transactionType = TransactionType.INCOME,
+            timeframe = selectedTimeframe,
+            periodLabel = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) selectedMonthYear else selectedYearStr,
+            allTransactions = allTransactions,
+            categories = categories,
+            currencySymbol = currencySymbol,
+            onDismiss = { showIncomeDetailModal = false }
+        )
+    }
+
+    if (showExpenseDetailModal) {
+        CategoryAnalyticsDetailModal(
+            title = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Expense Analytics" else "Annual Expense Analytics",
+            subtitle = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) currentMonthName else "$selectedYearStr YTD",
+            transactionType = TransactionType.EXPENSE,
+            timeframe = selectedTimeframe,
+            periodLabel = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) selectedMonthYear else selectedYearStr,
+            allTransactions = allTransactions,
+            categories = categories,
+            currencySymbol = currencySymbol,
+            onDismiss = { showExpenseDetailModal = false }
+        )
+    }
+
+    if (showDebtPayoffModal) {
+        com.selfbudget.app.core.ui.DebtPayoffAnalyticsModal(
+            title = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) "Debt Payoff Analytics" else "Annual Debt Payoff Analytics",
+            subtitle = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) currentMonthName else "$selectedYearStr YTD",
+            timeframe = selectedTimeframe,
+            periodLabel = if (selectedTimeframe == AnalyticsTimeframe.MONTHLY) selectedMonthYear else selectedYearStr,
+            allTransactions = allTransactions,
+            accounts = accounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            onDismiss = { showDebtPayoffModal = false }
+        )
+    }
+
+    if (showGoalsModal) {
+        SavingsGoalsAnalyticsModal(
+            goals = goals,
+            accounts = accounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            onDismiss = { showGoalsModal = false }
         )
     }
 }
