@@ -276,7 +276,11 @@ fun EditCustomAccountDialog(
                             isDebtType = isDebtType,
                             creditLimitText = creditLimitText,
                             aprText = aprText,
-                            minPaymentText = minPaymentText
+                            minPaymentText = minPaymentText,
+                            onEditClick = { enterEditMode() },
+                            onDeleteClick = { showDeleteConfirmation = true },
+                            onClose = onDismiss,
+                            canDelete = onDelete != null
                         )
                     } else {
 
@@ -803,96 +807,63 @@ fun EditCustomAccountDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // In-Form Action Buttons (Cancel | Save Changes)
-                    Row(
+                    // Action Buttons Layout:
+                    // Row 1: [ Cancel ] | [ Save Changes ]
+                    // Row 2: [ 🗑️ Delete Account ] (if onDelete != null)
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            OutlinedButton(
+                                onClick = onDismiss,
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
+
+                            Button(
+                                onClick = { trySave() },
+                                enabled = isDirty && accountName.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(48.dp)
+                            ) {
+                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
                         }
 
-                        Button(
-                            onClick = { trySave() },
-                            enabled = isDirty && accountName.isNotBlank(),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1.3f)
-                                .height(48.dp)
-                        ) {
-                            Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        if (onDelete != null) {
+                            OutlinedButton(
+                                onClick = { showDeleteConfirmation = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                            ) {
+                                Text("Delete Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
                         }
                     }
 
                     } // end isEditMode preview + inline actions
 
-                    if (onDelete != null) {
-                        OutlinedButton(
-                            onClick = { showDeleteConfirmation = true },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
-                        ) {
-                            Text("Delete Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        }
-                    }
-                }
-
-                // Sticky Bottom Action Bar
-                Surface(
-                    shadowElevation = 12.dp,
-                    tonalElevation = 6.dp,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .imePadding()
-                        .navigationBarsPadding()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                        ) {
-                            Text(if (isEditMode) "Cancel" else "Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                if (isEditMode) {
-                                    trySave()
-                                } else {
-                                    enterEditMode()
-                                }
-                            },
-                            enabled = !isEditMode || (isDirty && accountName.isNotBlank()),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1.3f)
-                                .height(48.dp)
-                        ) {
-                            Text(if (isEditMode) "Save Changes" else "Edit Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(150.dp))
                 }
             }
         }
@@ -992,7 +963,11 @@ private fun AccountViewModeSummary(
     isDebtType: Boolean,
     creditLimitText: String,
     aprText: String,
-    minPaymentText: String
+    minPaymentText: String,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onClose: () -> Unit,
+    canDelete: Boolean
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1031,6 +1006,61 @@ private fun AccountViewModeSummary(
             }
             if (minPaymentText.isNotBlank()) {
                 AccountInfoRow(icon = Icons.Default.Payments, label = "Minimum Monthly Payment", value = "$currencySymbol$minPaymentText")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Action Buttons Layout:
+        // Row 1: [ Close ] | [ Edit Account ]
+        // Row 2: [ 🗑️ Delete Account ] (if canDelete)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                Button(
+                    onClick = onEditClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Edit Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            }
+
+            if (canDelete) {
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                ) {
+                    Text("Delete Account", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
             }
         }
     }
