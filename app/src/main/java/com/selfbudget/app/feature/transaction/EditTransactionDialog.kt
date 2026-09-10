@@ -58,6 +58,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -187,8 +189,15 @@ fun EditTransactionDialog(
     }
     var showTargetDebtAccountModal by remember { mutableStateOf(false) }
 
-    val availableDebtAccounts = remember(availableAccounts, selectedAccount) {
-        availableAccounts.filter { (it.type == AccountType.CREDIT_CARD || it.type == AccountType.LOAN) && it.id != selectedAccount?.id }
+    val availableTargetAccounts = remember(availableAccounts, selectedAccount) {
+        availableAccounts.filter { 
+            (it.type == AccountType.CREDIT_CARD || 
+             it.type == AccountType.LOAN || 
+             it.type == AccountType.INVESTMENT || 
+             it.type == AccountType.RETIREMENT || 
+             it.type == AccountType.SAVINGS) && 
+            it.id != selectedAccount?.id 
+        }
     }
     var expandedAccountDropdown by remember { mutableStateOf(false) }
     var showNewAccountDialog by remember { mutableStateOf(false) }
@@ -754,34 +763,70 @@ fun EditTransactionDialog(
                         )
                     }
 
-                    // Optional Target Debt Account Field (Only shown for Credit Card / Loan Payment or Rent / Mortgage categories)
+                    // Optional Target Account Field (Shown for Credit Card / Loan Debt, Investments, Savings, Retirement, etc.)
                     val catName = selectedCategory?.name?.lowercase() ?: ""
-                    val isDebtOrMortgageCategory = catName.contains("credit") || 
-                                                   catName.contains("card") || 
-                                                   catName.contains("loan") || 
-                                                   catName.contains("debt") || 
-                                                   catName.contains("mortgage") || 
-                                                   catName.contains("rent")
-                    val shouldShowDebtAccountField = selectedType == TransactionType.EXPENSE &&
-                                                     availableDebtAccounts.isNotEmpty() &&
-                                                     (isDebtOrMortgageCategory || selectedTargetDebtAccount != null)
+                    val isTargetCategory = catName.contains("credit") || 
+                                           catName.contains("card") || 
+                                           catName.contains("loan") || 
+                                           catName.contains("debt") || 
+                                           catName.contains("mortgage") || 
+                                           catName.contains("rent") ||
+                                           catName.contains("invest") ||
+                                           catName.contains("saving") ||
+                                           catName.contains("stock") ||
+                                           catName.contains("crypto") ||
+                                           catName.contains("401k") ||
+                                           catName.contains("ira") ||
+                                           catName.contains("retire") ||
+                                           catName.contains("transfer")
+                    val shouldShowTargetAccountField = selectedType == TransactionType.EXPENSE &&
+                                                     availableTargetAccounts.isNotEmpty() &&
+                                                     (isTargetCategory || selectedTargetDebtAccount != null)
 
-                    if (shouldShowDebtAccountField) {
+                    if (shouldShowTargetAccountField) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(modifier = Modifier.fillMaxWidth()) {
-                                val targetDebtText = selectedTargetDebtAccount?.let { acc ->
+                                val targetText = selectedTargetDebtAccount?.let { acc ->
                                     val rawBal = accountBalances[acc.id] ?: acc.initialBalance
-                                    val dispBal = kotlin.math.abs(rawBal)
                                     val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
-                                    "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                    if (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)) {
+                                        val dispBal = kotlin.math.abs(rawBal)
+                                        "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                    } else {
+                                        "${acc.name} ($accSym%.2f balance)".format(rawBal)
+                                    }
                                 } ?: "None (Standard Expense)"
 
+                                val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
+                                    selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
+                                    selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
+                                    catName.contains("invest") ||
+                                    catName.contains("saving") ||
+                                    catName.contains("retire") ||
+                                    catName.contains("stock") ||
+                                    catName.contains("401k") ||
+                                    catName.contains("ira")
+
+                                val labelText = if (isInvestmentOrSavings) {
+                                    "Deposit / Contribute Toward Account (Optional)"
+                                } else {
+                                    "Apply Payment Toward Debt (Optional)"
+                                }
+
+                                val iconVector = if (selectedTargetDebtAccount?.type == AccountType.INVESTMENT || selectedTargetDebtAccount?.type == AccountType.RETIREMENT || catName.contains("invest") || catName.contains("retire") || catName.contains("stock") || catName.contains("401k") || catName.contains("ira")) {
+                                    Icons.Default.TrendingUp
+                                } else if (selectedTargetDebtAccount?.type == AccountType.SAVINGS || catName.contains("saving")) {
+                                    Icons.Default.Savings
+                                } else {
+                                    Icons.Default.CreditCard
+                                }
+
                                 OutlinedTextField(
-                                    value = targetDebtText,
+                                    value = targetText,
                                     onValueChange = {},
                                     readOnly = true,
-                                    label = { Text("Apply Payment Toward Debt (Optional)") },
-                                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    label = { Text(labelText) },
+                                    leadingIcon = { Icon(iconVector, contentDescription = null) },
                                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                                     shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -797,7 +842,8 @@ fun EditTransactionDialog(
                                 )
                             }
 
-                            selectedTargetDebtAccount?.let { debtAcc ->
+                            selectedTargetDebtAccount?.let { targetAcc ->
+                                val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(targetAcc.type)
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -810,7 +856,7 @@ fun EditTransactionDialog(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "💡 Will reduce ${debtAcc.name} debt balance",
+                                        text = if (isLiability) "💡 Will reduce ${targetAcc.name} debt balance" else "💡 Will increase ${targetAcc.name} balance",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold
@@ -1122,7 +1168,7 @@ fun EditTransactionDialog(
         // Material 3 Compose Date Picker Dialog
         if (showDatePickerModal) {
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedTimestamp
+                initialSelectedDateMillis = com.selfbudget.app.core.util.DateUtils.localDateToUtcMillis(selectedTimestamp)
             )
 
             DatePickerDialog(
@@ -1135,7 +1181,7 @@ fun EditTransactionDialog(
                     TextButton(
                         onClick = {
                             datePickerState.selectedDateMillis?.let { millis ->
-                                selectedTimestamp = millis
+                                selectedTimestamp = com.selfbudget.app.core.util.DateUtils.utcMillisToLocalDate(millis, selectedTimestamp)
                             }
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()
@@ -1350,7 +1396,7 @@ fun EditTransactionDialog(
 
     if (showTargetDebtAccountModal) {
         AccountSelectionModal(
-            accounts = availableDebtAccounts,
+            accounts = availableTargetAccounts,
             selectedAccount = selectedTargetDebtAccount,
             currencySymbol = currencySymbol,
             accountBalances = accountBalances,

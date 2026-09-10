@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -145,8 +147,14 @@ fun SetRecurringDialog(
 
     var selectedTargetDebtAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var showTargetDebtAccountModal by remember { mutableStateOf(false) }
-    val availableDebtAccounts = remember(accounts) {
-        accounts.filter { it.type == AccountType.CREDIT_CARD || it.type == AccountType.LOAN }
+    val availableTargetAccounts = remember(accounts) {
+        accounts.filter { 
+            it.type == AccountType.CREDIT_CARD || 
+            it.type == AccountType.LOAN || 
+            it.type == AccountType.INVESTMENT || 
+            it.type == AccountType.RETIREMENT || 
+            it.type == AccountType.SAVINGS 
+        }
     }
     var selectedTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()) }
@@ -581,36 +589,72 @@ fun SetRecurringDialog(
                         )
                     }
 
-                    // Optional Target Debt Account Field - lets this recurring bill represent an
-                    // actual planned monthly debt payment: when posted, it reduces that Credit
-                    // Card / Loan account's balance the same way a one-off transfer does (see
-                    // AccountBalanceCalculator), instead of just being a generic expense.
+                    // Optional Target Account Field - lets this recurring bill represent an
+                    // actual planned monthly debt payment or savings/investment contribution: when posted,
+                    // it updates that target account's balance (see AccountBalanceCalculator).
                     val recurringCategoryName = selectedCategory?.name?.lowercase() ?: ""
-                    val isDebtOrMortgageCategory = recurringCategoryName.contains("credit") ||
+                    val isTargetCategory = recurringCategoryName.contains("credit") ||
                         recurringCategoryName.contains("card") ||
                         recurringCategoryName.contains("loan") ||
                         recurringCategoryName.contains("debt") ||
                         recurringCategoryName.contains("mortgage") ||
-                        recurringCategoryName.contains("rent")
-                    val shouldShowDebtAccountField = selectedType == TransactionType.EXPENSE &&
-                        availableDebtAccounts.isNotEmpty() &&
-                        (isDebtOrMortgageCategory || selectedTargetDebtAccount != null)
+                        recurringCategoryName.contains("rent") ||
+                        recurringCategoryName.contains("invest") ||
+                        recurringCategoryName.contains("saving") ||
+                        recurringCategoryName.contains("stock") ||
+                        recurringCategoryName.contains("crypto") ||
+                        recurringCategoryName.contains("401k") ||
+                        recurringCategoryName.contains("ira") ||
+                        recurringCategoryName.contains("retire") ||
+                        recurringCategoryName.contains("transfer")
+                    val shouldShowTargetAccountField = selectedType == TransactionType.EXPENSE &&
+                        availableTargetAccounts.isNotEmpty() &&
+                        (isTargetCategory || selectedTargetDebtAccount != null)
 
-                    if (shouldShowDebtAccountField) {
+                    if (shouldShowTargetAccountField) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(modifier = Modifier.fillMaxWidth()) {
-                                val targetDebtText = selectedTargetDebtAccount?.let { acc ->
+                                val targetText = selectedTargetDebtAccount?.let { acc ->
                                     val rawBal = accountBalances[acc.id] ?: acc.initialBalance
-                                    val dispBal = kotlin.math.abs(rawBal)
-                                    "${acc.name} ($currencySymbol%.2f owed)".format(dispBal)
+                                    val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                                    if (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)) {
+                                        val dispBal = kotlin.math.abs(rawBal)
+                                        "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                    } else {
+                                        "${acc.name} ($accSym%.2f balance)".format(rawBal)
+                                    }
                                 } ?: "None (Standard Expense)"
 
+                                val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
+                                    selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
+                                    selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
+                                    recurringCategoryName.contains("invest") ||
+                                    recurringCategoryName.contains("saving") ||
+                                    recurringCategoryName.contains("retire") ||
+                                    recurringCategoryName.contains("stock") ||
+                                    recurringCategoryName.contains("401k") ||
+                                    recurringCategoryName.contains("ira")
+
+                                val labelText = if (isInvestmentOrSavings) {
+                                    "Deposit / Contribute Toward Account (Optional)"
+                                } else {
+                                    "Apply Payment Toward Debt (Optional)"
+                                }
+
+                                val iconVector = if (selectedTargetDebtAccount?.type == AccountType.INVESTMENT || selectedTargetDebtAccount?.type == AccountType.RETIREMENT || recurringCategoryName.contains("invest") || recurringCategoryName.contains("retire") || recurringCategoryName.contains("stock") || recurringCategoryName.contains("401k") || recurringCategoryName.contains("ira")) {
+                                    Icons.Default.TrendingUp
+                                } else if (selectedTargetDebtAccount?.type == AccountType.SAVINGS || recurringCategoryName.contains("saving")) {
+                                    Icons.Default.Savings
+                                } else {
+                                    Icons.Default.CreditCard
+                                }
+
                                 OutlinedTextField(
-                                    value = targetDebtText,
+                                    value = targetText,
                                     onValueChange = {},
                                     enabled = false,
-                                    label = { Text("Apply Payment Toward Debt (Optional)") },
-                                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                    label = { Text(labelText) },
+                                    leadingIcon = { Icon(iconVector, contentDescription = null) },
                                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
                                     shape = RoundedCornerShape(14.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
@@ -633,7 +677,8 @@ fun SetRecurringDialog(
                                 )
                             }
 
-                            selectedTargetDebtAccount?.let { debtAcc ->
+                            selectedTargetDebtAccount?.let { targetAcc ->
+                                val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(targetAcc.type)
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -646,7 +691,7 @@ fun SetRecurringDialog(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "Posting this bill will reduce ${debtAcc.name} debt balance",
+                                        text = if (isLiability) "Posting this bill will reduce ${targetAcc.name} debt balance" else "Posting this bill will increase ${targetAcc.name} balance",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold
@@ -856,7 +901,7 @@ fun SetRecurringDialog(
 
     if (showTargetDebtAccountModal) {
         AccountSelectionModal(
-            accounts = availableDebtAccounts,
+            accounts = availableTargetAccounts,
             selectedAccount = selectedTargetDebtAccount,
             currencySymbol = currencySymbol,
             accountBalances = accountBalances,
@@ -886,7 +931,7 @@ fun SetRecurringDialog(
 
     if (showDatePickerModal) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedTimestamp
+            initialSelectedDateMillis = com.selfbudget.app.core.util.DateUtils.localDateToUtcMillis(selectedTimestamp)
         )
 
         DatePickerDialog(
@@ -899,7 +944,7 @@ fun SetRecurringDialog(
                 androidx.compose.material3.TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            selectedTimestamp = millis
+                            selectedTimestamp = com.selfbudget.app.core.util.DateUtils.utcMillisToLocalDate(millis, selectedTimestamp)
                         }
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()

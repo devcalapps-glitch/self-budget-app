@@ -16,7 +16,7 @@
 
 ## 2. On-Device Storage (Local-First Architecture)
 
-All financial entries created within Self Budget—including transactions, income, expense categories, monthly budgets, savings goals, custom accounts, and exchange rates—are stored locally on your Android device using an encrypted local SQLite database (Android Room Persistence Library).
+All financial entries created within Self Budget—including transactions, income, expense categories, monthly budgets, savings goals, custom accounts, and exchange rates—are stored locally on your Android device in a local SQLite database (Android Room Persistence Library), sandboxed by Android's OS-level app storage protections so other apps cannot access it.
 
 Your data remains entirely on your physical device unless you explicitly initiate a backup or export.
 

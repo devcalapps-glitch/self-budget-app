@@ -9,11 +9,13 @@ import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Work
@@ -37,8 +39,11 @@ fun getCategoryIcon(iconName: String?, categoryName: String? = null): ImageVecto
         // Subscriptions
         key.contains("subscription") || nameKey.contains("subscription") || nameKey.contains("sub") -> Icons.Default.Subscriptions
         
+        // Groceries / Supermarket
+        key.contains("cart") || key.contains("grocer") || nameKey.contains("grocer") || nameKey.contains("supermarket") -> Icons.Default.ShoppingCart
+
         // Food & Dining / Restaurants
-        key.contains("restaurant") || key.contains("food") || nameKey.contains("food") || nameKey.contains("dining") -> Icons.Default.Restaurant
+        key.contains("restaurant") || key.contains("food") || key.contains("dining") || nameKey.contains("food") || nameKey.contains("dining") || nameKey.contains("cafe") || nameKey.contains("coffee") || nameKey.contains("restaurant") || nameKey.contains("takeout") -> Icons.Default.Restaurant
         
         // Shopping
         key.contains("shopping") || key.contains("bag") || nameKey.contains("shopping") -> Icons.Default.ShoppingBag
@@ -46,14 +51,17 @@ fun getCategoryIcon(iconName: String?, categoryName: String? = null): ImageVecto
         // Transportation / Gas / Transit
         key.contains("bus") || key.contains("car") || key.contains("transport") || nameKey.contains("transport") || nameKey.contains("gas") || nameKey.contains("auto") -> Icons.Default.DirectionsBus
         
+        // Travel / Flight / Vacation
+        key.contains("flight") || key.contains("travel") || key.contains("plane") || key.contains("trip") || nameKey.contains("travel") || nameKey.contains("flight") || nameKey.contains("vacation") || nameKey.contains("trip") || nameKey.contains("hotel") || nameKey.contains("airline") -> Icons.Default.Flight
+
         // Bills & Utilities
         key.contains("receipt") || key.contains("bill") || nameKey.contains("bill") || nameKey.contains("utility") -> Icons.AutoMirrored.Filled.ReceiptLong
         
         // Entertainment / Movies / Games
         key.contains("movie") || key.contains("game") || nameKey.contains("entertainment") || nameKey.contains("movie") -> Icons.Default.Movie
         
-        // Health & Fitness / Medical
-        key.contains("medical") || key.contains("health") || nameKey.contains("health") || nameKey.contains("fitness") -> Icons.Default.MedicalServices
+        // Health & Fitness / Medical / Healthcare
+        key.contains("medical") || key.contains("health") || key.contains("doctor") || key.contains("hospital") || key.contains("pharmacy") || nameKey.contains("health") || nameKey.contains("medical") || nameKey.contains("doctor") || nameKey.contains("pharmacy") || nameKey.contains("hospital") || nameKey.contains("fitness") -> Icons.Default.MedicalServices
         
         // Salary / Paycheck / Wallet
         key.contains("wallet") || key.contains("salary") || nameKey.contains("salary") || nameKey.contains("paycheck") || nameKey.contains("income") -> Icons.Default.AccountBalanceWallet

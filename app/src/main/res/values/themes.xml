@@ -7,8 +7,8 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
 
         <!-- Android 12+ Seamless Cold Start Splash Screen -->
-        <item name="android:windowSplashScreenBackground">#123A33</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_app_logo</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#123A33</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">#0B0F19</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/ic_app_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="s">#0B0F19</item>
     </style>
 </resources>

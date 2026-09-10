@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Publish
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -1619,7 +1620,7 @@ fun RecurringScreen(
 
             if (showDatePickerModal) {
                 val datePickerState = androidx.compose.material3.rememberDatePickerState(
-                    initialSelectedDateMillis = selectedNextDueDate
+                    initialSelectedDateMillis = com.selfbudget.app.core.util.DateUtils.localDateToUtcMillis(selectedNextDueDate)
                 )
 
                 androidx.compose.material3.DatePickerDialog(
@@ -1628,7 +1629,7 @@ fun RecurringScreen(
                         androidx.compose.material3.TextButton(
                             onClick = {
                                 datePickerState.selectedDateMillis?.let { millis ->
-                                    selectedNextDueDate = millis
+                                    selectedNextDueDate = com.selfbudget.app.core.util.DateUtils.utcMillisToLocalDate(millis, selectedNextDueDate)
                                 }
                                 showDatePickerModal = false
                             }
@@ -1748,11 +1749,13 @@ private fun PostRecurringConfirmModal(
                                 value = item.frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
                             )
                             if (item.transferAccountId != null) {
-                                val debtAccountName = accounts.firstOrNull { it.id == item.transferAccountId }?.name ?: "Linked account"
+                                val targetAcc = accounts.firstOrNull { it.id == item.transferAccountId }
+                                val targetAccName = targetAcc?.name ?: "Linked account"
+                                val isLiability = targetAcc?.let { com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) } ?: true
                                 RecurringInfoRow(
-                                    icon = Icons.Default.CreditCard,
-                                    label = "Pays Down Debt",
-                                    value = debtAccountName,
+                                    icon = if (isLiability) Icons.Default.CreditCard else Icons.Default.TrendingUp,
+                                    label = if (isLiability) "Pays Down Debt" else "Deposits To Account",
+                                    value = targetAccName,
                                     valueColor = MaterialTheme.colorScheme.primary
                                 )
                             }

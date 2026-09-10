@@ -869,10 +869,10 @@ private fun AddEntryPointGridCard(
 ) {
     Card(
         onClick = option.onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
         modifier = modifier.height(132.dp)
     ) {
         Column(
@@ -1055,50 +1055,61 @@ fun DashboardContent(
 
             androidx.compose.material3.Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
             ) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Monthly Cash Flow",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Monthly Cash Flow",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
 
                         IconButton(
                             onClick = { isBalanceVisible = !isBalanceVisible },
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = if (isBalanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                 contentDescription = "Toggle Balance Privacy",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Live Net Cash Flow headline (100% realized: Posted Income - Actual Spent)
+                    // Live Net Cash Flow headline
                     Text(
                         text = if (!isBalanceVisible) "$sym ••••••"
                         else if (liveNetCashFlow >= 0) "+$sym%.2f Net Saved".format(liveNetCashFlow)
@@ -1112,65 +1123,81 @@ fun DashboardContent(
 
                     val maxCashFlowVal = maxOf(totalLoggedIncome, totalCategoryBudgets, totalMonthlySpent)
                     val dynamicNumFontSize = when {
-                        maxCashFlowVal >= 1_000_000.0 -> 11.sp
-                        maxCashFlowVal >= 100_000.0 -> 12.5.sp
-                        else -> 14.sp
+                        maxCashFlowVal >= 1_000_000.0 -> 12.sp
+                        maxCashFlowVal >= 100_000.0 -> 13.sp
+                        else -> 15.sp
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                            Text(
-                                text = "Income",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isBalanceVisible) "$sym%.2f".format(totalLoggedIncome) else "$sym •••",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = dynamicNumFontSize,
-                                letterSpacing = (-0.3).sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                color = com.selfbudget.app.ui.theme.getIncomeColor()
-                            )
-                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                                Text(
+                                    text = "Income",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = if (isBalanceVisible) "$sym%.2f".format(totalLoggedIncome) else "$sym •••",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = dynamicNumFontSize,
+                                    letterSpacing = (-0.3).sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    color = com.selfbudget.app.ui.theme.getIncomeColor()
+                                )
+                            }
 
-                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Budgets", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isBalanceVisible) "$sym%.2f".format(totalCategoryBudgets) else "$sym •••",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = dynamicNumFontSize,
-                                letterSpacing = (-0.3).sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Budgets",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = if (isBalanceVisible) "$sym%.2f".format(totalCategoryBudgets) else "$sym •••",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = dynamicNumFontSize,
+                                    letterSpacing = (-0.3).sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
 
-                        val isPaidOverSpent = totalCategoryBudgets > 0 && totalMonthlySpent > totalCategoryBudgets
-                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Spent",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (isPaidOverSpent) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isBalanceVisible) "$sym%.2f".format(totalMonthlySpent) else "$sym •••",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = dynamicNumFontSize,
-                                letterSpacing = (-0.3).sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                color = if (isPaidOverSpent) ExpenseRed else MaterialTheme.colorScheme.onSurface
-                            )
+                            val isPaidOverSpent = totalCategoryBudgets > 0 && totalMonthlySpent > totalCategoryBudgets
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Spent",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isPaidOverSpent) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = if (isBalanceVisible) "$sym%.2f".format(totalMonthlySpent) else "$sym •••",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = dynamicNumFontSize,
+                                    letterSpacing = (-0.3).sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    color = if (isPaidOverSpent) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
 
@@ -1253,7 +1280,7 @@ fun DashboardContent(
                     )
                 }
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(prioritizedAccounts.take(3)) { acc ->
                         val accColor = try {
                             Color(android.graphics.Color.parseColor(acc.colorHex))
@@ -1264,21 +1291,21 @@ fun DashboardContent(
                         val icon = com.selfbudget.app.core.ui.getAccountIcon(acc.type)
 
                         androidx.compose.material3.Card(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
                             modifier = Modifier
-                                .width(140.dp)
-                                .height(112.dp)
+                                .width(150.dp)
+                                .height(116.dp)
                                 .clickable { selectedAccountForEdit = acc }
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(11.dp),
+                                    .padding(13.dp),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
@@ -1289,9 +1316,9 @@ fun DashboardContent(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(28.dp)
+                                                .size(30.dp)
                                                 .clip(CircleShape)
-                                                .background(accColor.copy(alpha = 0.2f)),
+                                                .background(accColor.copy(alpha = 0.15f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
@@ -1302,7 +1329,7 @@ fun DashboardContent(
                                             )
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = acc.name,
                                         style = MaterialTheme.typography.bodySmall,
@@ -1353,15 +1380,15 @@ fun DashboardContent(
                     item {
                         Box(
                             modifier = Modifier
-                                .height(112.dp)
+                                .height(116.dp)
                                 .padding(horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Surface(
                                 onClick = { showAddAccountDialog = true },
                                 shape = CircleShape,
-                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                                modifier = Modifier.size(40.dp)
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(42.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
@@ -1430,7 +1457,7 @@ fun DashboardContent(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                     ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                 ) {
                     Column(
                         modifier = Modifier
@@ -1498,12 +1525,12 @@ fun DashboardContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onEditTransaction(transaction) },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -1519,11 +1546,11 @@ fun DashboardContent(
                             val isIncome = transaction.type == TransactionType.INCOME
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(42.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
-                                        else com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f)
+                                        if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.12f)
+                                        else com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.12f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -1546,7 +1573,7 @@ fun DashboardContent(
                                 Text(
                                     text = "${category?.name ?: "General"} • ${dateFormat.format(Date(transaction.timestamp))}",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                             }
                         }
@@ -1573,8 +1600,8 @@ fun DashboardContent(
                     OutlinedCard(
                         onClick = { showFullHistorySheet = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     ) {
                         Row(
                             modifier = Modifier

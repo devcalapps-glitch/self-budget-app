@@ -259,4 +259,29 @@ class AccountBalanceCalculatorTest {
         val newNetWorth = AccountBalanceCalculator.computeTotalInBaseCurrency(accounts, txs, "USD", emptyList())
         assertEquals(850.0, newNetWorth, 0.001) // Net Worth decreased from $1000 to $850 ($1000 checking - $150 cc debt)
     }
+
+    @Test
+    fun testExpensePaymentContributesToInvestmentAccount() {
+        val checkingAcc = AccountEntity(id = "acc_checking", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 2000.0)
+        val investmentAcc = AccountEntity(id = "acc_invest", userId = "u1", name = "Vanguard Brokerage", type = AccountType.INVESTMENT, initialBalance = 5000.0)
+
+        // User logs $500 monthly investment contribution as an Expense from Checking targeting Investment account
+        val investContribution = TransactionEntity(
+            id = "tx_invest_1",
+            userId = "u1",
+            title = "Monthly Stock Investment",
+            amount = 500.0,
+            type = TransactionType.EXPENSE,
+            categoryId = "cat_invest",
+            accountId = "acc_checking",
+            transferAccountId = "acc_invest"
+        )
+        val txs = listOf(investContribution)
+
+        val checkingBalance = AccountBalanceCalculator.computeBalance(checkingAcc, txs)
+        val investmentBalance = AccountBalanceCalculator.computeBalance(investmentAcc, txs)
+
+        assertEquals(1500.0, checkingBalance, 0.001)   // $2000 - $500
+        assertEquals(5500.0, investmentBalance, 0.001) // $5000 + $500
+    }
 }

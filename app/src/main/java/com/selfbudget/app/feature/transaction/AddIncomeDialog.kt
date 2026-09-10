@@ -925,7 +925,7 @@ fun AddIncomeDialog(
         // Material 3 Compose Date Picker Dialog
         if (showDatePickerModal) {
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedTimestamp
+                initialSelectedDateMillis = com.selfbudget.app.core.util.DateUtils.localDateToUtcMillis(selectedTimestamp)
             )
 
             DatePickerDialog(
@@ -938,7 +938,7 @@ fun AddIncomeDialog(
                     TextButton(
                         onClick = {
                             datePickerState.selectedDateMillis?.let { millis ->
-                                selectedTimestamp = millis
+                                selectedTimestamp = com.selfbudget.app.core.util.DateUtils.utcMillisToLocalDate(millis, selectedTimestamp)
                             }
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()

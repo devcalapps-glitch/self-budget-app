@@ -37,11 +37,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Work
@@ -96,8 +98,10 @@ fun AddCustomCategoryDialog(
     )
 
     val presetIcons = listOf(
+        "Groceries" to Icons.Default.ShoppingCart,
         "Restaurant" to Icons.Default.Restaurant,
         "Shopping" to Icons.Default.ShoppingBag,
+        "Travel" to Icons.Default.Flight,
         "Home" to Icons.Default.Home,
         "Transport" to Icons.Default.DirectionsBus,
         "Receipt" to Icons.AutoMirrored.Filled.ReceiptLong,
