@@ -210,8 +210,8 @@ class MainActivity : FragmentActivity() {
                             onDeleteRecurring = { recurring ->
                                 viewModel.deleteRecurringTransaction(recurring)
                             },
-                            onPostRecurring = { recurring ->
-                                viewModel.postRecurringTransaction(recurring)
+                            onPostRecurring = { recurring, amount ->
+                                viewModel.postRecurringTransaction(recurring, amount)
                             },
                             onUpdateRecurring = { recurring ->
                                 viewModel.updateRecurringTransaction(recurring)

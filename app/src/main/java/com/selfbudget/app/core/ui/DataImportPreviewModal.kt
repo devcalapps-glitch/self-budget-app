@@ -1,11 +1,7 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -15,14 +11,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.core.util.ParsedImportData
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
+
+private data class ImportRow(val icon: ImageVector, val title: String, val count: Int, val subtitle: String)
 
 @Composable
 fun DataImportPreviewModal(
@@ -30,6 +38,7 @@ fun DataImportPreviewModal(
     onDismiss: () -> Unit,
     onConfirmImport: () -> Unit
 ) {
+    val isDark = isAppInDarkTheme()
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -38,49 +47,32 @@ fun DataImportPreviewModal(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(24.dp)),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            shadowElevation = 8.dp
+                .clip(ShapeCard),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                // Header
+                // Header: close + title only (spec §14/§19)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FileDownload,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        RampIconTile(icon = Icons.Default.FileDownload, ramp = Ramp.Teal, size = 42.dp, iconSize = 24.dp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Import Preview",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                text = "Import preview",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Review data detected in file",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = SelfBudgetType.meta,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -100,14 +92,11 @@ fun DataImportPreviewModal(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // File Info Banner
-                Card(
+                // File Info Banner (spec §12 notice strip: neutral gray, not a warning tint)
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    shape = com.selfbudget.app.ui.theme.ShapeChip,
+                    color = Ramp.Gray.tintFill(isDark)
                 ) {
                     Row(
                         modifier = Modifier
@@ -122,35 +111,23 @@ fun DataImportPreviewModal(
                                 else -> Icons.Default.Description
                             },
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = data.fileName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
+                                style = SelfBudgetType.rowTitle,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = data.format,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = SelfBudgetType.meta,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                        ) {
-                            Text(
-                                text = "${data.totalCount} items",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                        NeutralBadge(text = "${data.totalCount} items")
                     }
                 }
 
@@ -158,10 +135,8 @@ fun DataImportPreviewModal(
 
                 Text(
                     text = "RECORDS TO IMPORT",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp
+                    style = SelfBudgetType.eyebrow,
+                    color = Ramp.Teal.secondaryText(isDark)
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -171,74 +146,49 @@ fun DataImportPreviewModal(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (data.transactions.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                            title = "Transactions",
-                            count = data.transactions.size,
-                            subtitle = "Financial ledger records across categories"
-                        )
+                    val rows = buildList {
+                        if (data.transactions.isNotEmpty()) add(ImportRow(Icons.AutoMirrored.Filled.ReceiptLong, "Transactions", data.transactions.size, "Financial ledger records across categories"))
+                        if (data.recurring.isNotEmpty()) add(ImportRow(Icons.Default.Repeat, "Recurring transactions", data.recurring.size, "Automated bill schedules & subscriptions"))
+                        if (data.budgets.isNotEmpty()) add(ImportRow(Icons.Default.PieChart, "Monthly budget plans", data.budgets.size, "Category spending limits & baselines"))
+                        if (data.goals.isNotEmpty()) add(ImportRow(Icons.Default.Savings, "Savings goals", data.goals.size, "Target funds, deadlines & savings amounts"))
+                        if (data.accounts.isNotEmpty()) add(ImportRow(Icons.Default.AccountBalance, "Accounts & wallets", data.accounts.size, "Payment accounts, checking, savings & cards"))
+                        if (data.categories.isNotEmpty()) add(ImportRow(Icons.Default.Category, "Custom categories", data.categories.size, "Custom expense & income categories"))
                     }
 
-                    if (data.recurring.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.Default.Repeat,
-                            title = "Recurring Transactions",
-                            count = data.recurring.size,
-                            subtitle = "Automated bill schedules & subscriptions"
-                        )
-                    }
-
-                    if (data.budgets.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.Default.PieChart,
-                            title = "Monthly Budget Plans",
-                            count = data.budgets.size,
-                            subtitle = "Category spending limits & baselines"
-                        )
-                    }
-
-                    if (data.goals.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.Default.Savings,
-                            title = "Savings Goals",
-                            count = data.goals.size,
-                            subtitle = "Target funds, deadlines & savings amounts"
-                        )
-                    }
-
-                    if (data.accounts.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.Default.AccountBalance,
-                            title = "Accounts & Wallets",
-                            count = data.accounts.size,
-                            subtitle = "Payment accounts, checking, savings & cards"
-                        )
-                    }
-
-                    if (data.categories.isNotEmpty()) {
-                        ImportItemCard(
-                            icon = Icons.Default.Category,
-                            title = "Custom Categories",
-                            count = data.categories.size,
-                            subtitle = "Custom expense & income categories"
-                        )
+                    if (rows.isNotEmpty()) {
+                        SectionHeaderBand(title = "Records to import", ramp = Ramp.Teal) {
+                            rows.forEachIndexed { index, row ->
+                                if (index > 0) SectionRowDivider()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RampIconTile(icon = row.icon, ramp = Ramp.Teal, size = 36.dp, iconSize = 18.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(row.title, style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(row.subtitle, style = SelfBudgetType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    NeutralBadge(text = "+${row.count}")
+                                }
+                            }
+                        }
                     }
 
                     if (data.totalCount == 0) {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-                            )
+                            shape = com.selfbudget.app.ui.theme.ShapeChip,
+                            color = Ramp.Red.tintFill(isDark)
                         ) {
                             Text(
-                                text = "⚠️ No valid financial records could be parsed from this file. Please ensure the file has valid columns or is an exported Excel, CSV, or JSON file.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
+                                text = "No valid financial records could be parsed from this file. Please ensure the file has valid columns or is an exported Excel, CSV, or JSON file.",
+                                style = SelfBudgetType.body,
+                                color = Ramp.Red.titleText(isDark),
                                 modifier = Modifier.padding(14.dp)
                             )
                         }
@@ -247,10 +197,9 @@ fun DataImportPreviewModal(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "ℹ️ Importing will safely merge these records into your account without overwriting unaffected data.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        fontSize = 11.sp
+                        text = "Importing will safely merge these records into your account without overwriting unaffected data.",
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -261,107 +210,19 @@ fun DataImportPreviewModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    OutlinedButton(
+                    SecondaryPillButton(
+                        text = "Cancel",
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Cancel")
-                    }
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    Button(
+                    PrimaryPillButton(
+                        text = "Import (${data.totalCount})",
                         onClick = onConfirmImport,
                         enabled = data.totalCount > 0,
-                        modifier = Modifier.weight(1.5f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Import (${data.totalCount})",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        modifier = Modifier.weight(1.5f)
+                    )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImportItemCard(
-    icon: ImageVector,
-    title: String,
-    count: Int,
-    subtitle: String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                    fontSize = 11.sp
-                )
-            }
-
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            ) {
-                Text(
-                    text = "+$count",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                    fontSize = 11.sp
-                )
             }
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -18,6 +19,8 @@ import javax.inject.Singleton
 sealed interface AuthResult {
     data class Success(val user: UserEntity) : AuthResult
     data class Error(val message: String) : AuthResult
+    // The user dismissed the account picker themselves — not a failure worth surfacing as an error.
+    data object Cancelled : AuthResult
 }
 
 @Singleton
@@ -74,9 +77,12 @@ class AuthManager @Inject constructor(
             } else {
                 AuthResult.Error("Unsupported credential type returned: ${credential.type}")
             }
+        } catch (e: GetCredentialCancellationException) {
+            // User dismissed the account picker — expected, not an error.
+            AuthResult.Cancelled
         } catch (e: GetCredentialException) {
             Log.e("AuthManager", "Google Sign-In failed", e)
-            AuthResult.Error(e.localizedMessage ?: "Google Sign-In cancelled or failed.")
+            AuthResult.Error(e.localizedMessage ?: "Google Sign-In failed. Please try again.")
         } catch (e: Exception) {
             Log.e("AuthManager", "Unexpected Auth Exception", e)
             AuthResult.Error(e.localizedMessage ?: "An unexpected error occurred.")

@@ -18,13 +18,9 @@ object Money {
 
     /** Rounds a raw double amount to the nearest cent using standard half-up rounding. */
     fun round(amount: Double): Double {
-        if (amount.isNaN() || amount.isInfinite()) return 0.0
-        // BigDecimal.valueOf(Double) goes through Double.toString() first, giving the decimal
-        // value a human actually typed (e.g. "19.995"). The BigDecimal(Double) constructor
-        // instead exposes the exact binary value of the double (often something like
-        // 19.994999999999997335...), which can silently round the WRONG way — precisely the
-        // class of bug this utility exists to prevent.
-        return BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP).toDouble()
+        if (amount.isNaN() || amount.isInfinite() || kotlin.math.abs(amount) < 0.00001) return 0.0
+        val rounded = BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP).toDouble()
+        return if (kotlin.math.abs(rounded) < 0.00001) 0.0 else rounded
     }
 
     /** Cent-safe sum of a collection of amounts. */
@@ -48,13 +44,16 @@ object Money {
     fun add(a: Double, b: Double): Double = fromCents(toCents(a) + toCents(b))
 
     private fun toCents(amount: Double): Long {
-        if (amount.isNaN() || amount.isInfinite()) return 0L
+        if (amount.isNaN() || amount.isInfinite() || kotlin.math.abs(amount) < 0.00001) return 0L
         return BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP)
             .movePointRight(2)
             .setScale(0, RoundingMode.HALF_UP)
             .toLong()
     }
 
-    private fun fromCents(cents: Long): Double =
-        BigDecimal.valueOf(cents).movePointLeft(2).toDouble()
+    private fun fromCents(cents: Long): Double {
+        if (cents == 0L) return 0.0
+        val res = BigDecimal.valueOf(cents).movePointLeft(2).toDouble()
+        return if (kotlin.math.abs(res) < 0.00001) 0.0 else res
+    }
 }

@@ -284,4 +284,31 @@ class AccountBalanceCalculatorTest {
         assertEquals(1500.0, checkingBalance, 0.001)   // $2000 - $500
         assertEquals(5500.0, investmentBalance, 0.001) // $5000 + $500
     }
+
+    @Test
+    fun testCreditCardStartingDebtPaidOffBecomesZero() {
+        // User creates credit card with starting balance of $100 (stored as -100.0)
+        val creditCard = AccountEntity(id = "acc_cc", userId = "u1", name = "Credit Card", type = AccountType.CREDIT_CARD, initialBalance = -100.0)
+        val checkingAcc = AccountEntity(id = "acc_checking", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 500.0)
+
+        // User makes $100 payment via transfer from Checking to Credit Card
+        val transferPayment = TransactionEntity(
+            id = "tx_pay_cc",
+            userId = "u1",
+            title = "Credit Card Payment",
+            amount = 100.0,
+            type = TransactionType.TRANSFER,
+            categoryId = "cat_transfer",
+            accountId = "acc_checking",
+            transferAccountId = "acc_cc"
+        )
+        val txs = listOf(transferPayment)
+
+        val ccBalance = AccountBalanceCalculator.computeBalance(creditCard, txs)
+        val checkingBalance = AccountBalanceCalculator.computeBalance(checkingAcc, txs)
+
+        assertEquals(0.0, ccBalance, 0.001)       // -100.0 + 100.0 = 0.0
+        assertEquals(400.0, checkingBalance, 0.001) // 500.0 - 100.0 = 400.0
+    }
 }
+

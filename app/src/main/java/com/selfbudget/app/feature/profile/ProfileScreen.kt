@@ -14,22 +14,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,13 +36,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.selfbudget.app.core.ui.ManageCategoriesModal
+import com.selfbudget.app.core.ui.components.DestructivePillButton
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.UserEntity
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
 
 @Composable
 fun ProfileScreen(
@@ -61,6 +65,7 @@ fun ProfileScreen(
     val context = LocalContext.current
     val currencies = listOf("$", "€", "£", "₹", "¥", "A$")
     var showManageCategoriesModal by remember { mutableStateOf(false) }
+    val isDark = isAppInDarkTheme()
 
     Column(
         modifier = Modifier
@@ -68,16 +73,12 @@ fun ProfileScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Text(text = "Settings", style = SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
 
         // User Account Header Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeCard,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             )
@@ -106,14 +107,13 @@ fun ProfileScreen(
                 Column {
                     Text(
                         text = user?.displayName ?: "User",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = SelfBudgetType.heading,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
                         text = user?.email ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
@@ -124,9 +124,9 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { showManageCategoriesModal = true },
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeCard,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                containerColor = Ramp.Gray.tintFill(isDark)
             )
         ) {
             Row(
@@ -138,26 +138,22 @@ fun ProfileScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Category,
+                        imageVector = Icons.Default.Category,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(
-                            text = "Manage Custom Categories",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(text = "Manage custom categories", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             text = "View, archive, or restore custom categories",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = SelfBudgetType.meta,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.ChevronRight,
+                    imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -167,9 +163,9 @@ fun ProfileScreen(
         // Currency Preference Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeCard,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                containerColor = Ramp.Gray.tintFill(isDark)
             )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -180,11 +176,7 @@ fun ProfileScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Preferred Currency Symbol",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(text = "Preferred currency symbol", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -197,7 +189,11 @@ fun ProfileScreen(
                         FilterChip(
                             selected = currencySymbol == symbol,
                             onClick = { onSetCurrency(symbol) },
-                            label = { Text(symbol, fontWeight = FontWeight.Bold) }
+                            label = { Text(symbol, style = SelfBudgetType.rowTitle) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Ramp.Teal.solidFill(isDark),
+                                selectedLabelColor = Ramp.Teal.onSolidFill(isDark)
+                            )
                         )
                     }
                 }
@@ -207,9 +203,9 @@ fun ProfileScreen(
         // CSV Export & Backup Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = ShapeCard,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                containerColor = Ramp.Gray.tintFill(isDark)
             )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -220,59 +216,42 @@ fun ProfileScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Data Export & Backup",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(text = "Data export & backup", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Export your financial records into standard CSV format (${transactions.size} records available).",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = SelfBudgetType.meta,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Button(
-                    onClick = {
-                        CsvExporter.exportAndShareTransactions(context, transactions, categories)
-                    },
+                PrimaryPillButton(
+                    text = "Export to CSV file",
+                    onClick = { CsvExporter.exportAndShareTransactions(context, transactions, categories) },
                     enabled = transactions.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Export to CSV File")
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
         // Sign Out Button
-        OutlinedButton(
+        DestructivePillButton(
+            text = "Sign out",
             onClick = onSignOut,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
-            )
-        ) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Sign Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
+                .height(50.dp)
+        )
     }
 
     if (showManageCategoriesModal) {
-        com.selfbudget.app.core.ui.ManageCategoriesModal(
+        ManageCategoriesModal(
             categories = categories,
             onDismiss = { showManageCategoriesModal = false },
             onToggleCategoryArchive = onToggleCategoryArchive

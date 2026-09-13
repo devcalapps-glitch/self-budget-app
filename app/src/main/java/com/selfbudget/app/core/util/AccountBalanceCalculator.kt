@@ -15,7 +15,11 @@ object AccountBalanceCalculator {
      * Checks if the given account type represents a liability (e.g. Credit Card or Loan).
      */
     fun isLiability(accountType: AccountType): Boolean {
-        return accountType == AccountType.CREDIT_CARD || accountType == AccountType.LOAN
+        return accountType == AccountType.CREDIT_CARD ||
+               accountType == AccountType.LOAN ||
+               accountType == AccountType.MORTGAGE ||
+               accountType == AccountType.AUTO_LOAN ||
+               accountType == AccountType.STUDENT_LOAN
     }
 
     /**

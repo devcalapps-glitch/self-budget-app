@@ -1,12 +1,8 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -16,25 +12,39 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.GrayIconTile
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.core.util.ExcelExporter
 import com.selfbudget.app.core.util.ExportDataType
 import com.selfbudget.app.data.model.*
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 
 enum class ExportFileFormat(
     val label: String,
     val description: String,
     val icon: ImageVector
 ) {
-    EXCEL("Excel (.xlsx)", "Single spreadsheet workbook for all selected data (Recommended)", Icons.Default.TableChart),
+    EXCEL("Excel (.xlsx)", "Single spreadsheet workbook for all selected data (recommended)", Icons.Default.TableChart),
     CSV("CSV (.csv)", "Plain text format (.csv / .zip bundle)", Icons.Default.Description)
 }
 
@@ -51,6 +61,7 @@ fun DataExportModal(
     onExportComplete: (Boolean, String) -> Unit
 ) {
     val context = LocalContext.current
+    val isDark = isAppInDarkTheme()
     var selectedFormat by remember { mutableStateOf(ExportFileFormat.EXCEL) }
     var selectedTypes by remember {
         mutableStateOf(
@@ -59,7 +70,8 @@ fun DataExportModal(
                 ExportDataType.RECURRING,
                 ExportDataType.BUDGET,
                 ExportDataType.GOALS,
-                ExportDataType.ACCOUNTS
+                ExportDataType.ACCOUNTS,
+                ExportDataType.CATEGORIES
             )
         )
     }
@@ -84,49 +96,32 @@ fun DataExportModal(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .fillMaxHeight(0.88f)
-                .clip(RoundedCornerShape(24.dp)),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            shadowElevation = 8.dp
+                .clip(ShapeCard),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                // Header
+                // Header: close + title only (spec §14/§19)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FileDownload,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        RampIconTile(icon = Icons.Default.FileDownload, ramp = Ramp.Teal, size = 40.dp, iconSize = 22.dp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Export Financial Data",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                text = "Export financial data",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Choose file format & data sets to include",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = SelfBudgetType.meta,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -156,10 +151,8 @@ fun DataExportModal(
                     // FORMAT SELECTOR
                     Text(
                         text = "EXPORT FORMAT",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
+                        style = SelfBudgetType.eyebrow,
+                        color = Ramp.Teal.secondaryText(isDark)
                     )
 
                     Row(
@@ -168,26 +161,12 @@ fun DataExportModal(
                     ) {
                         ExportFileFormat.entries.forEach { format ->
                             val isFormatSelected = selectedFormat == format
-                            Card(
+                            Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { selectedFormat = format },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isFormatSelected) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                                    }
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isFormatSelected) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                    }
-                                )
+                                shape = com.selfbudget.app.ui.theme.ShapeChip,
+                                color = if (isFormatSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -198,16 +177,14 @@ fun DataExportModal(
                                     Icon(
                                         imageVector = format.icon,
                                         contentDescription = null,
-                                        tint = if (isFormatSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (isFormatSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = format.label,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = if (isFormatSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isFormatSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 12.sp
+                                        style = SelfBudgetType.badge,
+                                        color = if (isFormatSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -217,91 +194,106 @@ fun DataExportModal(
                     // Format hint subtext
                     Text(
                         text = if (selectedFormat == ExportFileFormat.EXCEL) {
-                            "✨ Single spreadsheet file (.xlsx) with all selected data sets."
+                            "Single spreadsheet file (.xlsx) with all selected data sets."
                         } else {
-                            "📄 Plain-text CSV format (single .csv or .zip bundle if multiple)."
+                            "Plain-text CSV format (single .csv or .zip bundle if multiple)."
                         },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        fontSize = 11.sp
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
                     // DATA SETS SELECTOR HEADER & SELECT ALL
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "${selectedTypes.size} of ${allTypes.size} data sets selected",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            style = SelfBudgetType.meta,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        TextButton(
-                            onClick = {
-                                selectedTypes = if (isAllSelected) {
-                                    emptySet()
-                                } else {
-                                    allTypes.toSet()
+                        Text(
+                            text = if (isAllSelected) "Deselect all" else "Select all",
+                            style = SelfBudgetType.body,
+                            color = Ramp.Teal.secondaryText(isDark),
+                            modifier = Modifier
+                                .clip(ShapePill)
+                                .clickable {
+                                    selectedTypes = if (isAllSelected) emptySet() else allTypes.toSet()
                                 }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (isAllSelected) "Deselect All" else "Select All",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
 
-                    // Data Options List
-                    allTypes.forEach { type ->
-                        val count = when (type) {
-                            ExportDataType.TRANSACTIONS -> transactions.size
-                            ExportDataType.RECURRING -> recurringList.size
-                            ExportDataType.BUDGET -> budgets.size
-                            ExportDataType.GOALS -> goals.size
-                            ExportDataType.ACCOUNTS -> accounts.size
+                    // Data Options — one sectioned container, hairline-divided rows (no card-in-card).
+                    SectionHeaderBand(title = "Data sets", ramp = Ramp.Teal) {
+                        allTypes.forEachIndexed { index, type ->
+                            if (index > 0) SectionRowDivider()
+                            val count = when (type) {
+                                ExportDataType.TRANSACTIONS -> transactions.size
+                                ExportDataType.RECURRING -> recurringList.size
+                                ExportDataType.BUDGET -> budgets.size
+                                ExportDataType.GOALS -> goals.size
+                                ExportDataType.ACCOUNTS -> accounts.size
+                                ExportDataType.CATEGORIES -> categories.size
+                            }
+                            val countLabel = when (type) {
+                                ExportDataType.TRANSACTIONS -> "$count records"
+                                ExportDataType.RECURRING -> "$count bills & rules"
+                                ExportDataType.BUDGET -> "$count limits"
+                                ExportDataType.GOALS -> "$count goals"
+                                ExportDataType.ACCOUNTS -> "$count accounts"
+                                ExportDataType.CATEGORIES -> "$count categories"
+                            }
+                            val icon: ImageVector = when (type) {
+                                ExportDataType.TRANSACTIONS -> Icons.AutoMirrored.Filled.ReceiptLong
+                                ExportDataType.RECURRING -> Icons.Default.Repeat
+                                ExportDataType.BUDGET -> Icons.Default.PieChart
+                                ExportDataType.GOALS -> Icons.Default.Savings
+                                ExportDataType.ACCOUNTS -> Icons.Default.AccountBalance
+                                ExportDataType.CATEGORIES -> Icons.Default.Category
+                            }
+                            val isChecked = selectedTypes.contains(type)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { toggleType(type) }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GrayIconTile(icon = icon, size = 36.dp, iconSize = 18.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = type.title,
+                                            style = SelfBudgetType.rowTitle,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        NeutralBadge(text = countLabel)
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = type.subtitle,
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { toggleType(type) },
+                                    colors = CheckboxDefaults.colors(checkedColor = Ramp.Teal.solidFill(isDark))
+                                )
+                            }
                         }
-
-                        val countLabel = when (type) {
-                            ExportDataType.TRANSACTIONS -> "$count records"
-                            ExportDataType.RECURRING -> "$count bills & rules"
-                            ExportDataType.BUDGET -> "$count limits"
-                            ExportDataType.GOALS -> "$count goals"
-                            ExportDataType.ACCOUNTS -> "$count accounts"
-                        }
-
-                        val icon: ImageVector = when (type) {
-                            ExportDataType.TRANSACTIONS -> Icons.AutoMirrored.Filled.ReceiptLong
-                            ExportDataType.RECURRING -> Icons.Default.Repeat
-                            ExportDataType.BUDGET -> Icons.Default.PieChart
-                            ExportDataType.GOALS -> Icons.Default.Savings
-                            ExportDataType.ACCOUNTS -> Icons.Default.AccountBalance
-                        }
-
-                        val isChecked = selectedTypes.contains(type)
-
-                        ExportOptionCard(
-                            title = type.title,
-                            subtitle = type.subtitle,
-                            countLabel = countLabel,
-                            icon = icon,
-                            isChecked = isChecked,
-                            onToggle = { toggleType(type) }
-                        )
                     }
                 }
 
@@ -312,15 +304,18 @@ fun DataExportModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    OutlinedButton(
+                    SecondaryPillButton(
+                        text = "Cancel",
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Cancel")
-                    }
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    Button(
+                    PrimaryPillButton(
+                        text = if (selectedFormat == ExportFileFormat.EXCEL) {
+                            "Export Excel (${selectedTypes.size})"
+                        } else {
+                            "Export CSV (${selectedTypes.size})"
+                        },
                         onClick = {
                             val success = if (selectedFormat == ExportFileFormat.EXCEL) {
                                 ExcelExporter.exportAndShareExcel(
@@ -350,142 +345,17 @@ fun DataExportModal(
 
                             if (success) {
                                 val formatStr = if (selectedFormat == ExportFileFormat.EXCEL) "Excel (.xlsx)" else "CSV"
-                                val message = "✅ Exported $formatStr successfully!"
-                                onExportComplete(true, message)
+                                onExportComplete(true, "Exported $formatStr successfully.")
                             } else {
-                                onExportComplete(false, "❌ Export failed. Please try again.")
+                                onExportComplete(false, "Export failed. Please try again.")
                             }
                             onDismiss()
                         },
                         enabled = selectedTypes.isNotEmpty(),
-                        modifier = Modifier.weight(1.5f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (selectedFormat == ExportFileFormat.EXCEL) {
-                                "Export Excel (${selectedTypes.size})"
-                            } else {
-                                "Export CSV (${selectedTypes.size})"
-                            },
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExportOptionCard(
-    title: String,
-    subtitle: String,
-    countLabel: String,
-    icon: ImageVector,
-    isChecked: Boolean,
-    onToggle: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isChecked) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-            }
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (isChecked) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-            }
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(
-                        if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isChecked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        modifier = Modifier.weight(1.5f)
                     )
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    ) {
-                        Text(
-                            text = countLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            fontSize = 10.sp
-                        )
-                    }
                 }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp
-                )
             }
-
-            Checkbox(
-                checked = isChecked,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary
-                )
-            )
         }
     }
 }

@@ -2,11 +2,11 @@ package com.selfbudget.app.core.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,23 +18,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Wallet
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,14 +42,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.containerBorder
+import com.selfbudget.app.ui.theme.icon
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.titleText
+import com.selfbudget.app.ui.theme.tintFill
+
+private val LIQUID_ACCOUNT_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH)
 
 @Composable
 fun AccountSelectionModal(
@@ -84,6 +84,16 @@ fun AccountSelectionModal(
                     { it.name.lowercase() }
                 )
             )
+    }
+
+    val liquidAccounts = remember(filteredAccounts) {
+        filteredAccounts.filter { !AccountBalanceCalculator.isLiability(it.type) && it.type in LIQUID_ACCOUNT_TYPES }
+    }
+    val debtAccounts = remember(filteredAccounts) {
+        filteredAccounts.filter { AccountBalanceCalculator.isLiability(it.type) }
+    }
+    val assetAccounts = remember(filteredAccounts) {
+        filteredAccounts.filter { !AccountBalanceCalculator.isLiability(it.type) && it.type !in LIQUID_ACCOUNT_TYPES }
     }
 
     Dialog(
@@ -129,172 +139,260 @@ fun AccountSelectionModal(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Select Account",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                text = "Select account",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "New",
                             onClick = {
                                 onDismiss()
                                 onAddCustomAccount()
-                            },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("New", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
+                            }
+                        )
                     }
                 }
 
-                // Search Box
-                Box(modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 8.dp)) {
-                    OutlinedTextField(
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                ) {
+                    // Search Box
+                    AppSearchBar(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search payment accounts...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
+                        placeholder = "Search payment accounts...",
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
 
-                // Account List
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 48.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     if (filteredAccounts.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBalance,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "No Payment Accounts Added Yet",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Tap + New Account below to create your checking, credit card, or savings account.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    items(filteredAccounts, key = { it.id }) { acc ->
-                        val isSelected = selectedAccount?.id == acc.id
-                        val accColor = try { Color(android.graphics.Color.parseColor(acc.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
-                        val icon = getAccountIcon(acc.type)
-
-                        Card(
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                            ),
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .padding(vertical = 12.dp),
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "No payment accounts found",
+                                    style = SelfBudgetType.heading,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tap + New above to create your checking, credit card, or savings account.",
+                                    style = SelfBudgetType.body,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else if (searchQuery.isBlank() && (liquidAccounts.isNotEmpty() || debtAccounts.isNotEmpty() || assetAccounts.isNotEmpty())) {
+                        if (liquidAccounts.isNotEmpty()) {
+                            AccountSectionLabel(text = "Liquid")
+                            AccountGroup(
+                                accounts = liquidAccounts,
+                                selectedAccount = selectedAccount,
+                                accountBalances = accountBalances,
+                                isDebtSection = false,
+                                onSelectAccount = { acc ->
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                     onSelectAccount(acc)
                                     onDismiss()
                                 }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(accColor.copy(alpha = 0.2f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = accColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column {
-                                        Text(
-                                            text = acc.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        val accSym = Currencies.symbolFor(acc.currencyCode)
-                                        val rawBal = accountBalances[acc.id] ?: acc.initialBalance
-                                        val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
-                                        val displayBal = if (isLiability) kotlin.math.abs(rawBal) else rawBal
-                                        Text(
-                                            text = "$accSym%.2f".format(displayBal),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
+
+                        if (debtAccounts.isNotEmpty()) {
+                            AccountSectionLabel(text = "Debt")
+                            AccountGroup(
+                                accounts = debtAccounts,
+                                selectedAccount = selectedAccount,
+                                accountBalances = accountBalances,
+                                isDebtSection = true,
+                                onSelectAccount = { acc ->
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    onSelectAccount(acc)
+                                    onDismiss()
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
+
+                        if (assetAccounts.isNotEmpty()) {
+                            AccountSectionLabel(text = "Assets")
+                            AccountGroup(
+                                accounts = assetAccounts,
+                                selectedAccount = selectedAccount,
+                                accountBalances = accountBalances,
+                                isDebtSection = false,
+                                onSelectAccount = { acc ->
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    onSelectAccount(acc)
+                                    onDismiss()
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
+                    } else {
+                        AccountGroup(
+                            accounts = filteredAccounts,
+                            selectedAccount = selectedAccount,
+                            accountBalances = accountBalances,
+                            isDebtSection = false,
+                            onSelectAccount = { acc ->
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                onSelectAccount(acc)
+                                onDismiss()
+                            }
+                        )
                     }
 
-                    item {
-                        Spacer(modifier = Modifier.height(100.dp))
-                    }
+                    Spacer(modifier = Modifier.height(140.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AccountSectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = SelfBudgetType.eyebrow,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 8.dp, start = 2.dp)
+    )
+}
+
+@Composable
+private fun AccountGroup(
+    accounts: List<AccountEntity>,
+    selectedAccount: AccountEntity?,
+    accountBalances: Map<String, Double>,
+    isDebtSection: Boolean,
+    onSelectAccount: (AccountEntity) -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    val borderColor = if (isDebtSection) {
+        Ramp.Coral.containerBorder(isDark)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ShapeCard)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(BorderStroke(0.5.dp, borderColor), ShapeCard)
+    ) {
+        accounts.forEachIndexed { index, acc ->
+            if (index > 0) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+            }
+            AccountRow(
+                account = acc,
+                isSelected = selectedAccount?.id == acc.id,
+                accountBalances = accountBalances,
+                isDebtSection = isDebtSection,
+                onClick = { onSelectAccount(acc) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountRow(
+    account: AccountEntity,
+    isSelected: Boolean,
+    accountBalances: Map<String, Double>,
+    isDebtSection: Boolean,
+    onClick: () -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    val accColor = try {
+        Color(android.graphics.Color.parseColor(account.colorHex))
+    } catch (e: Exception) {
+        MaterialTheme.colorScheme.primary
+    }
+
+    val iconTint = when {
+        isDebtSection -> Ramp.Coral.icon(isDark)
+        isSelected -> Ramp.Teal.titleText(isDark)
+        else -> accColor
+    }
+
+    val accSym = Currencies.symbolFor(account.currencyCode)
+    val rawBal = accountBalances[account.id] ?: account.initialBalance
+    val isLiability = AccountBalanceCalculator.isLiability(account.type)
+    val displayBal = if (isLiability) kotlin.math.abs(rawBal) else rawBal
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = getAccountIcon(account.type),
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.height(20.dp).width(20.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = account.name,
+                style = SelfBudgetType.body,
+                color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "$accSym%.2f".format(displayBal),
+                style = SelfBudgetType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                tint = Ramp.Teal.titleText(isDark),
+                modifier = Modifier.height(18.dp).width(18.dp)
+            )
         }
     }
 }

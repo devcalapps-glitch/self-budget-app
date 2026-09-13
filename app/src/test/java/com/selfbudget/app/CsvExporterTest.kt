@@ -60,12 +60,27 @@ class CsvExporterTest {
         )
 
         val csv = CsvExporter.generateRecurringCsv(recurring, categories)
-        assertTrue(csv.contains("Recurring ID,Title,Type,Amount ($),Category,Account / Wallet,Frequency"))
+        assertTrue(csv.contains("Recurring ID,Title,Type,Amount ($),Category,Account / Wallet,Transfer Destination / Debt Target,Frequency"))
         assertTrue(csv.contains("Netflix"))
         assertTrue(csv.contains("MONTHLY"))
         assertTrue(csv.contains("15.99"))
         assertTrue(csv.contains("12"))
         assertTrue(csv.contains("Active"))
+    }
+
+    @Test
+    fun testGenerateCategoriesCsv() {
+        val categories = listOf(
+            CategoryEntity("cat_groceries", "Groceries", "ShoppingBag", "#4CAF50", TransactionType.EXPENSE, isDefault = true)
+        )
+        val csv = CsvExporter.generateCategoriesCsv(categories)
+        assertTrue(csv.contains("Category ID,Category Name,Type,Icon Name,Color Hex,Is Default,Is Archived"))
+        assertTrue(csv.contains("cat_groceries"))
+        assertTrue(csv.contains("Groceries"))
+        assertTrue(csv.contains("ShoppingBag"))
+        assertTrue(csv.contains("#4CAF50"))
+        assertTrue(csv.contains("Yes"))
+        assertTrue(csv.contains("No"))
     }
 
     @Test

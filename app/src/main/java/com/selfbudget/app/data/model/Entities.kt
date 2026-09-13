@@ -14,6 +14,7 @@ enum class TransactionType {
 enum class RecurringFrequency {
     WEEKLY,
     BI_WEEKLY,
+    SEMI_MONTHLY,
     MONTHLY,
     YEARLY
 }
@@ -31,7 +32,12 @@ enum class AccountType {
     CASH,
     INVESTMENT,
     LOAN,
-    RETIREMENT
+    RETIREMENT,
+    MORTGAGE,
+    AUTO_LOAN,
+    STUDENT_LOAN,
+    REAL_ESTATE,
+    VEHICLE
 }
 
 @Entity(tableName = "accounts")
@@ -42,7 +48,7 @@ data class AccountEntity(
     val name: String,
     val type: AccountType = AccountType.CHECKING,
     val initialBalance: Double = 0.0,
-    val colorHex: String = "#2196F3",
+    val colorHex: String = "#2563EB",
     val iconName: String = "AccountBalance",
     val isDefault: Boolean = false,
     // Real multi-currency: each account is tracked in its own currency.
@@ -50,7 +56,8 @@ data class AccountEntity(
     // Debt / liability tracking for CREDIT_CARD and LOAN accounts.
     val creditLimit: Double? = null,
     val interestRateApr: Double? = null,
-    val minimumPayment: Double? = null
+    val minimumPayment: Double? = null,
+    val loanTermMonths: Int? = null
 )
 
 @Entity(tableName = "transactions")
@@ -68,7 +75,14 @@ data class TransactionEntity(
     val paymentMethod: String? = "Cash",
     val receiptImageUri: String? = null,
     // Only set when type == TRANSFER: the destination account. `accountId` is the source.
-    val transferAccountId: String? = null
+    val transferAccountId: String? = null,
+    // Set only when this transaction was posted from a recurring item's "Post Now" action -
+    // lets deleting it roll the recurring item's cycle back instead of silently skipping the
+    // due date it was actually meant to cover (see MainViewModel.deleteTransaction).
+    val linkedRecurringId: String? = null,
+    // The recurring item's nextDueDate at the moment this transaction posted it - i.e. which
+    // cycle this transaction fulfilled, not when the transaction is dated.
+    val recurringCycleDueDate: Long? = null
 )
 
 @Entity(tableName = "recurring_transactions")
@@ -159,7 +173,7 @@ data class GoalEntity(
     val name: String,
     val targetAmount: Double,
     val targetDate: Long? = null,
-    val colorHex: String = "#4CAF50",
+    val colorHex: String = "#059669",
     val iconName: String = "Savings",
     // Progress is derived from this account's computed balance (see AccountBalanceCalculator),
     // so a goal simply points at the savings account/wallet the user is funding it from.

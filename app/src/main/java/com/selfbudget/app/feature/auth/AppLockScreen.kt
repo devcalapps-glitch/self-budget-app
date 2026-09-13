@@ -12,16 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,11 +24,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.AppLogoBadge
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.tintFill
 
 @Composable
 fun AppLockScreen(
@@ -42,6 +41,7 @@ fun AppLockScreen(
     onSkipClick: (() -> Unit)? = null,
     isSetupPrompt: Boolean = false
 ) {
+    val isDark = isAppInDarkTheme()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -72,17 +72,15 @@ fun AppLockScreen(
                 // App Brand Title & Subtitle
                 Text(
                     text = "Self Budget",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = (-0.5).sp
+                    style = SelfBudgetType.title.copy(fontSize = 28.sp),
+                    color = MaterialTheme.colorScheme.onBackground
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    shape = ShapePill,
+                    color = Ramp.Teal.tintFill(isDark)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -91,15 +89,14 @@ fun AppLockScreen(
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = Ramp.Teal.secondaryText(isDark),
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isSetupPrompt) "Enable Biometric Security" else "Private & Encrypted Financial Vault",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = if (isSetupPrompt) "Enable biometric security" else "Private & encrypted financial vault",
+                            style = SelfBudgetType.badge,
+                            color = Ramp.Teal.secondaryText(isDark)
                         )
                     }
                 }
@@ -107,30 +104,15 @@ fun AppLockScreen(
                 Spacer(modifier = Modifier.height(36.dp))
 
                 // Modern Action Unlock Button
-                Button(
+                PrimaryPillButton(
+                    text = if (isSetupPrompt) "Enable biometrics" else "Unlock with biometrics",
                     onClick = onUnlockClick,
+                    ramp = Ramp.Teal,
+                    icon = Icons.Default.Fingerprint,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Fingerprint,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = if (isSetupPrompt) "Enable Biometrics" else "Unlock with Biometrics",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                }
+                        .height(56.dp)
+                )
 
                 if (onSkipClick != null) {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -139,10 +121,9 @@ fun AppLockScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Not Now",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                            text = "Not now",
+                            style = SelfBudgetType.body,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -157,14 +138,14 @@ fun AppLockScreen(
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "100% Offline & Private • Data stays on your device",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    text = "100% offline & private — data stays on your device",
+                    style = SelfBudgetType.meta,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

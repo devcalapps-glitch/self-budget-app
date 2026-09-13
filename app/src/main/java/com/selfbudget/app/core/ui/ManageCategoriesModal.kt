@@ -1,7 +1,6 @@
 package com.selfbudget.app.core.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,22 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Unarchive
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,14 +35,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.data.model.CategoryEntity
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.ShapeTile
+import com.selfbudget.app.ui.theme.containerBorder
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
 
 @Composable
 fun ManageCategoriesModal(
@@ -75,74 +75,86 @@ fun ManageCategoriesModal(
                 .navigationBarsPadding(),
             color = MaterialTheme.colorScheme.background
         ) {
+            val isDark = isAppInDarkTheme()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
                 // Top App Bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Manage Categories",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
-                // Subtitle Info Box
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Archiving custom categories hides them from transaction & budget picklists while protecting all past spending reports.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Tab Switcher (Active vs Archived)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Manage categories",
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Subtitle Info Banner — neutral, no warning tint (spec §12)
+                Surface(
+                    color = Ramp.Gray.tintFill(isDark),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = ShapeCard
+                ) {
+                    Text(
+                        text = "Archiving custom categories hides them from transaction & budget picklists while safely protecting all your past spending reports.",
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Tab Switcher (Active vs Archived) — standard FilterChips matching Search and Settings
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val chipColors = FilterChipDefaults.filterChipColors(
+                        containerColor = Ramp.Gray.tintFill(isDark),
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedContainerColor = Ramp.Teal.solidFill(isDark),
+                        selectedLabelColor = Ramp.Teal.onSolidFill(isDark)
+                    )
+
                     FilterChip(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        label = { Text("Active (${activeCategories.size})", fontWeight = FontWeight.Bold) }
+                        shape = ShapePill,
+                        colors = chipColors,
+                        label = { Text("Active (${activeCategories.size})", style = SelfBudgetType.badge) },
+                        modifier = Modifier.weight(1f)
                     )
+
                     FilterChip(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        label = { Text("Archived (${archivedCategories.size})", fontWeight = FontWeight.Bold) }
+                        shape = ShapePill,
+                        colors = chipColors,
+                        label = { Text("Archived (${archivedCategories.size})", style = SelfBudgetType.badge) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -159,97 +171,101 @@ fun ManageCategoriesModal(
                     ) {
                         Text(
                             text = if (selectedTab == 0) "No active custom categories" else "No archived categories",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            style = SelfBudgetType.body,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 48.dp),
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(displayList, key = { it.id }) { category ->
-                            val catColor = try { Color(android.graphics.Color.parseColor(category.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
-
-                            Card(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                ),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                modifier = Modifier.fillMaxWidth()
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(0.5.dp, Ramp.Purple.containerBorder(isDark))
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        modifier = Modifier.weight(1f),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    displayList.forEachIndexed { index, category ->
+                                        val catColor = try {
+                                            Color(android.graphics.Color.parseColor(category.colorHex))
+                                        } catch (e: Exception) {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+
+                                        Row(
                                             modifier = Modifier
-                                                .size(42.dp)
-                                                .clip(CircleShape)
-                                                .background(catColor.copy(alpha = 0.2f)),
-                                            contentAlignment = Alignment.Center
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Icon(
-                                                imageVector = getCategoryIcon(category),
-                                                contentDescription = null,
-                                                tint = catColor,
-                                                modifier = Modifier.size(22.dp)
-                                            )
+                                            Row(
+                                                modifier = Modifier.weight(1f),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Surface(
+                                                    shape = ShapeTile,
+                                                    color = catColor.copy(alpha = 0.15f),
+                                                    modifier = Modifier.size(38.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = getCategoryIcon(category),
+                                                            contentDescription = null,
+                                                            tint = catColor,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.width(14.dp))
+
+                                                Column {
+                                                    Text(
+                                                        text = category.name,
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = category.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                                                        style = SelfBudgetType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            if (selectedTab == 0) {
+                                                SecondaryPillButton(
+                                                    text = "Archive",
+                                                    onClick = { onToggleCategoryArchive(category) },
+                                                    ramp = Ramp.Gray
+                                                )
+                                            } else {
+                                                PrimaryPillButton(
+                                                    text = "Restore",
+                                                    onClick = { onToggleCategoryArchive(category) },
+                                                    ramp = Ramp.Teal
+                                                )
+                                            }
                                         }
 
-                                        Spacer(modifier = Modifier.width(14.dp))
-
-                                        Column {
-                                            Text(
-                                                text = category.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
+                                        if (index < displayList.size - 1) {
+                                            HorizontalDivider(
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                                thickness = 0.5.dp,
+                                                modifier = Modifier.padding(start = 68.dp)
                                             )
-                                            Text(
-                                                text = category.type.name,
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                            )
-                                        }
-                                    }
-
-                                    if (selectedTab == 0) {
-                                        OutlinedButton(
-                                            onClick = { onToggleCategoryArchive(category) },
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Icon(imageVector = Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Archive", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    } else {
-                                        Button(
-                                            onClick = { onToggleCategoryArchive(category) },
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Icon(imageVector = Icons.Default.Unarchive, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Restore", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
                             }
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                 }

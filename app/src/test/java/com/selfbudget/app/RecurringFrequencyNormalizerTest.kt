@@ -30,4 +30,16 @@ class RecurringFrequencyNormalizerTest {
         // Then: Must equal $2,166.67
         assertEquals(2166.67, monthlyAmount, 0.001)
     }
+
+    @Test
+    fun testSemiMonthlyNormalization_ExactTwoTimes() {
+        // Given: $250 semi-monthly payment (2x/month)
+        val semiMonthlyAmount = 250.0
+
+        // When: Normalizing to monthly (2x)
+        val monthlyAmount = RecurringFrequencyNormalizer.toMonthlyAmount(semiMonthlyAmount, RecurringFrequency.SEMI_MONTHLY)
+
+        // Then: Must equal $500.00
+        assertEquals(500.0, monthlyAmount, 0.001)
+    }
 }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,20 +19,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -46,24 +42,49 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.selfbudget.app.core.ui.BudgetedCategoriesModal
+import com.selfbudget.app.core.ui.SpentAndBillsModal
+import com.selfbudget.app.core.ui.UnbudgetedTransactionsModal
 import com.selfbudget.app.core.ui.getCategoryIcon
 import com.selfbudget.app.core.ui.MonthYearHeader
+import com.selfbudget.app.core.ui.components.IconTile
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.ui.components.StatusBadge
+import com.selfbudget.app.core.ui.components.StatusProgressBar
+import com.selfbudget.app.core.ui.components.formatPercentBadge
 import com.selfbudget.app.core.util.BudgetRollover
 import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.GoalEntity
-import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.feature.dashboard.GoalsSection
-import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.BudgetStatus
+import com.selfbudget.app.ui.theme.ProgressTrackDark
+import com.selfbudget.app.ui.theme.ProgressTrackLight
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.budgetStatus
+import com.selfbudget.app.ui.theme.containerBorder
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.sectionRamp
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.util.Calendar
 
 data class CategoryBudgetUiModel(
@@ -77,8 +98,14 @@ data class CategoryBudgetUiModel(
     val safeToSpendAmount: Double,
     val percentage: Float,
     val isOverBudget: Boolean,
+    val isAtLimit: Boolean,
     val isWarning: Boolean,
     val isFixedCommitmentCategory: Boolean
+)
+
+private data class LocalBudgetOverride(
+    val limit: Double,
+    val rolloverEnabled: Boolean
 )
 
 @Composable
@@ -108,14 +135,42 @@ fun BudgetScreen(
     // Lets the single global "+" (owned by HomeScreen) open this screen's "new budget" dialog
     // from anywhere in the app, instead of this screen needing its own floating add button.
     requestNewBudget: Boolean = false,
-    onNewBudgetRequestHandled: () -> Unit = {}
+    onNewBudgetRequestHandled: () -> Unit = {},
+    isSelected: Boolean = false
 ) {
     var showSetDialog by remember { mutableStateOf(false) }
     var selectedCategoryForEdit by remember { mutableStateOf<String?>(null) }
     var selectedLimitForEdit by remember { mutableStateOf<Double?>(null) }
     var selectedRolloverForEdit by remember { mutableStateOf(false) }
-    var selectedTabFilter by remember { mutableStateOf(0) } // 0: All, 1: Fixed Bills, 2: Variable Discretionary
-    var viewMode by remember { mutableStateOf(0) } // 0: Monthly Budget, 1: Savings Goals
+    var viewMode by remember { mutableStateOf(0) } // 0: Spending (Monthly Budget), 1: Savings Goals, 2: Payoff
+    var budgetFilter by remember { mutableStateOf("All") }
+    var showUnbudgetedModal by remember { mutableStateOf(false) }
+    var showBudgetedModal by remember { mutableStateOf(false) }
+    var showSpentAndBillsModal by remember { mutableStateOf(false) }
+    var localBudgetOverrides by remember(selectedMonthYear) {
+        mutableStateOf<Map<String, LocalBudgetOverride>>(emptyMap())
+    }
+
+    LaunchedEffect(isSelected) {
+        if (isSelected) {
+            viewMode = 0
+        }
+    }
+
+    LaunchedEffect(budgets) {
+        if (localBudgetOverrides.isNotEmpty()) {
+            val confirmedOverrides = localBudgetOverrides.filter { (categoryId, override) ->
+                budgets.any {
+                    it.categoryId == categoryId &&
+                        kotlin.math.abs(it.amountLimit - override.limit) < 0.005 &&
+                        it.rolloverEnabled == override.rolloverEnabled
+                }
+            }.keys
+            if (confirmedOverrides.isNotEmpty()) {
+                localBudgetOverrides = localBudgetOverrides - confirmedOverrides
+            }
+        }
+    }
 
     LaunchedEffect(requestNewBudget) {
         if (requestNewBudget) {
@@ -138,17 +193,7 @@ fun BudgetScreen(
         transactions.filter { it.type == TransactionType.EXPENSE }
     }
     
-    val currentMonthName = remember(selectedMonthYear) {
-        val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
-        val monthSdf = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
-        try {
-            monthSdf.format(sdf.parse(selectedMonthYear) ?: java.util.Date())
-        } catch (e: Exception) {
-            selectedMonthYear
-        }
-    }
-
-    val budgetModels = remember(budgets, expenseCategories, expenseTransactions, recurringList, previousMonthBudgets, previousMonthSpentByCategory) {
+    val budgetModels = remember(budgets, expenseCategories, expenseTransactions, recurringList, previousMonthBudgets, previousMonthSpentByCategory, localBudgetOverrides) {
         val spentMap = expenseTransactions.groupBy { it.categoryId }
             .mapValues { entry -> Money.sum(entry.value.map { it.amount }) }
 
@@ -162,16 +207,19 @@ fun BudgetScreen(
 
         val budgetMap = budgets.associateBy { it.categoryId }
         val previousBudgetMap = previousMonthBudgets.associateBy { it.categoryId }
-        val activeCategoryIds = budgets.map { it.categoryId }.distinct()
+        val activeCategoryIds = (budgets.map { it.categoryId } + localBudgetOverrides.keys).distinct()
 
         activeCategoryIds.mapNotNull { catId ->
             val cat = categoryMap[catId] ?: return@mapNotNull null
-            val budget = budgetMap[catId] ?: return@mapNotNull null
+            val budget = budgetMap[catId]
+            val localOverride = localBudgetOverrides[catId]
             val committed = recurringMap[catId] ?: 0.0
-            val ownLimit = budget.amountLimit
+            val ownLimit = localOverride?.limit ?: budget?.amountLimit ?: return@mapNotNull null
+            if (ownLimit <= 0.0) return@mapNotNull null
+            val rolloverEnabled = localOverride?.rolloverEnabled ?: budget?.rolloverEnabled ?: false
             val limit = BudgetRollover.effectiveLimit(
                 currentLimit = ownLimit,
-                rolloverEnabled = budget.rolloverEnabled,
+                rolloverEnabled = rolloverEnabled,
                 previousLimit = previousBudgetMap[catId]?.amountLimit ?: 0.0,
                 previousSpent = previousMonthSpentByCategory[catId] ?: 0.0
             )
@@ -185,20 +233,22 @@ fun BudgetScreen(
 
             val totalClaimed = spent + pendingUpcoming
             val pct = if (limit > 0) (totalClaimed / limit).toFloat() else 0f
-            val isOver = totalClaimed > limit
+            val isOver = limit > 0.0 && totalClaimed > (limit + 0.005)
+            val isAtLimit = limit > 0.0 && !isOver && totalClaimed >= (limit - 0.005)
 
             CategoryBudgetUiModel(
                 category = cat,
                 budgetLimit = limit,
                 ownLimit = ownLimit,
-                rolloverEnabled = budget.rolloverEnabled,
+                rolloverEnabled = rolloverEnabled,
                 spentAmount = spent,
                 recurringCommittedAmount = committed,
                 pendingUpcomingAmount = pendingUpcoming,
                 safeToSpendAmount = safeToSpend,
                 percentage = pct,
                 isOverBudget = isOver,
-                isWarning = (pct >= 0.75f || ownLimit < committed) && !isOver,
+                isAtLimit = isAtLimit,
+                isWarning = (pct >= 0.8f && pct < 1.0f || ownLimit < committed) && !isOver && !isAtLimit,
                 isFixedCommitmentCategory = committed > 0.0
             )
         }.sortedByDescending { it.percentage }
@@ -206,21 +256,71 @@ fun BudgetScreen(
 
     val totalBudget = remember(budgetModels) { Money.sum(budgetModels.map { it.budgetLimit }) }
     val totalSpentInBudgets = remember(budgetModels) { Money.sum(budgetModels.map { it.spentAmount }) }
+    val totalPendingInBudgets = remember(budgetModels) { Money.sum(budgetModels.map { it.pendingUpcomingAmount }) }
+    val totalClaimedInBudgets = remember(totalSpentInBudgets, totalPendingInBudgets) {
+        Money.add(totalSpentInBudgets, totalPendingInBudgets)
+    }
     val totalRecurringCommitted = remember(budgetModels) { Money.sum(budgetModels.map { it.recurringCommittedAmount }) }
-    val remainingBudget = Money.subtract(totalBudget, totalSpentInBudgets).coerceAtLeast(0.0)
+    val remainingBudget = Money.subtract(totalBudget, totalClaimedInBudgets).coerceAtLeast(0.0)
 
-    val filteredModels = remember(budgetModels, selectedTabFilter) {
-        when (selectedTabFilter) {
-            1 -> budgetModels.filter { it.isFixedCommitmentCategory }
-            2 -> budgetModels.filter { !it.isFixedCommitmentCategory }
+    val unbudgetedSpent = remember(budgetModels, expenseTransactions) {
+        val budgetedCategoryIds = budgetModels.map { it.category.id }.toSet()
+        val unbudgetedTxs = expenseTransactions.filter { it.categoryId !in budgetedCategoryIds }
+        Money.sum(unbudgetedTxs.map { it.amount })
+    }
+    val unbudgetedCategoryCount = remember(budgetModels, expenseTransactions) {
+        val budgetedCategoryIds = budgetModels.map { it.category.id }.toSet()
+        expenseTransactions.filter { it.categoryId !in budgetedCategoryIds }
+            .map { it.categoryId }
+            .distinct()
+            .size
+    }
+    val spentAndBillsCategoryCount = remember(budgetModels) {
+        budgetModels.count { it.spentAmount > 0.0 || it.pendingUpcomingAmount > 0.0 }
+    }
+
+    val attentionModels = remember(budgetModels) {
+        budgetModels.filter { it.isOverBudget || it.isAtLimit || it.isWarning || it.pendingUpcomingAmount > 0.0 }
+    }
+    val filteredModels = remember(budgetModels, budgetFilter) {
+        when (budgetFilter) {
+            "Over" -> budgetModels.filter { it.isOverBudget || it.isAtLimit }
+            "Watch" -> budgetModels.filter { it.isWarning }
+            "Safe" -> budgetModels.filter { !it.isOverBudget && !it.isAtLimit && !it.isWarning }
+            "Bills" -> budgetModels.filter { it.recurringCommittedAmount > 0.0 || it.pendingUpcomingAmount > 0.0 }
             else -> budgetModels
         }
     }
+    val groupedModels = remember(filteredModels) {
+        val groupOrder = listOf(
+            "Housing & Essentials",
+            "Food & Daily Living",
+            "Lifestyle & Entertainment",
+            "Debt & Financial",
+            "Custom Categories",
+            "Other"
+        )
+        val map = filteredModels.groupBy { com.selfbudget.app.core.ui.getExpenseCategoryGroup(it.category) }
+        groupOrder.mapNotNull { groupName ->
+            map[groupName]?.let { items -> groupName to items }
+        } + (map.keys - groupOrder.toSet()).map { key -> key to map.getValue(key) }
+    }
 
-    val calendarInfo = remember {
+    val calendarInfo = remember(selectedMonthYear) {
         val cal = Calendar.getInstance()
+        try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
+            cal.time = sdf.parse(selectedMonthYear) ?: cal.time
+        } catch (_: Exception) {
+            // Fall back to the current month if the selected month cannot be parsed.
+        }
         val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-        val currentDay = cal.get(Calendar.DAY_OF_MONTH)
+        val currentMonth = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault()).format(java.util.Date())
+        val currentDay = if (selectedMonthYear == currentMonth) {
+            Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+        } else {
+            1
+        }
         val remainingDays = (daysInMonth - currentDay + 1).coerceAtLeast(1)
         Pair(remainingDays, daysInMonth)
     }
@@ -235,21 +335,11 @@ fun BudgetScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            if (onPreviousMonth != null && onNextMonth != null && onSelectMonthYear != null) {
-                MonthYearHeader(
-                    currentMonthYear = selectedMonthYear,
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onSelectMonthYear = onSelectMonthYear
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Segmented View Toggle Pill (Monthly Budget vs Savings Goals)
+            // Segmented View Toggle Pill (Monthly Budget vs Savings Goals vs Payoff)
+            val isDarkShell = isAppInDarkTheme()
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                shape = ShapePill,
+                color = if (isDarkShell) Ramp.Gray.c800 else Ramp.Gray.c50,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
@@ -260,61 +350,23 @@ fun BudgetScreen(
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (viewMode == 0) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                    listOf("Spending" to 0, "Goals" to 1, "Payoff" to 2).forEach { (label, mode) ->
+                        val selected = viewMode == mode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(ShapePill)
+                                .background(if (selected) Ramp.Teal.solidFill(isDarkShell) else Color.Transparent)
+                                .clickable { viewMode = mode },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = SelfBudgetType.rowTitle,
+                                color = if (selected) Ramp.Teal.onSolidFill(isDarkShell) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            .clickable { viewMode = 0 },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Budget",
-                            fontWeight = if (viewMode == 0) FontWeight.Bold else FontWeight.Medium,
-                            color = if (viewMode == 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (viewMode == 1) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                            )
-                            .clickable { viewMode = 1 },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Goals",
-                            fontWeight = if (viewMode == 1) FontWeight.Bold else FontWeight.Medium,
-                            color = if (viewMode == 1) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (viewMode == 2) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                            )
-                            .clickable { viewMode = 2 },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Payoff",
-                            fontWeight = if (viewMode == 2) FontWeight.Bold else FontWeight.Medium,
-                            color = if (viewMode == 2) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp
-                        )
+                        }
                     }
                 }
             }
@@ -340,88 +392,197 @@ fun BudgetScreen(
                     currencySymbol = currencySymbol
                 )
             } else {
-                // Total Budget Overview Hero Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = "Total Monthly Budget ($currentMonthName)",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                val overBudgetCount = budgetModels.count { it.isOverBudget }
+                val warningCount = budgetModels.count { it.isWarning }
+                val onTrackCount = budgetModels.count { !it.isOverBudget && !it.isAtLimit && !it.isWarning }
+                val attentionCount = attentionModels.size
 
+                val isOverTotal = totalBudget > 0.0 && totalClaimedInBudgets > totalBudget
+                val heroRamp = when {
+                    budgetModels.isEmpty() -> Ramp.Teal
+                    overBudgetCount > 0 || isOverTotal -> Ramp.Red
+                    warningCount > 0 -> Ramp.Amber
+                    else -> Ramp.Teal
+                }
+                val heroTitle = when {
+                    budgetModels.isEmpty() -> "Set up your spending plan"
+                    overBudgetCount > 0 -> "$overBudgetCount categor${if (overBudgetCount == 1) "y" else "ies"} over budget"
+                    warningCount > 0 -> "$warningCount categor${if (warningCount == 1) "y" else "ies"} near limit"
+                    else -> "All $onTrackCount categories on track"
+                }
+                val overallProgress = if (totalBudget > 0.0) (totalClaimedInBudgets / totalBudget).toFloat().coerceIn(0f, 1f) else 0f
+                val overallPercent = if (totalBudget > 0.0) ((totalClaimedInBudgets / totalBudget) * 100).toInt() else 0
+                val cleanRemainingBudget = totalBudget - totalClaimedInBudgets
+
+                // Spending Plan hero card (spec §4 hero: no border, the tint is the boundary)
+                val isDarkHero = isAppInDarkTheme()
+                val heroFill = heroRamp.tintFill(isDark = isDarkHero, large = heroRamp == Ramp.Red)
+                Surface(
+                    shape = ShapeHero,
+                    color = heroFill,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Header Row: Badge Icon + Eyebrow / Status + Spent Pill
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                IconTile(
+                                    icon = when {
+                                        overBudgetCount > 0 -> Icons.Default.Warning
+                                        warningCount > 0 -> Icons.Default.Info
+                                        budgetModels.isEmpty() -> Icons.Default.AutoAwesome
+                                        else -> Icons.Default.Check
+                                    },
+                                    tint = heroRamp.secondaryText(isDarkHero),
+                                    background = Color.Transparent,
+                                    shape = CircleShape,
+                                    size = 40.dp,
+                                    iconSize = 22.dp
+                                )
+
+                                Column {
+                                    Text(
+                                        text = "SPENDING PLAN",
+                                        style = SelfBudgetType.eyebrow,
+                                        color = heroRamp.secondaryText(isDarkHero)
+                                    )
+                                    Text(
+                                        text = heroTitle,
+                                        style = SelfBudgetType.title,
+                                        color = heroRamp.titleText(isDarkHero)
+                                    )
+                                }
+                            }
+
+                            if (totalBudget > 0.0) {
+                                StatusBadge(
+                                    text = "$overallPercent% Spent",
+                                    status = when (heroRamp) {
+                                        Ramp.Red -> BudgetStatus.Over
+                                        Ramp.Amber -> BudgetStatus.Watch
+                                        else -> BudgetStatus.Safe
+                                    }
+                                )
+                            }
+                        }
+
+                        // Main Hero Metric: Remaining Unallocated Budget (neutral — spec §11)
+                        Column {
+                            val displayRemaining = kotlin.math.abs(cleanRemainingBudget)
                             Text(
-                                text = "$currencySymbol%.2f".format(totalSpentInBudgets),
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = "$currencySymbol%,.2f".format(displayRemaining),
+                                style = SelfBudgetType.display,
+                                color = if (cleanRemainingBudget < -0.005) Ramp.Red.secondaryText(isDarkHero) else heroRamp.titleText(isDarkHero)
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "of $currencySymbol%.2f limit".format(totalBudget),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 4.dp)
+                                text = if (cleanRemainingBudget >= 0.0) "remaining safe-to-spend this month" else "over total budgeted limit",
+                                style = SelfBudgetType.meta,
+                                color = heroRamp.secondaryText(isDarkHero)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        val overallPct = if (totalBudget > 0) (totalSpentInBudgets / totalBudget).toFloat() else 0f
-                        LinearProgressIndicator(
-                            progress = { overallPct.coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(10.dp)
-                                .clip(RoundedCornerShape(5.dp)),
-                            color = if (totalSpentInBudgets > totalBudget) com.selfbudget.app.ui.theme.getExpenseColor() else com.selfbudget.app.ui.theme.getIncomeColor(),
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Daily Pace Safeguard Banner
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                        // Progress Bar & Allocation Breakdown
+                        if (budgetModels.isNotEmpty() && totalBudget > 0.0) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                LinearProgressIndicator(
+                                    progress = { overallProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(ShapeChip),
+                                    color = heroRamp.c400,
+                                    trackColor = if (isDarkHero) ProgressTrackDark else ProgressTrackLight
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
                                     Text(
-                                        text = if (totalBudget > 0) "$currencySymbol%.2f / day max pace".format(dailyPace) else "Set a category budget to see daily pace",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        text = "$currencySymbol%,.0f spent & committed".format(totalClaimedInBudgets),
+                                        style = SelfBudgetType.meta,
+                                        color = heroRamp.secondaryText(isDarkHero)
                                     )
                                     Text(
-                                        text = "$currencySymbol%.2f remaining across $remainingDays days left".format(remainingBudget),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = "$currencySymbol%,.0f total budget".format(totalBudget),
+                                        style = SelfBudgetType.meta,
+                                        color = heroRamp.titleText(isDarkHero)
                                     )
                                 }
+                            }
+                        }
+
+                        // 3 metric snapshot tiles
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            HeroMetricTile(
+                                modifier = Modifier.weight(1f),
+                                label = "Budgeted",
+                                value = "$currencySymbol%,.0f".format(totalBudget),
+                                caption = "${budgetModels.size} categories",
+                                ramp = Ramp.Gray,
+                                isDark = isDarkHero,
+                                onClick = { showBudgetedModal = true }
+                            )
+                            HeroMetricTile(
+                                modifier = Modifier.weight(1f),
+                                label = "Spent & Bills",
+                                value = "$currencySymbol%,.0f".format(totalClaimedInBudgets),
+                                caption = if (spentAndBillsCategoryCount > 0) "$spentAndBillsCategoryCount categor${if (spentAndBillsCategoryCount == 1) "y" else "ies"}" else "0 categories",
+                                ramp = if (isOverTotal) Ramp.Red else Ramp.Gray,
+                                isDark = isDarkHero,
+                                onClick = { showSpentAndBillsModal = true }
+                            )
+                            HeroMetricTile(
+                                modifier = Modifier.weight(1f),
+                                label = "Unbudgeted",
+                                value = "$currencySymbol%,.0f".format(unbudgetedSpent),
+                                caption = if (unbudgetedCategoryCount > 0) "$unbudgetedCategoryCount categor${if (unbudgetedCategoryCount == 1) "y" else "ies"}" else "no extra spend",
+                                ramp = if (unbudgetedSpent > 0.0) Ramp.Amber else Ramp.Gray,
+                                isDark = isDarkHero,
+                                onClick = { showUnbudgetedModal = true }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val isDarkFilters = isAppInDarkTheme()
+                    listOf("All", "Over", "Watch", "Safe", "Bills").forEach { filter ->
+                        val selected = budgetFilter == filter
+                        Surface(
+                            shape = ShapePill,
+                            color = if (selected) Ramp.Teal.solidFill(isDarkFilters) else Ramp.Gray.tintFill(isDarkFilters),
+                            border = if (selected) null else BorderStroke(0.5.dp, Ramp.Gray.containerBorder(isDarkFilters)),
+                            modifier = Modifier
+                                .height(42.dp)
+                                .clickable { budgetFilter = filter }
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 18.dp)) {
+                                Text(
+                                    text = filter,
+                                    style = SelfBudgetType.rowTitle,
+                                    color = if (selected) Ramp.Teal.onSolidFill(isDarkFilters) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -429,294 +590,223 @@ fun BudgetScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Header and Active count
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Category Limits",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Spending plan",
+                        style = SelfBudgetType.heading,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     if (budgetModels.isNotEmpty()) {
-                        Text(
-                            text = "${budgetModels.size} Active",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        NeutralBadge(
+                            text = if (budgetFilter == "All") "${budgetModels.size} active" else "${filteredModels.size} ${budgetFilter.lowercase()}"
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 if (budgetModels.isEmpty()) {
-                    Card(
+                    // Empty state lives in the section's normal container — no warning tint (spec §12).
+                    Surface(
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        )
+                            .padding(vertical = 8.dp)
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(24.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                                modifier = Modifier.size(72.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.PieChart,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-                            }
+                            RampIconTile(
+                                icon = Icons.Default.PieChart,
+                                ramp = Ramp.Teal,
+                                size = 72.dp,
+                                iconSize = 36.dp
+                            )
 
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Text(
-                                text = if (budgetModels.isEmpty()) "No Category Budgets Set" else "No Categories in this Section",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                text = "No category budgets set",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
                             Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
                                 text = "Set monthly spending limits for categories like Groceries, Dining, and Rent to unlock daily spending pace safeguards.",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = SelfBudgetType.body,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
-                            Button(
+                            PrimaryPillButton(
+                                text = "Set category budget",
                                 onClick = { showSetDialog = true },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "Set Category Budget", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(54.dp)
+                            )
+                        }
+                    }
+                } else if (filteredModels.isEmpty()) {
+                    Surface(
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "No $budgetFilter categories",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Try another filter to review the rest of your spending plan.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        filteredModels.forEach { model ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedCategoryForEdit = model.category.id
-                                        selectedLimitForEdit = model.ownLimit
-                                        selectedRolloverForEdit = model.rolloverEnabled
-                                        showSetDialog = true
-                                    },
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (model.isOverBudget) ExpenseRed.copy(alpha = 0.4f)
-                                    else if (model.isWarning) Color(0xFFFF9800).copy(alpha = 0.4f)
-                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
-                                )
+                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        val isDarkGroups = isAppInDarkTheme()
+                        groupedModels.forEach { (groupName, modelsInGroup) ->
+                            val groupRamp = sectionRamp(groupName)
+                            val groupIcon = com.selfbudget.app.core.ui.getExpenseCategoryGroupIcon(groupName)
+                            val groupTotalLimit = Money.sum(modelsInGroup.map { it.budgetLimit })
+                            val groupTotalSpent = Money.sum(modelsInGroup.map { it.spentAmount })
+                            val groupTotalPending = Money.sum(modelsInGroup.map { it.pendingUpcomingAmount })
+                            val groupTotalClaimed = Money.add(groupTotalSpent, groupTotalPending)
+
+                            SectionHeaderBand(
+                                title = groupName,
+                                ramp = groupRamp,
+                                icon = groupIcon,
+                                countPill = "${modelsInGroup.size}",
+                                trailingText = "$currencySymbol%.2f of $currencySymbol%.2f".format(groupTotalClaimed, groupTotalLimit)
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                modelsInGroup.forEachIndexed { index, model ->
+                                    if (index > 0) SectionRowDivider()
+                                    val status = budgetStatus(model.percentage)
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedCategoryForEdit = model.category.id
+                                                selectedLimitForEdit = model.ownLimit
+                                                selectedRolloverForEdit = model.rolloverEnabled
+                                                showSetDialog = true
+                                            }
+                                            .padding(horizontal = 14.dp, vertical = 12.dp)
                                     ) {
+                                        // Top Row: Category Icon + Name & Safe / Remaining Status
                                         Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(42.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (model.isOverBudget) ExpenseRed.copy(alpha = 0.15f)
-                                                        else if (model.isWarning) Color(0xFFFF9800).copy(alpha = 0.15f)
-                                                        else MaterialTheme.colorScheme.primaryContainer
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                Icon(
-                                                    imageVector = getCategoryIcon(model.category),
-                                                    contentDescription = null,
-                                                    tint = if (model.isOverBudget) ExpenseRed
-                                                            else if (model.isWarning) Color(0xFFFF9800)
-                                                            else MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(22.dp)
+                                                RampIconTile(
+                                                    icon = getCategoryIcon(model.category),
+                                                    ramp = groupRamp,
+                                                    size = 38.dp,
+                                                    iconSize = 20.dp
                                                 )
+
+                                                Spacer(modifier = Modifier.width(10.dp))
+
+                                                Column {
+                                                    Text(
+                                                        text = model.category.name,
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+
+                                                    val subtitleText = buildString {
+                                                        append("$currencySymbol%.2f spent of $currencySymbol%.2f".format(model.spentAmount, model.budgetLimit))
+                                                        if (model.pendingUpcomingAmount > 0.0) {
+                                                            append(" • $currencySymbol%.2f due".format(model.pendingUpcomingAmount))
+                                                        }
+                                                    }
+                                                    Text(
+                                                        text = subtitleText,
+                                                        style = SelfBudgetType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
                                             }
 
-                                            Spacer(modifier = Modifier.width(12.dp))
-
-                                            Column {
-                                                Text(
-                                                    text = model.category.name,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-
-                                                Spacer(modifier = Modifier.height(3.dp))
-
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    if (model.recurringCommittedAmount > 0) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                                                        ) {
-                                                            Text(
-                                                                text = "🔁 $currencySymbol%.2f/mo bill".format(model.recurringCommittedAmount),
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-
-                                                    if (model.rolloverEnabled) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.surfaceVariant
-                                                        ) {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            ) {
-                                                                Icon(
-                                                                    imageVector = Icons.Default.Autorenew,
-                                                                    contentDescription = null,
-                                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                    modifier = Modifier.size(11.dp)
-                                                                )
-                                                                Spacer(modifier = Modifier.width(3.dp))
-                                                                Text(
-                                                                    text = "Rollover",
-                                                                    fontSize = 11.sp,
-                                                                    fontWeight = FontWeight.SemiBold,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                )
-                                                            }
-                                                        }
-                                                    }
+                                            // Safe to Spend / Over Amount — red is reserved for over-limit (spec §10/§13);
+                                            // an on-track "safe to spend" amount reads as neutral text, not a status color.
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                val overAmount = ((model.spentAmount + model.pendingUpcomingAmount) - model.budgetLimit).coerceAtLeast(0.0)
+                                                if (model.isOverBudget && overAmount > 0.005) {
+                                                    Text(
+                                                        text = "-$currencySymbol%.2f".format(overAmount),
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = Ramp.Red.secondaryText(isDarkGroups)
+                                                    )
+                                                    Text(
+                                                        text = "over limit",
+                                                        style = SelfBudgetType.meta,
+                                                        color = Ramp.Red.secondaryText(isDarkGroups)
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "$currencySymbol%.2f".format(model.safeToSpendAmount),
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = "safe to spend",
+                                                        style = SelfBudgetType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
                                                 }
                                             }
                                         }
 
-                                        // Spent vs Limit Display
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "$currencySymbol%.2f".format(model.spentAmount),
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = if (model.isOverBudget) ExpenseRed else MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "of $currencySymbol%.2f limit".format(model.budgetLimit),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
+                                        Spacer(modifier = Modifier.height(10.dp))
 
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    // Row 2: Smooth Progress Bar + Percentage Badge
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        LinearProgressIndicator(
-                                            progress = { model.percentage.coerceIn(0f, 1f) },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(10.dp)
-                                                .clip(RoundedCornerShape(5.dp)),
-                                            color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor()
-                                            else if (model.isWarning) Color(0xFFFF9800)
-                                            else com.selfbudget.app.ui.theme.getIncomeColor(),
-                                            trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                        )
-
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor().copy(alpha = 0.15f)
-                                            else if (model.isWarning) Color(0xFFFF9800).copy(alpha = 0.15f)
-                                            else com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
-                                        ) {
-                                            Text(
-                                                text = "%.0f%%".format(model.percentage * 100f),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor()
-                                                        else if (model.isWarning) Color(0xFFFF9800)
-                                                        else com.selfbudget.app.ui.theme.getIncomeColor(),
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    // Row 3: Bottom Metrics Container
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
+                                        // Middle Row: Status Progress Bar + Badge + Details Affordance
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text(
-                                                text = if (model.pendingUpcomingAmount > 0)
-                                                    "Spent: $currencySymbol%.2f  •  Pending: $currencySymbol%.2f".format(model.spentAmount, model.pendingUpcomingAmount)
-                                                else
-                                                    "Spent: $currencySymbol%.2f".format(model.spentAmount),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            StatusProgressBar(
+                                                progress = model.percentage,
+                                                status = status,
+                                                modifier = Modifier.weight(1f)
                                             )
 
-                                            Text(
-                                                text = if (model.isOverBudget)
-                                                    "⚠️ Over by $currencySymbol%.2f".format((model.spentAmount + model.pendingUpcomingAmount) - model.budgetLimit)
-                                                else
-                                                    "$currencySymbol%.2f safe to spend".format(model.safeToSpendAmount),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (model.isOverBudget) com.selfbudget.app.ui.theme.getExpenseColor() else com.selfbudget.app.ui.theme.getIncomeColor()
+                                            StatusBadge(text = formatPercentBadge(model.percentage), status = status)
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = "View details",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     }
@@ -727,29 +817,117 @@ fun BudgetScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(150.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Spacer(modifier = Modifier.height(100.dp))
         }
 
         if (viewMode == 0) {
             if (showSetDialog) {
+                val selectedModel = remember(selectedCategoryForEdit, budgetModels) {
+                    budgetModels.firstOrNull { it.category.id == selectedCategoryForEdit }
+                }
+
                 SetBudgetDialog(
                     categories = expenseCategories,
                     initialCategoryId = selectedCategoryForEdit,
                     initialLimit = selectedLimitForEdit,
                     initialRolloverEnabled = selectedRolloverForEdit,
                     recurringList = recurringList,
+                    transactions = expenseTransactions,
+                    budgetUiModel = selectedModel,
                     onDismiss = { showSetDialog = false },
                     onConfirm = { categoryId, limit, rollover ->
+                        localBudgetOverrides = localBudgetOverrides + (
+                            categoryId to LocalBudgetOverride(
+                                limit = Money.round(limit),
+                                rolloverEnabled = rollover
+                            )
+                        )
                         onSetBudget(categoryId, limit, rollover)
+                        budgetFilter = "All"
                         showSetDialog = false
                     },
                     onDeleteBudget = { categoryId ->
+                        localBudgetOverrides = localBudgetOverrides + (
+                            categoryId to LocalBudgetOverride(
+                                limit = 0.0,
+                                rolloverEnabled = false
+                            )
+                        )
                         onDeleteBudget(categoryId)
+                        budgetFilter = "All"
                         showSetDialog = false
                     },
                     onAddCustomCategory = onAddCustomCategory
                 )
             }
+        }
+
+        if (showUnbudgetedModal) {
+            UnbudgetedTransactionsModal(
+                budgets = budgets,
+                categories = categories,
+                transactions = expenseTransactions,
+                accounts = accounts,
+                currencySymbol = currencySymbol,
+                selectedMonthYear = selectedMonthYear,
+                onSetBudget = onSetBudget,
+                onDismiss = { showUnbudgetedModal = false }
+            )
+        }
+
+        if (showBudgetedModal) {
+            BudgetedCategoriesModal(
+                budgets = budgets,
+                categories = categories,
+                transactions = expenseTransactions,
+                previousMonthBudgets = previousMonthBudgets,
+                previousMonthSpentByCategory = previousMonthSpentByCategory,
+                currencySymbol = currencySymbol,
+                selectedMonthYear = selectedMonthYear,
+                onDismiss = { showBudgetedModal = false }
+            )
+        }
+
+        if (showSpentAndBillsModal) {
+            SpentAndBillsModal(
+                budgets = budgets,
+                categories = categories,
+                transactions = expenseTransactions,
+                recurringList = recurringList,
+                accounts = accounts,
+                currencySymbol = currencySymbol,
+                selectedMonthYear = selectedMonthYear,
+                onDismiss = { showSpentAndBillsModal = false }
+            )
+        }
+    }
+}
+
+/** One of the hero card's 3 metric snapshot tiles (spec §11 breakdown row style). */
+@Composable
+private fun HeroMetricTile(
+    label: String,
+    value: String,
+    caption: String,
+    ramp: Ramp,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
+        shape = ShapeChip,
+        color = ramp.tintFill(isDark)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(text = label, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
+            Text(text = value, style = SelfBudgetType.heading, color = ramp.titleText(isDark))
+            Text(text = caption, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
         }
     }
 }

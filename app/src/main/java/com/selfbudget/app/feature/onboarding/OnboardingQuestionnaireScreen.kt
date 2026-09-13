@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,18 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +39,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.AppLogoBadge
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.ui.theme.ProgressTrackDark
+import com.selfbudget.app.ui.theme.ProgressTrackLight
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.util.Locale
 
 /**
@@ -74,7 +76,7 @@ fun OnboardingQuestionnaireScreen(
     onComplete: (preferredCurrency: String, primaryGoal: String, referralSource: String) -> Unit
 ) {
     val autoDetectedCurrency = remember { detectSystemCurrencySymbol() }
-    
+
     var currentStep by remember { mutableIntStateOf(1) }
     var selectedGoal by remember { mutableStateOf("Track daily expenses & control spending") }
     var selectedCurrency by remember { mutableStateOf(autoDetectedCurrency) }
@@ -105,6 +107,8 @@ fun OnboardingQuestionnaireScreen(
         Pair("📌 Other", "Other referral source")
     )
 
+    val isDark = isAppInDarkTheme()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -124,19 +128,7 @@ fun OnboardingQuestionnaireScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppLogoBadge(size = 44.dp)
-
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Text(
-                        text = "Step $currentStep of 3",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                }
+                NeutralBadge(text = "Step $currentStep of 3")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -147,9 +139,9 @@ fun OnboardingQuestionnaireScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = getIncomeColor(),
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    .clip(ShapeChip),
+                color = Ramp.Teal.c400,
+                trackColor = if (isDark) ProgressTrackDark else ProgressTrackLight
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -191,22 +183,17 @@ fun OnboardingQuestionnaireScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (currentStep > 1) {
-                    Button(
+                    SecondaryPillButton(
+                        text = "Back",
                         onClick = { currentStep -= 1 },
                         modifier = Modifier
                             .weight(0.4f)
-                            .height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text("Back", fontWeight = FontWeight.Bold)
-                    }
+                            .height(52.dp)
+                    )
                 }
 
-                Button(
+                PrimaryPillButton(
+                    text = if (currentStep == 3) "Complete setup" else "Continue",
                     onClick = {
                         if (currentStep < 3) {
                             currentStep += 1
@@ -216,24 +203,54 @@ fun OnboardingQuestionnaireScreen(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = getIncomeColor(),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = if (currentStep == 3) "Complete Setup 🚀" else "Continue",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    if (currentStep < 3) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp))
-                    }
-                }
+                        .height(52.dp)
+                )
             }
+        }
+    }
+}
+
+/** A single-select option row shared by all onboarding steps (spec §20: Teal selected state). */
+@Composable
+private fun SelectableOptionRow(
+    title: String,
+    subtitle: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ShapeChip)
+            .clickable { onClick() }
+            .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = SelfBudgetType.rowTitle,
+                color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = subtitle,
+                style = SelfBudgetType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (isSelected) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Selected",
+                tint = Ramp.Teal.titleText(isDark),
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
@@ -246,67 +263,26 @@ private fun StepPrimaryGoal(
 ) {
     Column {
         Text(
-            text = "Welcome to Self Budget! 👋",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
+            text = "Welcome to Self Budget",
+            style = SelfBudgetType.title,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "What is your primary financial focus right now?",
-            style = MaterialTheme.typography.bodyMedium,
+            style = SelfBudgetType.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        goals.forEach { (title, subtitle) ->
-            val isSelected = selectedGoal == title
-            Card(
-                onClick = { onSelectGoal(title) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+        goals.forEachIndexed { index, (title, subtitle) ->
+            SelectableOptionRow(title, subtitle, selectedGoal == title) { onSelectGoal(title) }
+            if (index < goals.size - 1) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Selected",
-                            tint = getIncomeColor(),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
             }
         }
     }
@@ -319,27 +295,26 @@ private fun StepCurrencySetup(
     autoDetectedCurrency: String,
     onSelectCurrency: (String) -> Unit
 ) {
+    val isDark = isAppInDarkTheme()
     Column {
         Text(
-            text = "Set Your Primary Currency 🌐",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
+            text = "Set your primary currency",
+            style = SelfBudgetType.title,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Select your base currency for accounts, budgets, and net worth reports.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = SelfBudgetType.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Auto-detected region badge
+        // Auto-detected region notice (spec §12: neutral gray, not a warning tint)
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+            shape = ShapeChip,
+            color = Ramp.Gray.tintFill(isDark)
         ) {
             Row(
                 modifier = Modifier
@@ -350,77 +325,72 @@ private fun StepCurrencySetup(
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "System region auto-detected: $autoDetectedCurrency. Tap to change below.",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    style = SelfBudgetType.meta,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        currencies.forEach { (symbol, label) ->
+        currencies.forEachIndexed { index, (symbol, label) ->
             val isSelected = selectedCurrency == symbol
-            Card(
-                onClick = { onSelectCurrency(symbol) },
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 5.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-                )
+                    .clip(ShapeChip)
+                    .clickable { onSelectCurrency(symbol) }
+                    .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = symbol,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = symbol,
+                                style = SelfBudgetType.rowTitle,
+                                color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                     }
-
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Selected",
-                            tint = getIncomeColor(),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = label,
+                        style = SelfBudgetType.rowTitle,
+                        color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
+                    )
                 }
+
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = Ramp.Teal.titleText(isDark),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            if (index < currencies.size - 1) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
             }
         }
     }
@@ -434,67 +404,26 @@ private fun StepReferralSource(
 ) {
     Column {
         Text(
-            text = "One Last Quick Question 📌",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
+            text = "One last quick question",
+            style = SelfBudgetType.title,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "How did you hear about Self Budget?",
-            style = MaterialTheme.typography.bodyMedium,
+            style = SelfBudgetType.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        referrals.forEach { (title, subtitle) ->
-            val isSelected = selectedReferral == title
-            Card(
-                onClick = { onSelectReferral(title) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) getIncomeColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) getIncomeColor().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+        referrals.forEachIndexed { index, (title, subtitle) ->
+            SelectableOptionRow(title, subtitle, selectedReferral == title) { onSelectReferral(title) }
+            if (index < referrals.size - 1) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Selected",
-                            tint = getIncomeColor(),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
             }
         }
     }

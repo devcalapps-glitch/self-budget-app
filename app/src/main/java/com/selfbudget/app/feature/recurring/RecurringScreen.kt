@@ -1,23 +1,39 @@
 package com.selfbudget.app.feature.recurring
 
-import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.selfbudget.app.core.ui.getCategoryIcon
 import com.selfbudget.app.core.ui.MonthYearHeader
 import com.selfbudget.app.core.util.Money
+import com.selfbudget.app.core.util.RecurringCycleCalculator.getCyclePaymentSummary
+import com.selfbudget.app.core.util.RecurringCyclePaymentSummary
 import com.selfbudget.app.core.util.RecurringFrequencyNormalizer
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.getAccentColor
+import com.selfbudget.app.ui.theme.getWarningColor
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,14 +54,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -60,6 +80,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,7 +104,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -91,29 +111,48 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.onSolidFill
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
+import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.RecurringFrequency
+import com.selfbudget.app.core.ui.RecurringBillsModal
+import com.selfbudget.app.core.ui.RecurringIncomeModal
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
-import com.selfbudget.app.ui.theme.ExpenseRed
 import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.KeyboardCapitalization
 
 private data class RecurringEditSnapshot(
     val title: String,
@@ -123,10 +162,11 @@ private data class RecurringEditSnapshot(
     val isArchived: Boolean,
     val nextDueDate: Long,
     val hasLimitedOccurrences: Boolean,
-    val occurrencesText: String
+    val occurrencesText: String,
+    val transferAccountId: String? = null
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RecurringScreen(
     recurringList: List<RecurringTransactionEntity>,
@@ -141,16 +181,18 @@ fun RecurringScreen(
     accountBalances: Map<String, Double> = emptyMap(),
     onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?, transferAccountId: String?) -> Unit,
     onDeleteRecurring: (RecurringTransactionEntity) -> Unit,
-    onPostTransaction: (RecurringTransactionEntity) -> Unit,
+    onPostTransaction: (RecurringTransactionEntity, Double) -> Unit,
     onUpdateRecurring: (RecurringTransactionEntity) -> Unit = {},
     onAddCustomCategory: ((CategoryEntity) -> Unit)? = null,
     onAddCustomAccount: ((AccountEntity) -> Unit)? = null,
     // Lets the single global "+" (owned by HomeScreen) open this screen's "new recurring" dialog
     // from anywhere in the app, instead of this screen needing its own floating add button.
     requestNewRecurring: Boolean = false,
+    requestNewRecurringType: TransactionType = TransactionType.EXPENSE,
     onNewRecurringRequestHandled: () -> Unit = {}
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var addDialogInitialType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var selectedFilterType by remember { mutableStateOf<TransactionType?>(null) }
     var selectedRecurringForDetails by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var pendingDuplicateItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
@@ -158,30 +200,33 @@ fun RecurringScreen(
     var pendingDeleteItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var duplicateMatchDate by remember { mutableStateOf<String?>(null) }
     var recentlyPostedId by remember { mutableStateOf<String?>(null) }
+    var postedBannerMessage by remember { mutableStateOf<String?>(null) }
+    var showRecurringIncomeModal by remember { mutableStateOf(false) }
+    var showRecurringBillsModal by remember { mutableStateOf(false) }
     val monthNameFormatter = remember { SimpleDateFormat("MMM", Locale.getDefault()) }
 
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(requestNewRecurring) {
         if (requestNewRecurring) {
+            addDialogInitialType = requestNewRecurringType
             showAddDialog = true
             onNewRecurringRequestHandled()
         }
     }
 
-    val executePost: (RecurringTransactionEntity) -> Unit = { itemToPost ->
-        onPostTransaction(itemToPost)
-        Toast.makeText(
-            context,
-            "Posted \"${itemToPost.title}\" ($currencySymbol%.2f)!".format(itemToPost.amount),
-            Toast.LENGTH_SHORT
-        ).show()
+    val executePost: (RecurringTransactionEntity, Double) -> Unit = { itemToPost, postAmount ->
+        onPostTransaction(itemToPost, postAmount)
+        val bannerToken = itemToPost.id
+        postedBannerMessage = "Posted \"${itemToPost.title}\" ($currencySymbol%.2f)".format(postAmount)
         recentlyPostedId = itemToPost.id
         coroutineScope.launch {
-            delay(2000L)
-            if (recentlyPostedId == itemToPost.id) {
+            delay(2500L)
+            if (recentlyPostedId == bannerToken) {
                 recentlyPostedId = null
+            }
+            if (postedBannerMessage != null) {
+                postedBannerMessage = null
             }
         }
     }
@@ -192,6 +237,9 @@ fun RecurringScreen(
 
     // Archived/finished items no longer count toward totals - they're done, not active.
     val activeList = remember(recurringList) { recurringList.filter { !it.isArchived } }
+    val activeIncomeCount = remember(activeList) { activeList.count { it.type == TransactionType.INCOME } }
+    val activeExpenseCount = remember(activeList) { activeList.count { it.type == TransactionType.EXPENSE } }
+
     val totalRecurringExpense = remember(activeList) {
         Money.sum(activeList.filter { it.type == TransactionType.EXPENSE }.map { rec ->
             com.selfbudget.app.core.util.RecurringFrequencyNormalizer.toMonthlyAmount(rec.amount, rec.frequency)
@@ -201,6 +249,27 @@ fun RecurringScreen(
         Money.sum(activeList.filter { it.type == TransactionType.INCOME }.map { rec ->
             com.selfbudget.app.core.util.RecurringFrequencyNormalizer.toMonthlyAmount(rec.amount, rec.frequency)
         })
+    }
+    val netRecurringMonthly = remember(totalRecurringIncome, totalRecurringExpense) {
+        totalRecurringIncome - totalRecurringExpense
+    }
+    val billsRatio = remember(totalRecurringIncome, totalRecurringExpense) {
+        if (totalRecurringIncome > 0.0) {
+            (totalRecurringExpense / totalRecurringIncome).toFloat().coerceIn(0f, 1f)
+        } else if (totalRecurringExpense > 0.0) {
+            1f
+        } else {
+            0f
+        }
+    }
+
+    val now = remember { System.currentTimeMillis() }
+    val sevenDaysLater = remember { now + 7L * 24 * 60 * 60 * 1000 }
+    val upcomingDueExpenses = remember(activeList) {
+        activeList.filter { it.type == TransactionType.EXPENSE && it.nextDueDate in now..sevenDaysLater }
+    }
+    val upcomingDueTotal = remember(upcomingDueExpenses) {
+        Money.sum(upcomingDueExpenses.map { it.amount })
     }
 
     val filteredList = remember(recurringList, selectedFilterType) {
@@ -226,100 +295,264 @@ fun RecurringScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            if (onPreviousMonth != null && onNextMonth != null && onSelectMonthYear != null) {
-                MonthYearHeader(
-                    currentMonthYear = selectedMonthYear,
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onSelectMonthYear = onSelectMonthYear
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Recurring Overview Summary Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            // Reimagined Committed Cash Flow Hero Card
+            Surface(
+                shape = ShapeHero,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
+                tonalElevation = 1.dp,
+                shadowElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Header Row: Badge Icon + Eyebrow / Status + Count Pill
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Repeat,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Monthly Commitments ($currentMonthName)",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Income Summary Card
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp),
-                            color = getIncomeColor().copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, getIncomeColor().copy(alpha = 0.25f))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = (if (netRecurringMonthly >= 0) getIncomeColor() else getExpenseColor()).copy(alpha = 0.14f),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Autorenew,
+                                        contentDescription = null,
+                                        tint = if (netRecurringMonthly >= 0) getIncomeColor() else getExpenseColor(),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
                                 Text(
-                                    text = "Paychecks",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = "COMMITTED CASH FLOW",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 1.1.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "+$currencySymbol%.2f".format(totalRecurringIncome),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = getIncomeColor()
+                                    text = when {
+                                        activeList.isEmpty() -> "No recurring items configured"
+                                        netRecurringMonthly >= 0 -> "Positive recurring flow"
+                                        else -> "Bills exceed recurring income"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
 
-                        // Expense Summary Card
                         Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp),
-                            color = ExpenseRed.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.25f))
+                            shape = RoundedCornerShape(12.dp),
+                            color = getAccentColor().copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, getAccentColor().copy(alpha = 0.25f))
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "${activeList.size} Active",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = getAccentColor(),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // Main Metric: Net Monthly Recurring
+                    Column {
+                        val absNet = kotlin.math.abs(netRecurringMonthly)
+                        Text(
+                            text = "$currencySymbol%,.2f".format(absNet),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (netRecurringMonthly >= 0) getIncomeColor() else getExpenseColor(),
+                            letterSpacing = (-0.5).sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (netRecurringMonthly >= 0) "estimated monthly net recurring flow" else "monthly recurring deficit",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Dual Progress Bar (Committed vs Free)
+                    if (totalRecurringIncome > 0.0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            LinearProgressIndicator(
+                                progress = { billsRatio },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = if (billsRatio > 0.9f) getExpenseColor() else if (billsRatio > 0.6f) getWarningColor() else getAccentColor(),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 Text(
-                                    text = "Bills & Subscriptions",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = "${(billsRatio * 100).toInt()}% committed to bills",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    // Shown as a plain positive figure, not "-$X" - this is a
-                                    // planned monthly bill total, not money already lost.
-                                    text = "$currencySymbol%.2f".format(totalRecurringExpense),
+                                    text = "$currencySymbol%,.0f free / mo".format(netRecurringMonthly.coerceAtLeast(0.0)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (netRecurringMonthly >= 0) getIncomeColor() else getExpenseColor()
+                                )
+                            }
+                        }
+                    }
+
+                    // Side-by-Side Metric Cards
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Paychecks Summary Tile
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showRecurringIncomeModal = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = getIncomeColor().copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, getIncomeColor().copy(alpha = 0.22f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = getIncomeColor().copy(alpha = 0.18f),
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDownward,
+                                                contentDescription = null,
+                                                tint = getIncomeColor(),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Paychecks",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = getIncomeColor()
+                                    )
+                                }
+                                Text(
+                                    text = "$currencySymbol%,.2f".format(totalRecurringIncome),
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = ExpenseRed
+                                    fontWeight = FontWeight.Medium,
+                                    color = getIncomeColor()
+                                )
+                                Text(
+                                    text = "$activeIncomeCount active stream${if (activeIncomeCount == 1) "" else "s"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Bills & Subscriptions Summary Tile
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showRecurringBillsModal = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = getExpenseColor().copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, getExpenseColor().copy(alpha = 0.22f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = getExpenseColor().copy(alpha = 0.18f),
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowUpward,
+                                                contentDescription = null,
+                                                tint = getExpenseColor(),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Bills & Subs",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = getExpenseColor()
+                                    )
+                                }
+                                Text(
+                                    text = "$currencySymbol%,.2f".format(totalRecurringExpense),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = getExpenseColor()
+                                )
+                                Text(
+                                    text = "$activeExpenseCount active bill${if (activeExpenseCount == 1) "" else "s"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Upcoming Due Soon Mini-Banner (if any due in next 7 days)
+                    if (upcomingDueExpenses.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = getWarningColor(),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "${upcomingDueExpenses.size} bill${if (upcomingDueExpenses.size == 1) "" else "s"} due in next 7 days ($currencySymbol%,.2f)".format(upcomingDueTotal),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -329,40 +562,69 @@ fun RecurringScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Filter Chips (All vs Expenses vs Income)
+            // Filter Pills (matching BudgetScreen pill style)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                FilterChip(
-                    selected = selectedFilterType == null,
-                    onClick = { selectedFilterType = null },
-                    label = { Text("All (${recurringList.size})") }
+                val filters = listOf(
+                    Triple("All (${recurringList.size})", null, null),
+                    Triple("Bills", TransactionType.EXPENSE, getExpenseColor()),
+                    Triple("Paychecks", TransactionType.INCOME, getIncomeColor())
                 )
-                FilterChip(
-                    selected = selectedFilterType == TransactionType.EXPENSE,
-                    onClick = { selectedFilterType = TransactionType.EXPENSE },
-                    label = { Text("Bills 🔴") }
-                )
-                FilterChip(
-                    selected = selectedFilterType == TransactionType.INCOME,
-                    onClick = { selectedFilterType = TransactionType.INCOME },
-                    label = { Text("Paychecks 🟢") }
-                )
+
+                filters.forEach { (label, type, dotColor) ->
+                    val selected = selectedFilterType == type
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (selected) getAccentColor() else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selected) getAccentColor() else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                        ),
+                        modifier = Modifier
+                            .height(42.dp)
+                            .clickable { selectedFilterType = type }
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 18.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (dotColor != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(if (selected) Color.White.copy(alpha = 0.9f) else dotColor)
+                                    )
+                                }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Medium,
+                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             if (filteredList.isEmpty()) {
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    shape = com.selfbudget.app.ui.theme.ShapeCard,
+                    color = MaterialTheme.colorScheme.surface
                 ) {
                     Column(
                         modifier = Modifier
@@ -371,27 +633,18 @@ fun RecurringScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Repeat,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
+                        com.selfbudget.app.core.ui.components.RampIconTile(
+                            icon = Icons.Default.Repeat,
+                            ramp = com.selfbudget.app.ui.theme.Ramp.Teal,
+                            size = 64.dp,
+                            iconSize = 32.dp
+                        )
 
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = "No Monthly Commitments",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            text = "No monthly commitments",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.heading,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
@@ -399,7 +652,7 @@ fun RecurringScreen(
 
                         Text(
                             text = "Track your recurring paychecks, rent, subscriptions, and utilities with automatic next-due reminders.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.body,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 8.dp)
@@ -407,241 +660,250 @@ fun RecurringScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Button(
-                            onClick = { showAddDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Add Recurring Item", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
+                        com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                            text = when (selectedFilterType) {
+                                TransactionType.INCOME -> "Add recurring income"
+                                TransactionType.EXPENSE -> "Add recurring expense"
+                                else -> "Add recurring item"
+                            },
+                            onClick = {
+                                addDialogInitialType = selectedFilterType ?: TransactionType.EXPENSE
+                                showAddDialog = true
+                            }
+                        )
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    filteredList.forEach { item ->
-                        val isDark = isSystemInDarkTheme()
-                        val category = categoryMap[item.categoryId]
-                        val isIncome = item.type == TransactionType.INCOME
-                        val freqText = when (item.frequency) {
-                            RecurringFrequency.WEEKLY -> "Weekly 📅"
-                            RecurringFrequency.BI_WEEKLY -> "Bi-Weekly 🗓️"
-                            RecurringFrequency.MONTHLY -> "Monthly 🗓️"
-                            RecurringFrequency.YEARLY -> "Annual 🎆"
-                        }
-                        val postedTransactionForThisCycle = remember(item, allTransactions, selectedMonthYear) {
-                            getPostedTransactionForCurrentCycle(item, allTransactions, selectedMonthYear)
-                        }
-                        val isPostedThisCycle = postedTransactionForThisCycle != null
+                val (incomeItems, expenseItems) = filteredList.partition { it.type == TransactionType.INCOME }
 
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedRecurringForDetails = item },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (item.isArchived) {
-                                    if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                }
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = if (item.isArchived) 0.dp else 2.dp
-                            ),
-                            border = BorderStroke(
-                                1.dp,
-                                if (item.isArchived) {
-                                    if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
-                                } else {
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                }
-                            )
+                // Shared row body so "Paychecks" and "Bills & subscriptions" bands render
+                // identical rows without duplicating this closure over outer screen state.
+                val recurringRow: @Composable (RecurringTransactionEntity, com.selfbudget.app.ui.theme.Ramp) -> Unit = { item, groupRamp ->
+                    val category = categoryMap[item.categoryId]
+                    val isIncome = item.type == TransactionType.INCOME
+                    val freqText = when (item.frequency) {
+                        RecurringFrequency.WEEKLY -> "Weekly"
+                        RecurringFrequency.BI_WEEKLY -> "Bi-weekly"
+                        RecurringFrequency.SEMI_MONTHLY -> "Semi-monthly (2x/mo)"
+                        RecurringFrequency.MONTHLY -> "Monthly"
+                        RecurringFrequency.YEARLY -> "Annual"
+                    }
+                    val cycleSummary = remember(item, allTransactions, selectedMonthYear) {
+                        getCyclePaymentSummary(item, allTransactions, selectedMonthYear)
+                    }
+                    val isFullyPostedThisCycle = cycleSummary.isFullyPaid
+                    val isPartiallyPaidThisCycle = cycleSummary.isPartiallyPaid
+                    val rowRamp = if (item.isArchived) com.selfbudget.app.ui.theme.Ramp.Gray else groupRamp
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedRecurringForDetails = item }
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(10.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (item.isArchived) {
-                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                                                    } else if (isIncome) {
-                                                        com.selfbudget.app.ui.theme.getIncomeColor()
-                                                    } else {
-                                                        com.selfbudget.app.ui.theme.getExpenseColor()
-                                                    }
-                                                )
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
-                                            Text(
-                                                text = item.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp,
-                                                color = if (item.isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = if (item.isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant
-                                                ) {
-                                                    Text(
-                                                        text = category?.name ?: "General",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                        color = if (item.isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "•  $freqText",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (item.isArchived) 0.6f else 1f)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(item.amount),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 17.sp,
-                                            color = if (item.isArchived) {
-                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                            } else if (isIncome) {
-                                                com.selfbudget.app.ui.theme.getIncomeColor()
-                                            } else {
-                                                com.selfbudget.app.ui.theme.getExpenseColor()
-                                            }
-                                        )
-
-                                        if (item.isArchived) {
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                                            ) {
-                                                Text(
-                                                    text = if (item.remainingOccurrences == 0) "Completed ✅" else "Archived 📦",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        } else if (isPostedThisCycle) {
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.15f)
-                                            ) {
-                                                Text(
-                                                    text = "Posted for ${monthNameFormatter.format(postedTransactionForThisCycle?.timestamp?.let { Date(it) } ?: Date())} ✅",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = com.selfbudget.app.ui.theme.getIncomeColor(),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Schedule,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Next: ${dateFormatter.format(Date(item.nextDueDate))}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    val isPosted = recentlyPostedId == item.id || isPostedThisCycle
-                                    val isArchived = item.isArchived
-                                    Button(
-                                        onClick = {
-                                            if (!isPosted) {
-                                                pendingPostItem = item
-                                            } else {
-                                                duplicateMatchDate = postedTransactionForThisCycle?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
-                                                pendingDuplicateItem = item
-                                            }
-                                        },
-                                        enabled = !isArchived,
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else if (isPosted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f) else if (isIncome) getIncomeColor() else MaterialTheme.colorScheme.primary,
-                                            contentColor = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else if (isPosted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) else Color.White,
-                                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                        )
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isArchived) Icons.Default.Archive else if (isPosted) Icons.Default.Verified else Icons.Default.Publish,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (isArchived) "Archived" else if (isPosted) "Posted" else "Post Now",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                item.remainingOccurrences?.let { remaining ->
-                                    Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                com.selfbudget.app.core.ui.components.RampIconTile(
+                                    icon = category?.let { getCategoryIcon(it) } ?: Icons.Default.Repeat,
+                                    ramp = rowRamp,
+                                    size = 36.dp,
+                                    iconSize = 18.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
                                     Text(
-                                        text = if (remaining == 1) "Last payment remaining" else "$remaining payments remaining",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        text = item.title,
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                        color = if (item.isArchived) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${category?.name ?: "General"} · $freqText",
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                            }
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                // Ordinary amounts are neutral; only income reads Teal (spec §10 money colors).
+                                Text(
+                                    text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(item.amount),
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                    color = if (item.isArchived) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else if (isIncome) {
+                                        com.selfbudget.app.ui.theme.getIncomeColor()
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                                if (item.frequency == RecurringFrequency.SEMI_MONTHLY || item.frequency == RecurringFrequency.BI_WEEKLY || item.frequency == RecurringFrequency.WEEKLY) {
+                                    val monthlyNorm = RecurringFrequencyNormalizer.toMonthlyAmount(item.amount, item.frequency)
+                                    Text(
+                                        text = "$currencySymbol%.2f/mo".format(monthlyNorm),
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (item.isArchived) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    com.selfbudget.app.core.ui.components.NeutralBadge(
+                                        text = if (item.remainingOccurrences == 0) "Completed" else "Archived"
+                                    )
+                                } else if (isFullyPostedThisCycle) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    val statusText = if (cycleSummary.expectedOccurrences > 1) {
+                                        "Posted (${cycleSummary.postedOccurrences} of ${cycleSummary.expectedOccurrences})"
+                                    } else {
+                                        "Posted for ${monthNameFormatter.format(cycleSummary.matchingTransactions.firstOrNull()?.timestamp?.let { Date(it) } ?: Date())}"
+                                    }
+                                    com.selfbudget.app.core.ui.components.StatusBadge(
+                                        text = statusText,
+                                        status = com.selfbudget.app.ui.theme.BudgetStatus.Safe
+                                    )
+                                } else if (isPartiallyPaidThisCycle) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    val statusText = if (cycleSummary.expectedOccurrences > 1) {
+                                        "${cycleSummary.postedOccurrences} of ${cycleSummary.expectedOccurrences} posted ($currencySymbol%.2f) · $currencySymbol%.2f left".format(cycleSummary.totalPaid, cycleSummary.remainingAmount)
+                                    } else {
+                                        "Paid $currencySymbol%.2f · $currencySymbol%.2f left".format(cycleSummary.totalPaid, cycleSummary.remainingAmount)
+                                    }
+                                    com.selfbudget.app.core.ui.components.StatusBadge(
+                                        text = statusText,
+                                        status = com.selfbudget.app.ui.theme.BudgetStatus.Watch
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Next: ${dateFormatter.format(Date(item.nextDueDate))}",
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            val isPosted = recentlyPostedId == item.id || isFullyPostedThisCycle
+                            val isArchived = item.isArchived
+                            val accentColor = com.selfbudget.app.ui.theme.getAccentColor()
+                            val postButtonColor = if (isArchived) {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            } else if (isPosted) {
+                                getIncomeColor()
+                            } else if (isPartiallyPaidThisCycle) {
+                                getWarningColor()
+                            } else {
+                                accentColor
+                            }
+                            val postButtonLabel = if (isArchived) {
+                                "Archived"
+                            } else if (isPosted) {
+                                "Posted"
+                            } else if (cycleSummary.expectedOccurrences > 1 && cycleSummary.postedOccurrences > 0) {
+                                "Post ${cycleSummary.postedOccurrences + 1}${if (cycleSummary.postedOccurrences + 1 == 2) "nd" else if (cycleSummary.postedOccurrences + 1 == 3) "rd" else "th"} ($currencySymbol%.2f)".format(item.amount)
+                            } else if (isPartiallyPaidThisCycle) {
+                                "Pay $currencySymbol%.2f".format(cycleSummary.remainingAmount)
+                            } else {
+                                "Post now"
+                            }
+                            Button(
+                                onClick = {
+                                    if (isPosted) {
+                                        duplicateMatchDate = cycleSummary.matchingTransactions.firstOrNull()?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
+                                        pendingDuplicateItem = item
+                                    } else {
+                                        pendingPostItem = item
+                                    }
+                                },
+                                enabled = !isArchived,
+                                shape = com.selfbudget.app.ui.theme.ShapePill,
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.Transparent,
+                                    contentColor = postButtonColor,
+                                    disabledContainerColor = Color.Transparent,
+                                    disabledContentColor = postButtonColor
+                                ),
+                                border = BorderStroke(0.5.dp, postButtonColor.copy(alpha = if (isArchived) 0.4f else 0.6f)),
+                                elevation = null
+                            ) {
+                                Icon(
+                                    imageVector = if (isArchived) Icons.Default.Archive else if (isPosted) Icons.Default.Verified else Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = postButtonLabel,
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.badge
+                                )
+                            }
+                        }
+
+                        item.remainingOccurrences?.let { remaining ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (remaining == 1) "Last payment remaining" else "$remaining payments remaining",
+                                style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    if (incomeItems.isNotEmpty()) {
+                        com.selfbudget.app.core.ui.components.SectionHeaderBand(
+                            title = "Paychecks",
+                            ramp = com.selfbudget.app.ui.theme.Ramp.Teal,
+                            icon = Icons.Default.TrendingUp
+                        ) {
+                            incomeItems.forEachIndexed { index, item ->
+                                if (index > 0) com.selfbudget.app.core.ui.components.SectionRowDivider()
+                                recurringRow(item, com.selfbudget.app.ui.theme.Ramp.Teal)
+                            }
+                        }
+                    }
+                    if (expenseItems.isNotEmpty()) {
+                        com.selfbudget.app.core.ui.components.SectionHeaderBand(
+                            title = "Bills & subscriptions",
+                            ramp = com.selfbudget.app.ui.theme.Ramp.Coral,
+                            icon = Icons.Default.Repeat
+                        ) {
+                            expenseItems.forEachIndexed { index, item ->
+                                if (index > 0) com.selfbudget.app.core.ui.components.SectionRowDivider()
+                                recurringRow(item, com.selfbudget.app.ui.theme.Ramp.Coral)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(200.dp))
+            Spacer(modifier = Modifier.height(100.dp))
         }
 
         if (showAddDialog) {
@@ -650,6 +912,7 @@ fun RecurringScreen(
                 currencySymbol = currencySymbol,
                 accounts = accounts,
                 accountBalances = accountBalances,
+                initialType = addDialogInitialType,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId ->
                     onAddRecurring(title, amount, type, categoryId, frequency, remainingOccurrences, nextDueDate, transferAccountId)
@@ -664,15 +927,19 @@ fun RecurringScreen(
         // bill's details and pick which account the money actually comes from / goes to for this
         // occurrence, instead of silently reusing whatever account the item was created with.
         pendingPostItem?.let { postItem ->
+            val cycleSummary = remember(postItem, allTransactions, selectedMonthYear) {
+                getCyclePaymentSummary(postItem, allTransactions, selectedMonthYear)
+            }
             PostRecurringConfirmModal(
                 item = postItem,
+                cycleSummary = cycleSummary,
                 accounts = accounts,
                 accountBalances = accountBalances,
                 categoryName = categoryMap[postItem.categoryId]?.name,
                 currencySymbol = currencySymbol,
                 onDismiss = { pendingPostItem = null },
-                onConfirm = { accountId ->
-                    executePost(postItem.copy(accountId = accountId))
+                onConfirm = { accountId, amount ->
+                    executePost(postItem.copy(accountId = accountId), amount)
                     pendingPostItem = null
                 },
                 onDelete = {
@@ -683,20 +950,19 @@ fun RecurringScreen(
             )
         }
 
-        // Potential Duplicate Entry Warning Modal (Custom Styled M3 Dialog)
+        // Potential Duplicate Entry Warning Modal
         if (pendingDuplicateItem != null) {
             val itemToPost = pendingDuplicateItem!!
             val isIncome = itemToPost.type == TransactionType.INCOME
+            val isDarkDup = com.selfbudget.app.ui.theme.isAppInDarkTheme()
 
             Dialog(
                 onDismissRequest = { pendingDuplicateItem = null },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(24.dp),
+                    shape = ShapeCard,
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
-                    shadowElevation = 12.dp,
                     modifier = Modifier
                         .fillMaxWidth(0.92f)
                         .padding(16.dp)
@@ -705,28 +971,18 @@ fun RecurringScreen(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Glowing Warning Icon Badge
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
+                        com.selfbudget.app.core.ui.components.RampIconTile(
+                            icon = Icons.Default.Warning,
+                            ramp = com.selfbudget.app.ui.theme.Ramp.Amber,
+                            size = 64.dp,
+                            iconSize = 32.dp
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Potential Duplicate Entry",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                            text = "Potential duplicate entry",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
@@ -734,7 +990,7 @@ fun RecurringScreen(
 
                         Text(
                             text = "An entry matching this recurring transaction was already logged recently.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.body,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
@@ -743,9 +999,8 @@ fun RecurringScreen(
 
                         // Highlighted Transaction Details Card
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                            shape = ShapeCard,
+                            color = com.selfbudget.app.ui.theme.Ramp.Gray.tintFill(isDarkDup),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -756,19 +1011,18 @@ fun RecurringScreen(
                                 ) {
                                     Text(
                                         text = itemToPost.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(itemToPost.amount),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                        color = if (isIncome) com.selfbudget.app.ui.theme.Ramp.Teal.secondaryText(isDarkDup) else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
                                 Spacer(modifier = Modifier.height(6.dp))
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                com.selfbudget.app.core.ui.components.SectionRowDivider()
                                 Spacer(modifier = Modifier.height(6.dp))
 
                                 Row(
@@ -776,14 +1030,13 @@ fun RecurringScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "Previously Logged:",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        text = "Previously logged:",
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = duplicateMatchDate ?: "Today",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -792,36 +1045,29 @@ fun RecurringScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedButton(
+                            com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                                text = "Cancel",
                                 onClick = { pendingDuplicateItem = null },
-                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                            ) {
-                                Text("Cancel", fontWeight = FontWeight.Bold)
-                            }
+                            )
 
-                            Button(
+                            com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                                text = "Post anyway",
                                 onClick = {
-                                    executePost(itemToPost)
+                                    executePost(itemToPost, itemToPost.amount)
                                     pendingDuplicateItem = null
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                ),
+                                ramp = com.selfbudget.app.ui.theme.Ramp.Amber,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                            ) {
-                                Text("Post Anyway", fontWeight = FontWeight.Bold)
-                            }
+                            )
                         }
                     }
                 }
@@ -832,16 +1078,15 @@ fun RecurringScreen(
         if (pendingDeleteItem != null) {
             val itemToDelete = pendingDeleteItem!!
             val isIncome = itemToDelete.type == TransactionType.INCOME
+            val isDarkDel = com.selfbudget.app.ui.theme.isAppInDarkTheme()
 
             Dialog(
                 onDismissRequest = { pendingDeleteItem = null },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(24.dp),
+                    shape = ShapeCard,
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
-                    shadowElevation = 12.dp,
                     modifier = Modifier
                         .fillMaxWidth(0.92f)
                         .padding(16.dp)
@@ -850,28 +1095,18 @@ fun RecurringScreen(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Glowing Red Trash Badge
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
+                        com.selfbudget.app.core.ui.components.RampIconTile(
+                            icon = Icons.Default.Delete,
+                            ramp = com.selfbudget.app.ui.theme.Ramp.Red,
+                            size = 64.dp,
+                            iconSize = 32.dp
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Delete Recurring Entry?",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                            text = "Delete recurring entry?",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
@@ -879,7 +1114,7 @@ fun RecurringScreen(
 
                         Text(
                             text = "Are you sure you want to remove this recurring commitment? This cannot be undone.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.body,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
@@ -888,9 +1123,8 @@ fun RecurringScreen(
 
                         // Highlighted Item Card
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                            shape = ShapeCard,
+                            color = com.selfbudget.app.ui.theme.Ramp.Gray.tintFill(isDarkDel),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -902,50 +1136,42 @@ fun RecurringScreen(
                             ) {
                                 Text(
                                     text = itemToDelete.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(itemToDelete.amount),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                    color = if (isIncome) com.selfbudget.app.ui.theme.Ramp.Teal.secondaryText(isDarkDel) else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedButton(
+                            com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                                text = "Cancel",
                                 onClick = { pendingDeleteItem = null },
-                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                            ) {
-                                Text("Cancel", fontWeight = FontWeight.Bold)
-                            }
+                            )
 
-                            Button(
+                            com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                                text = "Delete",
                                 onClick = {
                                     onDeleteRecurring(itemToDelete)
                                     pendingDeleteItem = null
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                ),
+                                ramp = com.selfbudget.app.ui.theme.Ramp.Red,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                            ) {
-                                Text("Delete", fontWeight = FontWeight.Bold)
-                            }
+                            )
                         }
                     }
                 }
@@ -957,12 +1183,16 @@ fun RecurringScreen(
         // Post Now and Delete act on the last-saved item and live in the sticky bottom bar; field
         // edits (title, amount, frequency, category, end date, archive) are only committed by Save.
         selectedRecurringForDetails?.let { item ->
+            val focusManager = LocalFocusManager.current
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val focusAnchor = remember { FocusRequester() }
+
             val isIncome = item.type == TransactionType.INCOME
-            val postedTransactionForThisCycle = remember(item, allTransactions, selectedMonthYear) {
-                getPostedTransactionForCurrentCycle(item, allTransactions, selectedMonthYear)
+            val cycleSummary = remember(item, allTransactions, selectedMonthYear) {
+                getCyclePaymentSummary(item, allTransactions, selectedMonthYear)
             }
-            val isPostedThisCycle = postedTransactionForThisCycle != null
-            val isJustPosted = recentlyPostedId == item.id || isPostedThisCycle
+            val isFullyPostedThisCycle = cycleSummary.isFullyPaid
+            val isJustPosted = recentlyPostedId == item.id || isFullyPostedThisCycle
 
             var title by remember(item.id) { mutableStateOf(item.title) }
             var amountText by remember(item.id) { mutableStateOf("%.2f".format(item.amount)) }
@@ -976,8 +1206,28 @@ fun RecurringScreen(
             var expandedCategory by remember { mutableStateOf(false) }
             var showNewCategoryDialog by remember { mutableStateOf(false) }
 
+            var selectedTargetDebtAccount by remember(item.id) {
+                mutableStateOf(accounts.firstOrNull { it.id == item.transferAccountId })
+            }
+            var showTargetDebtAccountModal by remember { mutableStateOf(false) }
+            var showNewAccountDialog by remember { mutableStateOf(false) }
+
+            val availableTargetAccounts = remember(accounts) {
+                accounts.filter {
+                    com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) ||
+                    it.type == AccountType.INVESTMENT ||
+                    it.type == AccountType.RETIREMENT ||
+                    it.type == AccountType.SAVINGS
+                }
+            }
+
             val amount = amountText.toDoubleOrNull() ?: 0.0
             val isValid = title.isNotBlank() && amount > 0.0
+
+            LaunchedEffect(expandedCategory, showTargetDebtAccountModal) {
+                runCatching { focusAnchor.requestFocus() }
+                keyboardController?.hide()
+            }
 
             // Dialog opens read-only; tapping "Edit" is the deliberate action that unlocks the
             // form. Post Now / Delete stay live regardless of mode since they act on the
@@ -993,7 +1243,8 @@ fun RecurringScreen(
                 isArchived = isArchived,
                 nextDueDate = selectedNextDueDate,
                 hasLimitedOccurrences = hasLimitedOccurrences,
-                occurrencesText = occurrencesText
+                occurrencesText = occurrencesText,
+                transferAccountId = selectedTargetDebtAccount?.id
             )
 
             val isDirty = editBaseline != null && editBaseline != captureEditSnapshot()
@@ -1014,7 +1265,8 @@ fun RecurringScreen(
                         frequency = selectedFrequency,
                         nextDueDate = selectedNextDueDate,
                         remainingOccurrences = remainingOccurrences,
-                        isArchived = isArchived
+                        isArchived = isArchived,
+                        transferAccountId = selectedTargetDebtAccount?.id
                     )
                 )
                 selectedRecurringForDetails = null
@@ -1026,7 +1278,7 @@ fun RecurringScreen(
                 if (!isJustPosted) {
                     pendingPostItem = item
                 } else {
-                    duplicateMatchDate = postedTransactionForThisCycle?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
+                    duplicateMatchDate = cycleSummary.matchingTransactions.firstOrNull()?.timestamp?.let { dateFormatter.format(Date(it)) } ?: dateFormatter.format(Date())
                     pendingDuplicateItem = item
                 }
             }
@@ -1054,42 +1306,28 @@ fun RecurringScreen(
                             shadowElevation = 2.dp,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                         ) {
+                            // No header Edit/Save action (spec §14/§16): the header holds only
+                            // close + title. Edit is triggered from the view-mode footer; Save
+                            // lives in the edit-mode footer below.
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { selectedRecurringForDetails = null }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close",
-                                            tint = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isEditMode) "Edit Recurring" else "Recurring Details",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                IconButton(onClick = { selectedRecurringForDetails = null }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
-
-                                Button(
-                                    onClick = {
-                                        if (isEditMode) {
-                                            save()
-                                        } else {
-                                            enterEditMode()
-                                        }
-                                    },
-                                    enabled = !isEditMode || (isDirty && isValid),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isEditMode) "Edit Recurring" else "Recurring Details",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
 
@@ -1127,8 +1365,16 @@ fun RecurringScreen(
                                     .fillMaxSize()
                                     .verticalScroll(rememberScrollState())
                                     .padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
+                                // Inert focus anchor
+                                Box(
+                                    modifier = Modifier
+                                        .size(0.dp)
+                                        .focusRequester(focusAnchor)
+                                        .focusable()
+                                )
+
                                 val themeColor = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
 
                             if (!isEditMode) {
@@ -1145,7 +1391,10 @@ fun RecurringScreen(
                                     hasLimitedOccurrences = hasLimitedOccurrences,
                                     occurrencesText = occurrencesText,
                                     isArchived = isArchived,
-                                    transferAccountName = item.transferAccountId?.let { accountMap[it]?.name },
+                                    isJustPosted = isJustPosted,
+                                    cycleSummary = cycleSummary,
+                                    transferAccountName = selectedTargetDebtAccount?.name ?: item.transferAccountId?.let { accountMap[it]?.name },
+                                    onPostNow = { postNow() },
                                     onEditClick = { enterEditMode() },
                                     onDeleteClick = {
                                         pendingDeleteItem = item
@@ -1155,434 +1404,365 @@ fun RecurringScreen(
                                 )
                             } else {
 
-                            // 1. Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = if (isIncome) "RECURRING INCOME AMOUNT ($currencySymbol)" else "RECURRING EXPENSE AMOUNT ($currencySymbol)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = 1.2.sp
+                                // 1. Amount Hero + Quick-Add Chips
+                                com.selfbudget.app.core.ui.components.TransactionAmountHero(
+                                    type = if (isIncome) com.selfbudget.app.core.ui.components.EntryType.Income else com.selfbudget.app.core.ui.components.EntryType.Expense,
+                                    amountText = amountText,
+                                    onAmountChange = { amountText = it },
+                                    currencySymbol = currencySymbol,
+                                    badgeText = if (isIncome) "RECURRING INCOME AMOUNT" else "RECURRING EXPENSE AMOUNT",
+                                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
                                 )
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    // Minus Button
-                                    Surface(
-                                        onClick = {
-                                            val current = amountText.toDoubleOrNull() ?: 0.0
-                                            val next = maxOf(0.0, current - 5.0)
-                                            amountText = if (next == 0.0) "" else "%.2f".format(next)
-                                        },
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        modifier = Modifier.size(44.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Remove,
-                                                contentDescription = "Subtract Amount",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
+                                com.selfbudget.app.core.ui.components.QuickAmountChips(
+                                    presets = listOf(25, 50, 100, 500, 1000),
+                                    currencySymbol = currencySymbol,
+                                    onPick = { preset ->
+                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                                        amountText = "%.2f".format(currentVal + preset)
                                     }
+                                )
 
-                                    // Centered Big Amount Field (44.sp ExtraBold)
-                                    Box(
-                                        modifier = Modifier.weight(1f),
-                                        contentAlignment = Alignment.Center
+                                // 2. Grouped Commitment Details Section
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "COMMITMENT DETAILS",
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+
+                                    Surface(
+                                        shape = ShapeCard,
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        OutlinedTextField(
-                                            value = amountText,
-                                            onValueChange = { input ->
-                                                if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
-                                                    amountText = input
-                                                }
-                                            },
-                                            placeholder = {
-                                                Text(
-                                                    text = "0.00",
-                                                    style = TextStyle(
-                                                        fontSize = 44.sp,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = themeColor.copy(alpha = 0.35f),
-                                                        textAlign = TextAlign.Center
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            // Title Row (free text — kept inline, not a picker)
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                com.selfbudget.app.core.ui.components.GrayIconTile(icon = Icons.Default.Info, size = 36.dp, iconSize = 18.dp)
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                OutlinedTextField(
+                                                    value = title,
+                                                    onValueChange = { title = it.toWordTitleCase() },
+                                                    placeholder = {
+                                                        Text(
+                                                            if (isIncome) "Income title (e.g. Salary, Freelance)" else "Bill title (e.g. Netflix, Rent)",
+                                                            style = com.selfbudget.app.ui.theme.SelfBudgetType.body,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                        )
+                                                    },
+                                                    keyboardOptions = KeyboardOptions(
+                                                        capitalization = KeyboardCapitalization.Words,
+                                                        imeAction = ImeAction.Next
+                                                    ),
+                                                    keyboardActions = KeyboardActions(
+                                                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                                                    ),
+                                                    singleLine = true,
+                                                    textStyle = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = Color.Transparent,
+                                                        unfocusedBorderColor = Color.Transparent,
+                                                        focusedContainerColor = Color.Transparent,
+                                                        unfocusedContainerColor = Color.Transparent
                                                     ),
                                                     modifier = Modifier.fillMaxWidth()
                                                 )
-                                            },
-                                            prefix = {
-                                                Text(
-                                                    text = currencySymbol,
-                                                    style = TextStyle(
-                                                        fontSize = 32.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = themeColor
-                                                    ),
-                                                    modifier = Modifier.padding(end = 2.dp)
-                                                )
-                                            },
-                                            textStyle = TextStyle(
-                                                fontSize = 44.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = themeColor,
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            keyboardOptions = KeyboardOptions(
-                                                keyboardType = KeyboardType.Decimal,
-                                                imeAction = ImeAction.Next
-                                            ),
-                                            singleLine = true,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = Color.Transparent,
-                                                unfocusedBorderColor = Color.Transparent,
-                                                focusedContainerColor = Color.Transparent,
-                                                unfocusedContainerColor = Color.Transparent
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-
-                                    // Plus Button
-                                    Surface(
-                                        onClick = {
-                                            val current = amountText.toDoubleOrNull() ?: 0.0
-                                            val next = current + 5.0
-                                            amountText = "%.2f".format(next)
-                                        },
-                                        shape = CircleShape,
-                                        color = themeColor.copy(alpha = 0.15f),
-                                        modifier = Modifier.size(44.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "Add Amount",
-                                                tint = themeColor
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                // Quick Preset Amount Chips
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val presets = listOf(50, 100, 250, 500, 1000)
-                                    presets.forEach { preset ->
-                                        Surface(
-                                            shape = RoundedCornerShape(20.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                            modifier = Modifier.clickable {
-                                                val currentVal = amountText.toDoubleOrNull() ?: 0.0
-                                                amountText = "%.2f".format(currentVal + preset)
                                             }
-                                        ) {
-                                            Text(
-                                                text = "+$currencySymbol$preset",
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                 color = MaterialTheme.colorScheme.onSurface
+
+                                            com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                            // Category Row
+                                            com.selfbudget.app.core.ui.components.FieldRow(
+                                                icon = getCategoryIcon(selectedCategory),
+                                                label = "Category",
+                                                value = selectedCategory?.name ?: "Select category",
+                                                isPlaceholder = selectedCategory == null,
+                                                showChevron = true,
+                                                onClick = {
+                                                    focusManager.clearFocus(force = true)
+                                                    keyboardController?.hide()
+                                                    expandedCategory = true
+                                                }
+                                            )
+
+                                            com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                            // Start / Next Due Date Row
+                                            com.selfbudget.app.core.ui.components.FieldRow(
+                                                icon = Icons.Default.CalendarToday,
+                                                label = "Start / next due date",
+                                                value = dateFormatter.format(Date(selectedNextDueDate)),
+                                                showChevron = true,
+                                                onClick = {
+                                                    focusManager.clearFocus(force = true)
+                                                    keyboardController?.hide()
+                                                    showDatePickerModal = true
+                                                }
                                             )
                                         }
                                     }
                                 }
-                            }
 
-                            } // end isEditMode amount stepper
-
-                            // 2. Verified Status / Post Action Card (Elevated for Light Mode Contrast)
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isArchived) {
-                                    if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
-                                } else if (isJustPosted) {
-                                    if (isDark) getIncomeColor().copy(alpha = 0.15f) else Color(0xFFE8F5E9)
-                                } else {
-                                    if (isDark) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
-                                },
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isArchived) {
-                                        if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
-                                    } else if (isJustPosted) {
-                                        if (isDark) getIncomeColor().copy(alpha = 0.4f) else getIncomeColor().copy(alpha = 0.6f)
-                                    } else {
-                                        if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                    }
-                                ),
-                                shadowElevation = if (!isDark && !isArchived) 2.dp else 0.dp,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(enabled = !isArchived) { postNow() }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) getIncomeColor().copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        modifier = Modifier.size(42.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = if (isArchived) Icons.Default.Archive else if (isJustPosted) Icons.Default.Verified else Icons.Default.Publish,
-                                                contentDescription = null,
-                                                tint = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else if (isJustPosted) com.selfbudget.app.ui.theme.getIncomeColor() else MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = if (isArchived) "Bill Archived" else if (isJustPosted) "Posted for ${monthNameFormatter.format(postedTransactionForThisCycle?.timestamp?.let { Date(it) } ?: Date())}" else "Post Now",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isArchived) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else if (isJustPosted) com.selfbudget.app.ui.theme.getIncomeColor() else MaterialTheme.colorScheme.onSurface
-                                            )
-                                            if (isJustPosted && !isArchived) {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Icon(
-                                                    imageVector = Icons.Default.Verified,
-                                                    contentDescription = "Verified Tick Mark",
-                                                    tint = com.selfbudget.app.ui.theme.getIncomeColor(),
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                        Text(
-                                            text = if (isArchived) "Posting is disabled while archived. Unarchive to post." else if (isJustPosted) "Transaction logged for this cycle. Tap to post again." else "Tap to post current cycle transaction immediately.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (isEditMode) {
-
-                            // 3. Title Field
-                            OutlinedTextField(
-                                value = title,
-                                onValueChange = { title = it },
-                                label = { Text(if (isIncome) "Income Title" else "Bill Title") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            // Repeat Frequency
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = "Repeat Frequency",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                    val frequencies = listOf(
-                                        RecurringFrequency.WEEKLY to "Weekly",
-                                        RecurringFrequency.BI_WEEKLY to "Bi-Weekly",
-                                        RecurringFrequency.MONTHLY to "Monthly",
-                                        RecurringFrequency.YEARLY to "Yearly"
-                                    )
-                                    frequencies.forEach { (freq, label) ->
-                                        FilterChip(
-                                            selected = selectedFrequency == freq,
-                                            onClick = { selectedFrequency = freq },
-                                            label = { Text(label, fontSize = 12.sp) },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Category Field (Taps to open CategorySelectionModal)
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = selectedCategory?.name ?: "Select Category",
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Category") },
-                                    leadingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable { expandedCategory = true }
-                                )
-                            }
-
-                            // Start / Next Due Date
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = dateFormatter.format(Date(selectedNextDueDate)),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    enabled = false,
-                                    label = { Text("Start / Next Due Date") },
-                                    leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable { showDatePickerModal = true }
-                                )
-                            }
-
-                            // Finite Lifespan Toggle
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("This Has an End Date", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                        Text(
-                                            text = "e.g. a car loan or installment plan.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                                        )
-                                    }
-                                    Switch(checked = hasLimitedOccurrences, onCheckedChange = { hasLimitedOccurrences = it })
-                                }
-                                if (hasLimitedOccurrences) {
-                                    OutlinedTextField(
-                                        value = occurrencesText,
-                                        onValueChange = { input -> occurrencesText = input.filter { ch -> ch.isDigit() } },
-                                        label = { Text("Payments Remaining") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-
-                            // Archive / Pause Toggle
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Archived / Paused", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                // 3. Repeat Frequency & Schedule Section
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Text(
-                                        text = "Stops reminders and excludes it from budget totals.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                        text = "FREQUENCY & SCHEDULE",
+                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 4.dp)
                                     )
-                                }
-                                Switch(checked = isArchived, onCheckedChange = { isArchived = it })
-                            }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                    Surface(
+                                        shape = ShapeCard,
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateContentSize()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text(
+                                                text = "Repeat frequency",
+                                                style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(10.dp))
 
-                            // Action Buttons Layout:
-                            // Row 1: [ Cancel ] | [ Save Changes ]
-                            // Row 2: [ 🗑️ Delete Recurring Item ]
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            editBaseline?.let { baseline ->
-                                                title = baseline.title
-                                                amountText = baseline.amountText
-                                                selectedFrequency = baseline.frequency
-                                                selectedCategory = categoryMap[baseline.categoryId]
-                                                isArchived = baseline.isArchived
-                                                selectedNextDueDate = baseline.nextDueDate
-                                                hasLimitedOccurrences = baseline.hasLimitedOccurrences
-                                                occurrencesText = baseline.occurrencesText
+                                            com.selfbudget.app.core.ui.components.FrequencySegmentedControl(
+                                                selected = selectedFrequency,
+                                                onSelect = { freq ->
+                                                    focusManager.clearFocus(force = true)
+                                                    keyboardController?.hide()
+                                                    selectedFrequency = freq
+                                                }
+                                            )
+
+                                            val amountNum = amountText.toDoubleOrNull() ?: 0.0
+                                            val monthlyCalculated = RecurringFrequencyNormalizer.toMonthlyAmount(amountNum, selectedFrequency)
+                                            if (amountNum > 0.0) {
+                                                Spacer(modifier = Modifier.height(10.dp))
+                                                Surface(
+                                                    shape = com.selfbudget.app.ui.theme.ShapeChip,
+                                                    color = com.selfbudget.app.ui.theme.Ramp.Teal.tintFill(isDark),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    val helperText = when (selectedFrequency) {
+                                                        RecurringFrequency.SEMI_MONTHLY -> "$currencySymbol%.2f × 2 = $currencySymbol%.2f/mo reserved in budget".format(amountNum, monthlyCalculated)
+                                                        RecurringFrequency.BI_WEEKLY -> "$currencySymbol%.2f every 2 wks = ~$currencySymbol%.2f/mo reserved in budget".format(amountNum, monthlyCalculated)
+                                                        RecurringFrequency.WEEKLY -> "$currencySymbol%.2f weekly = ~$currencySymbol%.2f/mo reserved in budget".format(amountNum, monthlyCalculated)
+                                                        RecurringFrequency.MONTHLY -> "$currencySymbol%.2f billed monthly".format(amountNum)
+                                                        RecurringFrequency.YEARLY -> "$currencySymbol%.2f annual = $currencySymbol%.2f/mo reserved in budget".format(amountNum, monthlyCalculated)
+                                                    }
+                                                    Text(
+                                                        text = helperText,
+                                                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                                        color = com.selfbudget.app.ui.theme.Ramp.Teal.secondaryText(isDark),
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                                    )
+                                                }
                                             }
-                                            isEditMode = false
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp),
-                                        shape = RoundedCornerShape(14.dp),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                                    ) {
-                                        Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                    }
-
-                                    Button(
-                                        onClick = { save() },
-                                        enabled = isDirty && isValid,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary
-                                        ),
-                                        modifier = Modifier
-                                            .weight(1.3f)
-                                            .height(48.dp),
-                                        shape = RoundedCornerShape(14.dp)
-                                    ) {
-                                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                        }
                                     }
                                 }
 
-                                OutlinedButton(
-                                    onClick = {
-                                        pendingDeleteItem = item
-                                        selectedRecurringForDetails = null
-                                    },
+                                // 4. Optional Target Debt / Linked Account
+                                val recurringCategoryName = selectedCategory?.name?.lowercase() ?: ""
+                                val isTargetCategory = recurringCategoryName.contains("credit") ||
+                                    recurringCategoryName.contains("card") ||
+                                    recurringCategoryName.contains("loan") ||
+                                    recurringCategoryName.contains("debt") ||
+                                    recurringCategoryName.contains("mortgage") ||
+                                    recurringCategoryName.contains("rent") ||
+                                    recurringCategoryName.contains("invest") ||
+                                    recurringCategoryName.contains("saving") ||
+                                    recurringCategoryName.contains("stock") ||
+                                    recurringCategoryName.contains("crypto") ||
+                                    recurringCategoryName.contains("401k") ||
+                                    recurringCategoryName.contains("ira") ||
+                                    recurringCategoryName.contains("retire") ||
+                                    recurringCategoryName.contains("transfer")
+                                val shouldShowTargetAccountField = !isIncome &&
+                                    availableTargetAccounts.isNotEmpty() &&
+                                    (isTargetCategory || selectedTargetDebtAccount != null)
+
+                                if (shouldShowTargetAccountField) {
+                                    val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
+                                        selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
+                                        selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
+                                        recurringCategoryName.contains("invest") ||
+                                        recurringCategoryName.contains("saving") ||
+                                        recurringCategoryName.contains("retire") ||
+                                        recurringCategoryName.contains("stock") ||
+                                        recurringCategoryName.contains("401k") ||
+                                        recurringCategoryName.contains("ira")
+
+                                    val labelText = if (isInvestmentOrSavings) {
+                                        "Deposit / contribute toward account"
+                                    } else {
+                                        "Apply payment toward debt"
+                                    }
+
+                                    val iconVector = if (selectedTargetDebtAccount?.type == AccountType.INVESTMENT || selectedTargetDebtAccount?.type == AccountType.RETIREMENT || recurringCategoryName.contains("invest") || recurringCategoryName.contains("retire") || recurringCategoryName.contains("stock") || recurringCategoryName.contains("401k") || recurringCategoryName.contains("ira")) {
+                                        Icons.Default.TrendingUp
+                                    } else if (selectedTargetDebtAccount?.type == AccountType.SAVINGS || recurringCategoryName.contains("saving")) {
+                                        Icons.Default.Savings
+                                    } else {
+                                        Icons.Default.CreditCard
+                                    }
+
+                                    val targetText = selectedTargetDebtAccount?.let { acc ->
+                                        val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                        val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                                        if (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)) {
+                                            val dispBal = kotlin.math.abs(rawBal)
+                                            "${acc.name} ($accSym%.2f owed)".format(dispBal)
+                                        } else {
+                                            "${acc.name} ($accSym%.2f balance)".format(rawBal)
+                                        }
+                                    } ?: "None (standard expense)"
+
+                                    Surface(
+                                        shape = ShapeCard,
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        com.selfbudget.app.core.ui.components.FieldRow(
+                                            icon = iconVector,
+                                            label = labelText,
+                                            value = targetText,
+                                            isPlaceholder = selectedTargetDebtAccount == null,
+                                            showChevron = true,
+                                            onClick = {
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+                                                showTargetDebtAccountModal = true
+                                            }
+                                        )
+                                    }
+                                }
+
+                                // 5. Finite Lifespan Toggle
+                                Surface(
+                                    shape = ShapeCard,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                                        .animateContentSize()
                                 ) {
-                                    Text("Delete Recurring Item", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Column {
+                                        com.selfbudget.app.core.ui.components.ToggleRow(
+                                            icon = Icons.Default.Autorenew,
+                                            title = "Finite lifespan",
+                                            description = "Stop reminding once installments are complete",
+                                            checked = hasLimitedOccurrences,
+                                            onCheckedChange = { hasLimitedOccurrences = it }
+                                        )
+
+                                        if (hasLimitedOccurrences) {
+                                            com.selfbudget.app.core.ui.components.SectionRowDivider()
+                                            OutlinedTextField(
+                                                value = occurrencesText,
+                                                onValueChange = { occurrencesText = it.filter { ch -> ch.isDigit() } },
+                                                label = { Text("Payments remaining") },
+                                                placeholder = { Text("e.g. 12") },
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                singleLine = true,
+                                                shape = com.selfbudget.app.ui.theme.ShapeChip,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp)
+                                            )
+                                        }
+                                    }
                                 }
-                            }
+
+                                // 6. Archive / Pause Toggle
+                                Surface(
+                                    shape = ShapeCard,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    com.selfbudget.app.core.ui.components.ToggleRow(
+                                        icon = Icons.Default.Archive,
+                                        title = "Archived / paused",
+                                        description = "Stops reminders and excludes it from budget totals",
+                                        checked = isArchived,
+                                        onCheckedChange = { isArchived = it }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // 7. Action Buttons (spec §14: Cancel + Save pair, destructive isolated below)
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                                            text = "Cancel",
+                                            onClick = {
+                                                editBaseline?.let { baseline ->
+                                                    title = baseline.title
+                                                    amountText = baseline.amountText
+                                                    selectedFrequency = baseline.frequency
+                                                    selectedCategory = categoryMap[baseline.categoryId]
+                                                    isArchived = baseline.isArchived
+                                                    selectedNextDueDate = baseline.nextDueDate
+                                                    hasLimitedOccurrences = baseline.hasLimitedOccurrences
+                                                    occurrencesText = baseline.occurrencesText
+                                                    selectedTargetDebtAccount = accounts.firstOrNull { it.id == baseline.transferAccountId }
+                                                }
+                                                isEditMode = false
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(54.dp)
+                                        )
+
+                                        com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                                            text = "Save changes",
+                                            onClick = { save() },
+                                            enabled = isDirty && isValid,
+                                            ramp = com.selfbudget.app.ui.theme.Ramp.Teal,
+                                            modifier = Modifier
+                                                .weight(1.3f)
+                                                .height(54.dp)
+                                        )
+                                    }
+
+                                    com.selfbudget.app.core.ui.components.DestructivePillButton(
+                                        text = "Delete recurring item",
+                                        onClick = {
+                                            pendingDeleteItem = item
+                                            selectedRecurringForDetails = null
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(54.dp)
+                                    )
+                                }
 
                             } // end isEditMode form fields
 
-                            Spacer(modifier = Modifier.height(150.dp))
-                        }
+                                Spacer(modifier = Modifier.height(150.dp))
+                            }
                         }
                     }
                 }
@@ -1591,6 +1771,7 @@ fun RecurringScreen(
             if (showNewCategoryDialog) {
                 AddCustomCategoryDialog(
                     initialType = item.type,
+                    lockType = true,
                     onDismiss = { showNewCategoryDialog = false },
                     onConfirm = { newCat ->
                         onAddCustomCategory?.invoke(newCat)
@@ -1634,7 +1815,7 @@ fun RecurringScreen(
                                 showDatePickerModal = false
                             }
                         ) {
-                            Text("OK", fontWeight = FontWeight.Bold)
+                            Text("OK", fontWeight = FontWeight.Medium)
                         }
                     },
                     dismissButton = {
@@ -1648,6 +1829,92 @@ fun RecurringScreen(
                     androidx.compose.material3.DatePicker(state = datePickerState)
                 }
             }
+
+            if (showTargetDebtAccountModal) {
+                AccountSelectionModal(
+                    accounts = availableTargetAccounts,
+                    selectedAccount = selectedTargetDebtAccount,
+                    currencySymbol = currencySymbol,
+                    accountBalances = accountBalances,
+                    onDismiss = { showTargetDebtAccountModal = false },
+                    onSelectAccount = { acc ->
+                        selectedTargetDebtAccount = acc
+                        showTargetDebtAccountModal = false
+                    },
+                    onAddCustomAccount = {
+                        showTargetDebtAccountModal = false
+                        showNewAccountDialog = true
+                    }
+                )
+            }
+
+            if (showNewAccountDialog) {
+                AddCustomAccountDialog(
+                    currencySymbol = currencySymbol,
+                    onDismiss = { showNewAccountDialog = false },
+                    onConfirm = { newAcc ->
+                        onAddCustomAccount?.invoke(newAcc)
+                        selectedTargetDebtAccount = newAcc
+                        showNewAccountDialog = false
+                    }
+                )
+            }
+        }
+
+        // Post confirmation banner (spec §9-style status surface, not a native Toast).
+        AnimatedVisibility(
+            visible = postedBannerMessage != null,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 8.dp, start = 16.dp, end = 16.dp)
+        ) {
+            val isDarkBanner = com.selfbudget.app.ui.theme.isAppInDarkTheme()
+            Surface(
+                shape = com.selfbudget.app.ui.theme.ShapePill,
+                color = com.selfbudget.app.ui.theme.Ramp.Teal.solidFill(isDarkBanner),
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = com.selfbudget.app.ui.theme.Ramp.Teal.onSolidFill(isDarkBanner),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = postedBannerMessage.orEmpty(),
+                        style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                        color = com.selfbudget.app.ui.theme.Ramp.Teal.onSolidFill(isDarkBanner)
+                    )
+                }
+            }
+        }
+
+        if (showRecurringIncomeModal) {
+            RecurringIncomeModal(
+                recurringList = recurringList,
+                categories = categories,
+                accounts = accounts,
+                currencySymbol = currencySymbol,
+                onDismiss = { showRecurringIncomeModal = false }
+            )
+        }
+
+        if (showRecurringBillsModal) {
+            RecurringBillsModal(
+                recurringList = recurringList,
+                categories = categories,
+                accounts = accounts,
+                currencySymbol = currencySymbol,
+                onDismiss = { showRecurringBillsModal = false }
+            )
         }
     }
 }
@@ -1655,26 +1922,38 @@ fun RecurringScreen(
 // Full-screen "review before you post" step, same modal pattern as the rest of the app
 // (persistent top bar with Close, scrollable content, sticky bottom action). Exists because
 // posting used to silently reuse whatever account the recurring item was created with - usually
+// posting used to silently reuse whatever account the recurring item was created with - usually
 // the default checking account - with no way to say "actually, pay this one from my other card."
 @Composable
 private fun PostRecurringConfirmModal(
     item: RecurringTransactionEntity,
+    cycleSummary: RecurringCyclePaymentSummary?,
     accounts: List<AccountEntity>,
     accountBalances: Map<String, Double>,
     categoryName: String?,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (accountId: String) -> Unit,
+    onConfirm: (accountId: String, amount: Double) -> Unit,
     onDelete: (() -> Unit)? = null,
     onAddCustomAccount: ((AccountEntity) -> Unit)? = null
 ) {
     val isIncome = item.type == TransactionType.INCOME
-    val themeColor = if (isIncome) getIncomeColor() else getExpenseColor()
+    val heroRamp = if (isIncome) com.selfbudget.app.ui.theme.Ramp.Teal else com.selfbudget.app.ui.theme.Ramp.Red
     var selectedAccount by remember(item.id) {
         mutableStateOf(accounts.firstOrNull { it.id == item.accountId } ?: accounts.firstOrNull())
     }
     var pickingAccount by remember { mutableStateOf(false) }
     var showNewAccountDialog by remember { mutableStateOf(false) }
+
+    val defaultAmount = if (cycleSummary != null && cycleSummary.isPartiallyPaid && cycleSummary.remainingAmount > 0.005) {
+        cycleSummary.remainingAmount
+    } else {
+        item.amount
+    }
+    var amountText by remember(item.id, defaultAmount) { mutableStateOf("%.2f".format(defaultAmount)) }
+    val enteredAmount = amountText.toDoubleOrNull()
+    val isFullScheduledAmount = enteredAmount != null && kotlin.math.abs(enteredAmount - item.amount) < 0.005
+    val isPartial = enteredAmount != null && enteredAmount < (item.amount - 0.005)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1703,7 +1982,7 @@ private fun PostRecurringConfirmModal(
                             Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Confirm & Post", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Confirm & Post", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                     }
                 }
 
@@ -1712,47 +1991,143 @@ private fun PostRecurringConfirmModal(
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                         .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Amount Hero
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                    val isDark = com.selfbudget.app.ui.theme.isAppInDarkTheme()
+
+                    // Hero Amount Card — shared component (spec §16): every amount-entry
+                    // card in the app uses this one implementation, not a per-screen copy.
+                    com.selfbudget.app.core.ui.components.TransactionAmountHero(
+                        type = if (isIncome) com.selfbudget.app.core.ui.components.EntryType.Income else com.selfbudget.app.core.ui.components.EntryType.Expense,
+                        amountText = amountText,
+                        onAmountChange = { amountText = it },
+                        currencySymbol = currencySymbol,
+                        badgeText = if (isIncome) "POST RECURRING INCOME" else "POST RECURRING EXPENSE",
+                        stepAmount = 5.0
+                    )
+
+                    // Cycle status pill / banner
+                    if (cycleSummary != null && cycleSummary.isPartiallyPaid) {
+                        Surface(
+                            shape = com.selfbudget.app.ui.theme.ShapeChip,
+                            color = com.selfbudget.app.ui.theme.Ramp.Amber.tintFill(isDark)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = com.selfbudget.app.ui.theme.Ramp.Amber.titleText(isDark),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Paid $currencySymbol%.2f · $currencySymbol%.2f left of $currencySymbol%.2f scheduled".format(
+                                        cycleSummary.totalPaid,
+                                        cycleSummary.remainingAmount,
+                                        item.amount
+                                    ),
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                    color = com.selfbudget.app.ui.theme.Ramp.Amber.titleText(isDark)
+                                )
+                            }
+                        }
+                    } else if (isPartial) {
                         Text(
-                            text = if (isIncome) "INCOME AMOUNT" else "EXPENSE AMOUNT",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
+                            text = "Partial payment · full scheduled amount is $currencySymbol%.2f".format(item.amount),
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.2.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "$currencySymbol%.2f".format(item.amount),
-                            style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
+                            modifier = Modifier.clickable { amountText = "%.2f".format(item.amount) }
                         )
                     }
 
-                    // Recurring Record Details
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    // Quick preset chips row
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            RecurringInfoRow(icon = if (isIncome) Icons.Default.Check else Icons.Default.Category, label = if (isIncome) "Income Title" else "Bill Title", value = item.title)
-                            RecurringInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
-                            RecurringInfoRow(
+                        if (cycleSummary != null && cycleSummary.isPartiallyPaid && cycleSummary.remainingAmount > 0.005) {
+                            Surface(
+                                onClick = { amountText = "%.2f".format(cycleSummary.remainingAmount) },
+                                shape = com.selfbudget.app.ui.theme.ShapePill,
+                                color = com.selfbudget.app.ui.theme.Ramp.Teal.tintFill(isDark)
+                            ) {
+                                Text(
+                                    text = "Remaining: $currencySymbol%.2f".format(cycleSummary.remainingAmount),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.badge,
+                                    color = com.selfbudget.app.ui.theme.Ramp.Teal.titleText(isDark)
+                                )
+                            }
+                        }
+                        if (!isFullScheduledAmount) {
+                            Surface(
+                                onClick = { amountText = "%.2f".format(item.amount) },
+                                shape = com.selfbudget.app.ui.theme.ShapePill,
+                                color = com.selfbudget.app.ui.theme.Ramp.Gray.tintFill(isDark)
+                            ) {
+                                Text(
+                                    text = "Full: $currencySymbol%.2f".format(item.amount),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.badge,
+                                    color = com.selfbudget.app.ui.theme.Ramp.Gray.titleText(isDark)
+                                )
+                            }
+                        }
+                        listOf(10.0, 25.0, 50.0, 100.0).forEach { inc ->
+                            Surface(
+                                onClick = {
+                                    val current = amountText.toDoubleOrNull() ?: 0.0
+                                    amountText = "%.2f".format(current + inc)
+                                },
+                                shape = com.selfbudget.app.ui.theme.ShapePill,
+                                color = com.selfbudget.app.ui.theme.Ramp.Gray.tintFill(isDark)
+                            ) {
+                                Text(
+                                    text = "+$currencySymbol${inc.toInt()}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = com.selfbudget.app.ui.theme.SelfBudgetType.badge,
+                                    color = com.selfbudget.app.ui.theme.Ramp.Gray.titleText(isDark)
+                                )
+                            }
+                        }
+                    }
+
+                    // Grouped Details Card
+                    Surface(
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            RecurringViewModeInfoItem(
+                                icon = Icons.Default.Info,
+                                label = if (isIncome) "Income Title" else "Bill Title",
+                                value = item.title
+                            )
+                            com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                            RecurringViewModeInfoItem(
                                 icon = Icons.Default.Repeat,
                                 label = "Repeat Frequency",
                                 value = item.frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
                             )
+                            com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                            RecurringViewModeInfoItem(
+                                icon = Icons.Default.Category,
+                                label = "Category",
+                                value = categoryName ?: "—"
+                            )
+
                             if (item.transferAccountId != null) {
                                 val targetAcc = accounts.firstOrNull { it.id == item.transferAccountId }
                                 val targetAccName = targetAcc?.name ?: "Linked account"
                                 val isLiability = targetAcc?.let { com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) } ?: true
-                                RecurringInfoRow(
+                                com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                                RecurringViewModeInfoItem(
                                     icon = if (isLiability) Icons.Default.CreditCard else Icons.Default.TrendingUp,
                                     label = if (isLiability) "Pays Down Debt" else "Deposits To Account",
                                     value = targetAccName,
@@ -1763,179 +2138,101 @@ private fun PostRecurringConfirmModal(
                     }
 
                     // Payment Account Picker
-                    Text(
-                        text = if (isIncome) "DEPOSIT TO" else "PAY FROM",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.2.sp
-                    )
-                    Card(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { pickingAccount = true }
-                    ) {
-                        Row(
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = if (isIncome) "DEPOSIT TO" else "PAY FROM",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .clickable { pickingAccount = true }
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = selectedAccount?.name ?: "Select an account",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    selectedAccount?.let { acc ->
-                                        val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    com.selfbudget.app.core.ui.components.GrayIconTile(icon = Icons.Default.AccountBalance, size = 36.dp, iconSize = 18.dp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
                                         Text(
-                                            text = "Balance: $currencySymbol%.2f".format(rawBal),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            text = selectedAccount?.name ?: "Select an account",
+                                            style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        selectedAccount?.let { acc ->
+                                            val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                            val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                            val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
+                                            val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
+                                            Text(
+                                                text = "Balance: $accSym%.2f".format(dispBal),
+                                                style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = "Select account",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
                             }
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
-                    // In-Form Action Buttons (Cancel | Confirm & Post, and Delete Recurring)
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
+                    // Action Buttons (spec §14: Cancel + Confirm pair, destructive isolated below)
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                                text = "Cancel",
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(54.dp)
+                            )
+
+                            com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                                text = "Confirm & post",
+                                onClick = { selectedAccount?.let { acc -> enteredAmount?.let { onConfirm(acc.id, it) } } },
+                                enabled = selectedAccount != null && enteredAmount != null && enteredAmount > 0.0,
+                                ramp = com.selfbudget.app.ui.theme.Ramp.Teal,
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(54.dp)
+                            )
                         }
 
-                        Button(
-                            onClick = { selectedAccount?.let { onConfirm(it.id) } },
-                            enabled = selectedAccount != null,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier
-                                .weight(1.4f)
-                                .height(50.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Confirm & Post", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
-
-                    if (onDelete != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = onDelete,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = com.selfbudget.app.ui.theme.ExpenseRed
-                            ),
-                            border = BorderStroke(1.5.dp, com.selfbudget.app.ui.theme.ExpenseRed.copy(alpha = 0.6f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteForever,
-                                contentDescription = null,
-                                tint = com.selfbudget.app.ui.theme.ExpenseRed,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Delete Recurring Item",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = com.selfbudget.app.ui.theme.ExpenseRed
+                        if (onDelete != null) {
+                            com.selfbudget.app.core.ui.components.DestructivePillButton(
+                                text = "Delete recurring item",
+                                onClick = onDelete,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(54.dp)
                             )
                         }
                     }
 
                     // Standardized 150.dp bottom scroll spacing for effortless scrolling
                     Spacer(modifier = Modifier.height(150.dp))
-                }
-
-                // Sticky Bottom Action Bar
-                Surface(
-                    shadowElevation = 12.dp,
-                    tonalElevation = 6.dp,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-
-                        if (onDelete != null) {
-                            OutlinedButton(
-                                onClick = onDelete,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = com.selfbudget.app.ui.theme.ExpenseRed
-                                ),
-                                border = BorderStroke(1.dp, com.selfbudget.app.ui.theme.ExpenseRed.copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .size(48.dp),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteOutline,
-                                    contentDescription = "Delete",
-                                    tint = com.selfbudget.app.ui.theme.ExpenseRed,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-
-                        Button(
-                            onClick = { selectedAccount?.let { onConfirm(it.id) } },
-                            enabled = selectedAccount != null,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1.3f)
-                                .height(48.dp)
-                        ) {
-                            Text("Confirm & Post", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
                 }
             }
         }
@@ -1986,75 +2283,195 @@ private fun RecurringViewModeSummary(
     hasLimitedOccurrences: Boolean,
     occurrencesText: String,
     isArchived: Boolean,
+    isJustPosted: Boolean = false,
+    cycleSummary: RecurringCyclePaymentSummary? = null,
     transferAccountName: String? = null,
+    onPostNow: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onClose: () -> Unit
 ) {
+    val isDark = com.selfbudget.app.ui.theme.isAppInDarkTheme()
+    val heroRamp = if (isIncome) com.selfbudget.app.ui.theme.Ramp.Teal else com.selfbudget.app.ui.theme.Ramp.Red
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
+        // Hero Amount Card — neutral display number, the type badge carries the color (spec §14)
+        Surface(
+            shape = ShapeHero,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(vertical = 4.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = com.selfbudget.app.ui.theme.ShapePill,
+                    color = heroRamp.tintFill(isDark)
+                ) {
+                    Text(
+                        text = if (isIncome) "RECURRING INCOME" else "RECURRING EXPENSE",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                        color = heroRamp.titleText(isDark)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "${if (isIncome) "+" else "-"}$currencySymbol${amountText.ifBlank { "0.00" }}",
+                    style = com.selfbudget.app.ui.theme.SelfBudgetType.display,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // Post Action Card — explainer-card pattern (spec §21): icon tile + headline + body, tinted by state
+        val postRamp = when {
+            isArchived -> com.selfbudget.app.ui.theme.Ramp.Gray
+            isJustPosted -> com.selfbudget.app.ui.theme.Ramp.Teal
+            cycleSummary != null && cycleSummary.isPartiallyPaid -> com.selfbudget.app.ui.theme.Ramp.Amber
+            else -> com.selfbudget.app.ui.theme.Ramp.Teal
+        }
+        Surface(
+            shape = ShapeCard,
+            color = postRamp.tintFill(isDark),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !isArchived) { onPostNow() }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                com.selfbudget.app.core.ui.components.RampIconTile(
+                    icon = if (isArchived) Icons.Default.Archive else if (isJustPosted) Icons.Default.Verified else Icons.Default.Publish,
+                    ramp = postRamp,
+                    size = 36.dp,
+                    iconSize = 20.dp
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isArchived) {
+                            "Bill Archived"
+                        } else if (isJustPosted) {
+                            "Posted for Current Cycle"
+                        } else if (cycleSummary != null && cycleSummary.isPartiallyPaid) {
+                            "Partially Paid ($currencySymbol%.2f remaining)".format(cycleSummary.remainingAmount)
+                        } else {
+                            "Post Now"
+                        },
+                        style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+                        color = postRamp.titleText(isDark)
+                    )
+                    Text(
+                        text = if (isArchived) {
+                            "Posting is disabled while archived."
+                        } else if (isJustPosted) {
+                            "Transaction logged for this cycle. Tap to post again."
+                        } else if (cycleSummary != null && cycleSummary.isPartiallyPaid) {
+                            "Paid $currencySymbol%.2f of scheduled total. Tap to post remaining balance.".format(cycleSummary.totalPaid)
+                        } else {
+                            "Tap to post current cycle transaction immediately."
+                        },
+                        style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                        color = postRamp.secondaryText(isDark)
+                    )
+                }
+
+                if (!isArchived) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = postRamp.secondaryText(isDark),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Grouped Details Card
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = if (isIncome) "RECURRING INCOME AMOUNT" else "RECURRING EXPENSE AMOUNT",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
+                text = "Recurring details",
+                style = com.selfbudget.app.ui.theme.SelfBudgetType.section,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.2.sp
+                modifier = Modifier.padding(start = 4.dp)
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "$currencySymbol${amountText.ifBlank { "0.00" }}",
-                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
-            )
+
+            Surface(
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    RecurringViewModeInfoItem(
+                        icon = Icons.Default.Info,
+                        label = if (isIncome) "Income Title" else "Bill Title",
+                        value = title
+                    )
+                    com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    RecurringViewModeInfoItem(
+                        icon = Icons.Default.Repeat,
+                        label = "Repeat Frequency",
+                        value = frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
+                    )
+                    com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    RecurringViewModeInfoItem(
+                        icon = Icons.Default.Category,
+                        label = "Category",
+                        value = categoryName ?: "—"
+                    )
+                    com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    RecurringViewModeInfoItem(
+                        icon = Icons.Default.CalendarToday,
+                        label = "Start / Next Due Date",
+                        value = dateFormatter.format(Date(nextDueDate))
+                    )
+
+                    if (transferAccountName != null) {
+                        com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        RecurringViewModeInfoItem(
+                            icon = Icons.Default.CreditCard,
+                            label = "Pays Down Debt",
+                            value = transferAccountName,
+                            valueColor = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (hasLimitedOccurrences) {
+                        com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        RecurringViewModeInfoItem(
+                            icon = Icons.Default.Schedule,
+                            label = "Payments Remaining",
+                            value = occurrencesText.ifBlank { "—" }
+                        )
+                    }
+
+                    if (isArchived) {
+                        com.selfbudget.app.core.ui.components.SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        RecurringViewModeInfoItem(
+                            icon = Icons.Default.Archive,
+                            label = "Status",
+                            value = "Archived / Paused"
+                        )
+                    }
+                }
+            }
         }
 
-        RecurringInfoRow(icon = if (isIncome) Icons.Default.Check else Icons.Default.Category, label = if (isIncome) "Income Title" else "Bill Title", value = title)
-        RecurringInfoRow(
-            icon = Icons.Default.Repeat,
-            label = "Repeat Frequency",
-            value = frequency.name.lowercase().replace('_', '-').replaceFirstChar { it.uppercase() }
-        )
-        RecurringInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
-        RecurringInfoRow(icon = Icons.Default.CalendarToday, label = "Start / Next Due Date", value = dateFormatter.format(Date(nextDueDate)))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        if (transferAccountName != null) {
-            RecurringInfoRow(
-                icon = Icons.Default.CreditCard,
-                label = "Pays Down Debt",
-                value = transferAccountName,
-                valueColor = MaterialTheme.colorScheme.primary
-            )
-        }
-
-        if (hasLimitedOccurrences) {
-            RecurringInfoRow(
-                icon = Icons.Default.Schedule,
-                label = "Payments Remaining",
-                value = occurrencesText.ifBlank { "—" }
-            )
-        }
-
-        if (isArchived) {
-            RecurringInfoRow(
-                icon = Icons.Default.Archive,
-                label = "Status",
-                value = "Archived / Paused",
-                valueColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Action Buttons Layout:
-        // Row 1: [ Close ] | [ Edit Recurring ]
-        // Row 2: [ 🗑️ Delete Recurring Item ]
+        // Buttons (spec §14: Close + Edit pair, destructive isolated below)
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2063,133 +2480,69 @@ private fun RecurringViewModeSummary(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                    text = "Close",
                     onClick = onClose,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                ) {
-                    Text("Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
 
-                Button(
+                com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                    text = "Edit Recurring",
                     onClick = onEditClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+                    ramp = com.selfbudget.app.ui.theme.Ramp.Teal,
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("Edit Recurring", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
             }
 
-            OutlinedButton(
+            com.selfbudget.app.core.ui.components.DestructivePillButton(
+                text = "Delete Recurring Item",
                 onClick = onDeleteClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
-            ) {
-                Text("Delete Recurring Item", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
+                    .height(54.dp)
+            )
         }
     }
 }
 
+/** Detail-row icon tiles are Gray (spec §14): they label a field TYPE, not a category. */
 @Composable
-private fun RecurringInfoRow(
+private fun RecurringViewModeInfoItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     value: String,
     valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
+            com.selfbudget.app.core.ui.components.GrayIconTile(icon = icon, size = 36.dp, iconSize = 18.dp)
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 0.8.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = valueColor
-                )
-            }
+            Text(
+                text = label,
+                style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-    }
-}
-
-private fun getPostedTransactionForCurrentCycle(
-    item: RecurringTransactionEntity,
-    allTransactions: List<TransactionEntity>,
-    selectedMonthYear: String
-): TransactionEntity? {
-    val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
-    val selectedCal = java.util.Calendar.getInstance()
-    try {
-        val date = sdf.parse(selectedMonthYear)
-        if (date != null) {
-            selectedCal.time = date
-        }
-    } catch (e: Exception) {
-        // fallback
-    }
-
-    val currentYear = selectedCal.get(java.util.Calendar.YEAR)
-    val currentMonth = selectedCal.get(java.util.Calendar.MONTH)
-
-    val now = System.currentTimeMillis()
-    val isCurrentMonthSelected = sdf.format(java.util.Date()) == selectedMonthYear
-    val nowForWeekly = if (isCurrentMonthSelected) now else {
-        val tempCal = selectedCal.clone() as java.util.Calendar
-        tempCal.set(java.util.Calendar.DAY_OF_MONTH, tempCal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
-        tempCal.timeInMillis
-    }
-
-    return allTransactions.firstOrNull { tx ->
-        tx.type == item.type &&
-        (tx.title.trim().equals(item.title.trim(), ignoreCase = true) || (tx.categoryId == item.categoryId && Math.abs(tx.amount - item.amount) < 0.01)) &&
-        when (item.frequency) {
-            RecurringFrequency.WEEKLY -> tx.timestamp >= nowForWeekly - (7 * 24 * 60 * 60 * 1000L) && tx.timestamp <= nowForWeekly
-            RecurringFrequency.BI_WEEKLY -> tx.timestamp >= nowForWeekly - (14 * 24 * 60 * 60 * 1000L) && tx.timestamp <= nowForWeekly
-            RecurringFrequency.MONTHLY -> {
-                val txCal = java.util.Calendar.getInstance().apply { timeInMillis = tx.timestamp }
-                txCal.get(java.util.Calendar.YEAR) == currentYear && txCal.get(java.util.Calendar.MONTH) == currentMonth
-            }
-            RecurringFrequency.YEARLY -> {
-                val txCal = java.util.Calendar.getInstance().apply { timeInMillis = tx.timestamp }
-                txCal.get(java.util.Calendar.YEAR) == currentYear
-            }
-        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = value,
+            style = com.selfbudget.app.ui.theme.SelfBudgetType.rowTitle,
+            color = valueColor,
+            textAlign = TextAlign.End
+        )
     }
 }
 

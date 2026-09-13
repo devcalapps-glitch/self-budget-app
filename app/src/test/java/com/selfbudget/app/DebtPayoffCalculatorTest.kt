@@ -52,4 +52,32 @@ class DebtPayoffCalculatorTest {
         assertTrue("Interest paid must be greater than or equal to 0.0 and rounded to cents", result.totalInterestPaid >= 0.0)
         assertEquals(result.totalInterestPaid, com.selfbudget.app.core.util.Money.round(result.totalInterestPaid), 0.001)
     }
+
+    @Test
+    fun testAmortizedMonthlyPayment_standardMortgage() {
+        // $300,000 at 6% APR for 30 years (360 months) -> ~$1,798.65
+        val pmt = DebtPayoffCalculator.calculateAmortizedMonthlyPayment(
+            balance = 300000.0,
+            aprPercent = 6.0,
+            termMonths = 360
+        )
+        assertEquals(1798.65, pmt, 0.01)
+    }
+
+    @Test
+    fun testAmortizedMonthlyPayment_zeroInterest() {
+        // $12,000 at 0% APR for 12 months -> $1,000.00
+        val pmt = DebtPayoffCalculator.calculateAmortizedMonthlyPayment(
+            balance = 12000.0,
+            aprPercent = 0.0,
+            termMonths = 12
+        )
+        assertEquals(1000.0, pmt, 0.01)
+    }
+
+    @Test
+    fun testAmortizedMonthlyPayment_zeroBalanceOrZeroMonths() {
+        assertEquals(0.0, DebtPayoffCalculator.calculateAmortizedMonthlyPayment(0.0, 5.0, 36), 0.001)
+        assertEquals(0.0, DebtPayoffCalculator.calculateAmortizedMonthlyPayment(10000.0, 5.0, 0), 0.001)
+    }
 }

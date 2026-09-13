@@ -68,7 +68,8 @@ self-budget-app/
 ├── app/
 │   ├── src/main/java/com/selfbudget/app/
 │   │   ├── core/
-│   │   │   ├── ui/               # Reusable Compose UI components & dialogs
+│   │   │   ├── ui/               # Reusable Compose UI dialogs & modals
+│   │   │   │   └── components/   # Shared design-system components (buttons, icon tiles, bands)
 │   │   │   └── util/             # Calculation engines (Money, Rollover, Balances, Income, Drive Sync)
 │   │   ├── data/
 │   │   │   ├── local/            # Room Database, Entities & DAOs
@@ -103,6 +104,18 @@ The codebase includes an automated unit test suite covering core financial calcu
 ```
 
 Documentation breakdown available in [`adr.md`](adr.md).
+
+---
+
+## 🎨 Design System
+
+All UI is built from one shared design system — color ramps, typography
+scale, shape tokens, and reusable Compose components (pill buttons, icon
+tiles, section header bands, etc.) — documented in
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md). Read it before adding or
+restyling a screen; it also lists the structural rules (header/footer action
+placement, destructive-action isolation, no duplicate headline numbers) that
+keep every screen consistent.
 
 ---
 

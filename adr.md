@@ -223,6 +223,18 @@ The official app logo is built from [`selfbudget_app_logo.svg`](file:///Users/bb
 
 ---
 
+## 3.1 UI Design System
+
+The full color-ramp, typography, shape, and shared-component system used
+across every screen is documented separately in
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) (color ramps and their
+extension functions, the `SelfBudgetType` type scale, `Shape*` radius tokens,
+the shared component catalog in `core/ui/components/`, and the structural
+rules — header/footer action placement, destructive-action isolation, no
+duplicate headline numbers — enforced across the app).
+
+---
+
 ## 4. Scroll Architecture & Layout Standards
 
 All primary tabs ([`HomeScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/dashboard/HomeScreen.kt), [`BudgetScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/budget/BudgetScreen.kt), [`RecurringScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/recurring/RecurringScreen.kt), [`AnalyticsScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/analytics/AnalyticsScreen.kt), [`AccountsScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/accounts/AccountsScreen.kt), [`SearchScreen.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/feature/search/SearchScreen.kt)) enforce a unified layout hierarchy:

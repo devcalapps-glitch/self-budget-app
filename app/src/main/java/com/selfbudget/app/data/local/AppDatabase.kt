@@ -39,7 +39,11 @@ import com.selfbudget.app.data.model.UserEntity
     // target a specific Credit Card / Loan account and actually reduce its balance when posted -
     // see MIGRATION_13_14 below, a real migration (not destructive fallback) since this app now
     // has an installed base with real transaction history.
-    version = 14,
+    // v15: TransactionEntity gained linkedRecurringId/recurringCycleDueDate, so deleting a
+    // mistakenly-posted recurring transaction rolls the recurring item's due date back instead of
+    // leaving it advanced to the following cycle - see MainViewModel.deleteTransaction.
+    // v16: AccountEntity gained loanTermMonths for fixed-term amortized mortgages and loans.
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,41 +59,55 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         val DEFAULT_CATEGORIES = listOf(
-            CategoryEntity("cat_rent_mortgage", "Rent / Mortgage", "Home", "#FF9800", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_credit_card_loan", "Credit Card / Loan Payment", "CreditCard", "#E91E63", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_groceries", "Groceries", "ShoppingCart", "#4CAF50", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_food", "Food & Dining", "Restaurant", "#FF5722", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_bills", "Bills & Utilities", "Receipt", "#9C27B0", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_subscriptions", "Subscriptions", "Subscriptions", "#3F51B5", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_shopping", "Shopping", "ShoppingBag", "#E91E63", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_transport", "Transportation", "DirectionsBus", "#2196F3", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_travel", "Travel", "Flight", "#00BCD4", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_health", "Medical & Healthcare", "MedicalServices", "#009688", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_entertainment", "Entertainment", "Movie", "#673AB7", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_investment_expense", "Investments", "TrendingUp", "#2196F3", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_transfer", "Account Transfer", "CompareArrows", "#00ACC1", TransactionType.EXPENSE, true),
-            CategoryEntity("cat_other", "Other", "MoreHoriz", "#607D8B", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_rent_mortgage", "Rent / Mortgage", "Home", "#7C3AED", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_credit_card_loan", "Credit Card / Loan Payment", "CreditCard", "#DC2626", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_groceries", "Groceries", "ShoppingCart", "#059669", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_food", "Food & Dining", "Restaurant", "#EA580C", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_bills", "Bills & Utilities", "Receipt", "#2563EB", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_subscriptions", "Subscriptions", "Subscriptions", "#4F46E5", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_shopping", "Shopping", "ShoppingBag", "#DB2777", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_transport", "Transportation", "DirectionsBus", "#0891B2", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_travel", "Travel", "Flight", "#0284C7", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_fitness", "Fitness", "FitnessCenter", "#0F766E", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_health", "Medical & Healthcare", "MedicalServices", "#15803D", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_entertainment", "Entertainment", "Movie", "#9333EA", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_investment_expense", "Investments", "TrendingUp", "#0891B2", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_transfer", "Account Transfer", "CompareArrows", "#475569", TransactionType.EXPENSE, true),
+            CategoryEntity("cat_other", "Other", "MoreHoriz", "#64748B", TransactionType.EXPENSE, true),
 
             // Tailored Income Categories
-            CategoryEntity("cat_salary", "Salary", "AccountBalanceWallet", "#4CAF50", TransactionType.INCOME, true),
-            CategoryEntity("cat_gifts", "Gifts", "CardGiftcard", "#E91E63", TransactionType.INCOME, true),
-            CategoryEntity("cat_investment", "Investment", "TrendingUp", "#2196F3", TransactionType.INCOME, true),
-            CategoryEntity("cat_side_hustle", "Side Hustle", "Work", "#FF9800", TransactionType.INCOME, true),
-            CategoryEntity("cat_income_others", "Others", "MoreHoriz", "#607D8B", TransactionType.INCOME, true)
+            CategoryEntity("cat_salary", "Salary", "AccountBalanceWallet", "#059669", TransactionType.INCOME, true),
+            CategoryEntity("cat_gifts", "Gifts", "CardGiftcard", "#DB2777", TransactionType.INCOME, true),
+            CategoryEntity("cat_investment", "Investment", "TrendingUp", "#0891B2", TransactionType.INCOME, true),
+            CategoryEntity("cat_side_hustle", "Side Hustle", "Work", "#EA580C", TransactionType.INCOME, true),
+            CategoryEntity("cat_income_others", "Others", "MoreHoriz", "#64748B", TransactionType.INCOME, true)
         )
 
         val DEFAULT_ACCOUNTS = listOf(
-            AccountEntity(id = "acc_checking", userId = "system", name = "Checking Account", type = AccountType.CHECKING, initialBalance = 0.0, colorHex = "#2196F3", iconName = "AccountBalance", isDefault = true),
-            AccountEntity(id = "acc_credit", userId = "system", name = "Credit Card", type = AccountType.CREDIT_CARD, initialBalance = 0.0, colorHex = "#E91E63", iconName = "CreditCard", isDefault = false),
-            AccountEntity(id = "acc_cash", userId = "system", name = "Cash Wallet", type = AccountType.CASH, initialBalance = 0.0, colorHex = "#4CAF50", iconName = "Payments", isDefault = false),
-            AccountEntity(id = "acc_savings", userId = "system", name = "Savings Account", type = AccountType.SAVINGS, initialBalance = 0.0, colorHex = "#9C27B0", iconName = "Savings", isDefault = false)
+            AccountEntity(id = "acc_checking", userId = "system", name = "Checking Account", type = AccountType.CHECKING, initialBalance = 0.0, colorHex = "#2563EB", iconName = "AccountBalance", isDefault = true),
+            AccountEntity(id = "acc_credit", userId = "system", name = "Credit Card", type = AccountType.CREDIT_CARD, initialBalance = 0.0, colorHex = "#DC2626", iconName = "CreditCard", isDefault = false),
+            AccountEntity(id = "acc_cash", userId = "system", name = "Cash Wallet", type = AccountType.CASH, initialBalance = 0.0, colorHex = "#059669", iconName = "Payments", isDefault = false),
+            AccountEntity(id = "acc_savings", userId = "system", name = "Savings Account", type = AccountType.SAVINGS, initialBalance = 0.0, colorHex = "#0F766E", iconName = "Savings", isDefault = false)
         )
 
-        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE recurring_transactions ADD COLUMN transferAccountId TEXT DEFAULT NULL")
+        private fun safeAddColumn(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String, columnDef: String) {
+            try {
+                db.execSQL("ALTER TABLE $table ADD COLUMN $columnDef")
+            } catch (_: Exception) {}
+        }
+
+        private fun createCatchupMigration(fromVersion: Int, toVersion: Int): androidx.room.migration.Migration {
+            return object : androidx.room.migration.Migration(fromVersion, toVersion) {
+                override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    safeAddColumn(db, "recurring_transactions", "transferAccountId TEXT DEFAULT NULL")
+                    safeAddColumn(db, "transactions", "linkedRecurringId TEXT DEFAULT NULL")
+                    safeAddColumn(db, "transactions", "recurringCycleDueDate INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "accounts", "loanTermMonths INTEGER DEFAULT NULL")
+                }
             }
         }
+
+        val MIGRATIONS_ALL = (1 until 16).map { createCatchupMigration(it, 16) }.toTypedArray()
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -101,14 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "self_budget.db"
                 )
-                .addMigrations(MIGRATION_13_14)
-                // PRE-LAUNCH ONLY: destructive fallback is acceptable while this app has never
-                // shipped a public release (versionCode 1, no installed base yet), since there's
-                // no real user data any schema bump could destroy. The moment this ships to
-                // Google Play, every future version bump MUST instead ship a real
-                // androidx.room.migration.Migration for that version delta - falling back to
-                // destructive migration after launch means every user's transaction/budget
-                // history gets silently wiped on their next app update.
+                .addMigrations(*MIGRATIONS_ALL)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

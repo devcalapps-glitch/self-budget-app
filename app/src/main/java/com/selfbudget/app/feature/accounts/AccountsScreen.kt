@@ -1,7 +1,5 @@
 package com.selfbudget.app.feature.accounts
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,34 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Wallet
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,19 +36,34 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.EditCustomAccountDialog
 import com.selfbudget.app.core.ui.NetWorthHistoryModal
+import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
+import com.selfbudget.app.core.ui.accountTypeRamp
+import com.selfbudget.app.core.ui.components.IconTile
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.feature.transaction.TransferDialog
-import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapeTile
+import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 
 @Composable
 fun AccountsScreen(
@@ -90,26 +84,17 @@ fun AccountsScreen(
     var showNetWorthModal by remember { mutableStateOf(false) }
     var payoffCalculatorAccount by remember { mutableStateOf<AccountEntity?>(null) }
 
-    // Calculate totals
+    // Calculate totals - via the same canonical classification (AccountBalanceCalculator.isLiability)
+    // used everywhere else net worth is computed, not an ad-hoc type/sign check that can silently
+    // disagree with Analytics and the Net Worth details page.
     val totalAssets = remember(accounts, accountBalances) {
-        accounts.filter { it.type != AccountType.CREDIT_CARD && it.type != AccountType.LOAN }
-            .sumOf { acc ->
-                val bal = accountBalances[acc.id] ?: acc.initialBalance
-                if (bal > 0) bal else 0.0
-            }
+        accounts.filterNot { AccountBalanceCalculator.isLiability(it.type) }
+            .sumOf { acc -> accountBalances[acc.id] ?: acc.initialBalance }
     }
 
     val totalLiabilities = remember(accounts, accountBalances) {
-        accounts.sumOf { acc ->
-            val bal = accountBalances[acc.id] ?: acc.initialBalance
-            if (acc.type == AccountType.CREDIT_CARD || acc.type == AccountType.LOAN) {
-                kotlin.math.abs(bal)
-            } else if (bal < 0) {
-                kotlin.math.abs(bal)
-            } else {
-                0.0
-            }
-        }
+        accounts.filter { AccountBalanceCalculator.isLiability(it.type) }
+            .sumOf { acc -> kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance) }
     }
 
     val totalNetWorth = totalAssets - totalLiabilities
@@ -126,20 +111,19 @@ fun AccountsScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Accounts & Assets",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            text = "Accounts & assets",
+            style = SelfBudgetType.heading,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Net Worth Card Summary
-        Card(
+        // Net Worth hero card (spec §4/§11: Net worth report identity = Teal)
+        val isDarkNw = isAppInDarkTheme()
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            shape = ShapeHero,
+            color = Ramp.Teal.tintFill(isDarkNw)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp)
@@ -152,23 +136,22 @@ fun AccountsScreen(
                     Column {
                         Text(
                             text = "TOTAL NET WORTH",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                            letterSpacing = 1.sp
+                            style = SelfBudgetType.eyebrow,
+                            color = Ramp.Teal.secondaryText(isDarkNw)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
+                        val cleanNetWorth = if (kotlin.math.abs(totalNetWorth) < 0.005) 0.0 else totalNetWorth
+                        val netWorthPrefix = if (cleanNetWorth < 0) "-$currencySymbol" else currencySymbol
                         Text(
-                            text = "${if (totalNetWorth < 0) "-$currencySymbol" else currencySymbol}%.2f".format(kotlin.math.abs(totalNetWorth)),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "$netWorthPrefix%.2f".format(kotlin.math.abs(cleanNetWorth)),
+                            style = SelfBudgetType.display,
+                            color = Ramp.Teal.titleText(isDarkNw)
                         )
                     }
 
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        color = Ramp.Teal.solidFill(isDarkNw),
                         modifier = Modifier
                             .clip(CircleShape)
                             .clickable { showNetWorthModal = true }
@@ -180,15 +163,14 @@ fun AccountsScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ShowChart,
                                 contentDescription = "History",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                tint = Ramp.Teal.onSolidFill(isDarkNw),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Trends",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                style = SelfBudgetType.badge,
+                                color = Ramp.Teal.onSolidFill(isDarkNw)
                             )
                         }
                     }
@@ -204,11 +186,12 @@ fun AccountsScreen(
                     points
                 }
                 val posIncomeColor = com.selfbudget.app.ui.theme.getIncomeColor()
+                val negExpenseColor = getExpenseColor()
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(ShapeTile)
                         .clickable { showNetWorthModal = true }
                 ) {
                     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
@@ -239,7 +222,7 @@ fun AccountsScreen(
                         areaPath.close()
 
                         val isPos = (sparklinePoints.lastOrNull() ?: 0.0) >= 0
-                        val strokeColor = if (isPos) posIncomeColor else ExpenseRed
+                        val strokeColor = if (isPos) posIncomeColor else negExpenseColor
 
                         drawPath(
                             path = areaPath,
@@ -264,28 +247,27 @@ fun AccountsScreen(
                     Column {
                         Text(
                             text = "Assets",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            style = SelfBudgetType.meta,
+                            color = Ramp.Teal.secondaryText(isDarkNw)
                         )
                         Text(
                             text = "$currencySymbol%.2f".format(totalAssets),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = com.selfbudget.app.ui.theme.getIncomeColor()
+                            style = SelfBudgetType.heading,
+                            color = Ramp.Teal.titleText(isDarkNw)
                         )
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = "Liabilities",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            style = SelfBudgetType.meta,
+                            color = Ramp.Teal.secondaryText(isDarkNw)
                         )
+                        val cleanLiabilities = if (kotlin.math.abs(totalLiabilities) < 0.005) 0.0 else totalLiabilities
                         Text(
-                            text = "-$currencySymbol%.2f".format(totalLiabilities),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ExpenseRed
+                            text = "${if (cleanLiabilities > 0.0) "-$currencySymbol" else currencySymbol}%.2f".format(cleanLiabilities),
+                            style = SelfBudgetType.heading,
+                            color = if (cleanLiabilities > 0.0) getExpenseColor() else Ramp.Teal.titleText(isDarkNw)
                         )
                     }
                 }
@@ -299,60 +281,39 @@ fun AccountsScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
+            PrimaryPillButton(
+                text = "Add account",
                 onClick = { showAddAccountDialog = true },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
+                modifier = Modifier.weight(1f)
+            )
 
-            OutlinedButton(
+            SecondaryPillButton(
+                text = "Transfer",
                 onClick = { showTransferDialog = true },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
+                modifier = Modifier.weight(1f)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Search Bar
-        OutlinedTextField(
+        com.selfbudget.app.core.ui.AppSearchBar(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search accounts...", fontSize = 14.sp) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            },
-            shape = RoundedCornerShape(14.dp),
-            singleLine = true
+            placeholder = "Search accounts...",
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
 
+
+        val groupedAccounts = remember(filteredAccounts, accountBalances) {
+            filteredAccounts
+                .groupBy { it.type }
+                .toList()
+                .sortedBy { (type, _) -> com.selfbudget.app.core.ui.getAccountTypePriority(type) }
+        }
 
         // Accounts List
         if (filteredAccounts.isEmpty()) {
@@ -373,120 +334,123 @@ fun AccountsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(filteredAccounts, key = { it.id }) { acc ->
-                    val accColor = try {
-                        Color(android.graphics.Color.parseColor(acc.colorHex))
-                    } catch (e: Exception) {
-                        MaterialTheme.colorScheme.primary
+                groupedAccounts.forEach { (type, accountsInType) ->
+                    val typeLabel = com.selfbudget.app.core.ui.getAccountTypeLabel(type)
+                    val typeRamp = accountTypeRamp(type)
+                    val typeIcon = com.selfbudget.app.core.ui.getAccountIcon(type)
+                    val isLiabilityGroup = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(type)
+                    val groupTotal = accountsInType.sumOf { acc ->
+                        val bal = accountBalances[acc.id] ?: acc.initialBalance
+                        if (isLiabilityGroup) kotlin.math.abs(bal) else bal
                     }
+                    val cleanGroupTotal = if (kotlin.math.abs(groupTotal) < 0.005) 0.0 else groupTotal
+                    val isNegGroup = (isLiabilityGroup && cleanGroupTotal > 0.0) || (!isLiabilityGroup && cleanGroupTotal < 0.0)
 
-                    val icon = com.selfbudget.app.core.ui.getAccountIcon(acc.type)
-
-                    val typeLabel = when (acc.type) {
-                        AccountType.CHECKING -> "Checking"
-                        AccountType.CREDIT_CARD -> "Credit Card"
-                        AccountType.SAVINGS -> "Savings Account"
-                        AccountType.CASH -> "Cash Wallet"
-                        AccountType.INVESTMENT -> "Investment"
-                        AccountType.LOAN -> "Loan / Mortgage"
-                        AccountType.RETIREMENT -> "Retirement (Non-Liquid)"
-                    }
-
-                    val rawBalance = accountBalances[acc.id] ?: acc.initialBalance
-                    val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
-                    val displayBalance = if (isLiability) kotlin.math.abs(rawBalance) else rawBalance
-                    val sym = if (acc.currencyCode.isNotBlank()) Currencies.symbolFor(acc.currencyCode) else currencySymbol
-
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { editingAccount = acc }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    item(key = "section_${type.name}") {
+                        SectionHeaderBand(
+                            title = typeLabel,
+                            ramp = typeRamp,
+                            icon = typeIcon,
+                            countPill = "${accountsInType.size}",
+                            trailingText = "${if (isNegGroup) "-$currencySymbol" else currencySymbol}%.2f".format(kotlin.math.abs(cleanGroupTotal))
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
+                            accountsInType.forEachIndexed { index, acc ->
+                                if (index > 0) SectionRowDivider()
+
+                                val accColor = try {
+                                    Color(android.graphics.Color.parseColor(acc.colorHex))
+                                } catch (e: Exception) {
+                                    MaterialTheme.colorScheme.primary
+                                }
+
+                                val icon = com.selfbudget.app.core.ui.getAccountIcon(acc.type)
+                                val rawBalance = accountBalances[acc.id] ?: acc.initialBalance
+                                val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                val displayBalance = if (isLiability) kotlin.math.abs(rawBalance) else rawBalance
+                                val cleanDisplayBalance = if (kotlin.math.abs(displayBalance) < 0.005) 0.0 else displayBalance
+                                val isNegBalance = (isLiability && cleanDisplayBalance > 0.0) || (!isLiability && cleanDisplayBalance < 0.0)
+                                val sym = if (acc.currencyCode.isNotBlank()) Currencies.symbolFor(acc.currencyCode) else currencySymbol
+
+                                Row(
                                     modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(accColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
+                                        .fillMaxWidth()
+                                        .clickable { editingAccount = acc }
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = accColor,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(14.dp))
-
-                                Column {
-                                    Text(
-                                        text = acc.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = typeLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "$sym%.2f".format(displayBalance),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isLiability) MaterialTheme.colorScheme.onSurface else if (displayBalance >= 0) com.selfbudget.app.ui.theme.getIncomeColor() else ExpenseRed
-                                )
-                                if (isLiability) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    IconButton(
-                                        onClick = { payoffCalculatorAccount = acc },
-                                        modifier = Modifier.size(28.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
+                                        IconTile(
+                                            icon = icon,
+                                            tint = accColor,
+                                            background = accColor.copy(alpha = 0.15f),
+                                            shape = CircleShape,
+                                            size = 36.dp,
+                                            iconSize = 18.dp
+                                        )
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = acc.name,
+                                                style = SelfBudgetType.rowTitle,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1
+                                            )
+                                            if (acc.isDefault) {
+                                                Text(
+                                                    text = "Default account",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "${if (isNegBalance) "-$sym" else sym}%.2f".format(kotlin.math.abs(cleanDisplayBalance)),
+                                            style = SelfBudgetType.rowTitle,
+                                            color = if (isNegBalance) getExpenseColor() else if (cleanDisplayBalance > 0.0) getIncomeColor() else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (isLiability) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            IconButton(
+                                                onClick = { payoffCalculatorAccount = acc },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Calculate,
+                                                    contentDescription = "Payoff calculator",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Icon(
-                                            imageVector = Icons.Default.Calculate,
-                                            contentDescription = "Payoff Calculator",
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            imageVector = Icons.Default.ChevronRight,
+                                            contentDescription = "Edit account",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = "Edit Account",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(20.dp)
-                                )
                             }
                         }
                     }
                 }
+
+                item {
+                    Spacer(modifier = Modifier.height(150.dp))
+                }
             }
-            Spacer(modifier = Modifier.height(150.dp))
         }
     }
 

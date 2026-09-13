@@ -1,8 +1,6 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -17,16 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,8 +41,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.selfbudget.app.core.ui.components.DeltaBadge
+import com.selfbudget.app.core.ui.components.DeltaMetric
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
-import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -147,14 +150,21 @@ fun NetWorthProgressChart(
     val activeIndex = selectedSnapshotIndex ?: (displayHistory.size - 1)
     val activeSnapshot = displayHistory.getOrNull(activeIndex) ?: displayHistory.lastOrNull()
 
+    // Only an explicitly-selected historical point reads from the stored snapshot. Otherwise
+    // this always shows the live, freshly-computed figures - not whatever a same-month snapshot
+    // last recorded, which can go stale the moment an account balance changes after it was taken
+    // and would otherwise disagree with the "Total net worth" hero card above this chart.
+    val isInspecting = selectedSnapshotIndex != null
+    val displayNetWorth = if (isInspecting) (activeSnapshot?.netWorth ?: currentNetWorth) else currentNetWorth
+    val displayAssets = if (isInspecting) (activeSnapshot?.totalAssets ?: totalAssets) else totalAssets
+    val displayDebts = if (isInspecting) (activeSnapshot?.totalLiabilities ?: totalDebts) else totalDebts
+
     val prevSnapshot = remember(activeIndex, displayHistory) {
         if (activeIndex > 0) displayHistory.getOrNull(activeIndex - 1) else null
     }
 
-    val activeDelta = remember(activeSnapshot, prevSnapshot) {
-        if (activeSnapshot != null && prevSnapshot != null) {
-            activeSnapshot.netWorth - prevSnapshot.netWorth
-        } else null
+    val activeDelta = remember(displayNetWorth, prevSnapshot) {
+        prevSnapshot?.let { displayNetWorth - it.netWorth }
     }
 
     val activeDeltaPct = remember(activeSnapshot, prevSnapshot, activeDelta) {
@@ -174,18 +184,17 @@ fun NetWorthProgressChart(
         }
     }
 
-    val primaryAccent = MaterialTheme.colorScheme.primary
-    val surfaceColor = MaterialTheme.colorScheme.surface
+    val isDark = isAppInDarkTheme()
+    val positiveAccent = Ramp.Teal.c400
+    val negativeAccent = Ramp.Red.c400
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridLineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+    val gridLineColor = MaterialTheme.colorScheme.outlineVariant
 
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = surfaceColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        shape = ShapeCard,
+        color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -201,24 +210,17 @@ fun NetWorthProgressChart(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (selectedSnapshotIndex != null) formattedActiveMonth else "NET WORTH PROGRESS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = primaryAccent,
-                            letterSpacing = 1.sp
+                            style = SelfBudgetType.eyebrow,
+                            color = Ramp.Teal.let { if (isDark) it.c200 else it.c600 }
                         )
                         if (selectedSnapshotIndex != null) {
                             Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(primaryAccent.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
+                            Surface(shape = ShapeChip, color = Ramp.Teal.tintFill(isDark)) {
                                 Text(
                                     text = "Inspecting",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = primaryAccent
+                                    style = SelfBudgetType.badge,
+                                    color = Ramp.Teal.titleText(isDark),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -226,64 +228,41 @@ fun NetWorthProgressChart(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    val formattedVal = currencyFormatter.format(activeSnapshot?.netWorth ?: currentNetWorth)
+                    val formattedVal = currencyFormatter.format(displayNetWorth)
                     Text(
                         text = "$currencySymbol$formattedVal",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
+                        style = SelfBudgetType.display,
                         color = onSurfaceColor
                     )
                 }
 
                 if (activeDelta != null) {
-                    val isPositive = activeDelta >= 0
-                    val badgeColor = if (isPositive) primaryAccent else ExpenseRed
                     val formattedDelta = currencyFormatter.format(kotlin.math.abs(activeDelta))
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(badgeColor.copy(alpha = 0.12f))
-                            .border(1.dp, badgeColor.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (isPositive) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                contentDescription = null,
-                                tint = badgeColor,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "%s$currencySymbol$formattedDelta (%.1f%%)".format(
-                                    if (isPositive) "+" else "-",
-                                    activeDeltaPct
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = badgeColor
-                            )
-                        }
+                    Column(horizontalAlignment = Alignment.End) {
+                        DeltaBadge(percentChange = activeDeltaPct.toFloat(), metric = DeltaMetric.NET_WORTH)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${if (activeDelta >= 0) "+" else "-"}$currencySymbol$formattedDelta",
+                            style = SelfBudgetType.meta,
+                            color = onSurfaceVariant
+                        )
                     }
                 }
             }
 
             // Asset vs Debt Inline breakdown
-            val activeAssets = activeSnapshot?.totalAssets ?: totalAssets
-            val activeDebts = activeSnapshot?.totalLiabilities ?: totalDebts
-            val totalCombined = (activeAssets + activeDebts).coerceAtLeast(1.0)
-            val assetPct = (activeAssets / totalCombined * 100).toInt()
-            val debtPct = (activeDebts / totalCombined * 100).toInt()
+            val totalCombined = (displayAssets + displayDebts).coerceAtLeast(1.0)
+            val assetPct = (displayAssets / totalCombined * 100).toInt()
+            val debtPct = (displayDebts / totalCombined * 100).toInt()
 
-            val formattedAssets = currencyFormatter.format(activeAssets)
-            val formattedDebts = currencyFormatter.format(activeDebts)
+            val formattedAssets = currencyFormatter.format(displayAssets)
+            val formattedDebts = currencyFormatter.format(displayDebts)
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    .clip(ShapeChip)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -293,13 +272,12 @@ fun NetWorthProgressChart(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(primaryAccent)
+                            .background(positiveAccent)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Assets: $currencySymbol$formattedAssets ($assetPct%)",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
+                        style = SelfBudgetType.meta,
                         color = onSurfaceColor
                     )
                 }
@@ -309,13 +287,12 @@ fun NetWorthProgressChart(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(ExpenseRed)
+                            .background(negativeAccent)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Debt: $currencySymbol$formattedDebts ($debtPct%)",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
+                        style = SelfBudgetType.meta,
                         color = onSurfaceVariant
                     )
                 }
@@ -405,7 +382,7 @@ fun NetWorthProgressChart(
                     val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
                     val labelStyle = TextStyle(
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Medium,
                         color = onSurfaceVariant
                     )
 
@@ -532,7 +509,7 @@ fun NetWorthProgressChart(
 
                     // Gradient Area Fill
                     val isOverallPos = (displayHistory.lastOrNull()?.netWorth ?: 0.0) >= 0
-                    val mainColor = if (isOverallPos) primaryAccent else ExpenseRed
+                    val mainColor = if (isOverallPos) positiveAccent else negativeAccent
 
                     drawPath(
                         path = areaPath,
@@ -592,24 +569,21 @@ fun NetWorthProgressChart(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     NetWorthChartTimeframe.values().forEach { tf ->
+                        val selected = selectedTimeframe == tf
                         FilterChip(
-                            selected = selectedTimeframe == tf,
+                            selected = selected,
                             onClick = {
                                 selectedTimeframe = tf
                                 selectedSnapshotIndex = null
                             },
                             label = {
-                                Text(
-                                    text = tf.label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selectedTimeframe == tf) FontWeight.ExtraBold else FontWeight.Medium
-                                )
+                                Text(text = tf.label, style = SelfBudgetType.badge)
                             },
-                            shape = RoundedCornerShape(10.dp),
+                            shape = ShapePill,
                             modifier = Modifier.height(28.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = primaryAccent,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                selectedContainerColor = Ramp.Teal.solidFill(isDark),
+                                selectedLabelColor = Ramp.Teal.onSolidFill(isDark)
                             )
                         )
                     }
@@ -617,9 +591,8 @@ fun NetWorthProgressChart(
 
                 Text(
                     text = "• Drag across to scrub",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = onSurfaceVariant.copy(alpha = 0.7f)
+                    style = SelfBudgetType.meta,
+                    color = onSurfaceVariant
                 )
             }
         }

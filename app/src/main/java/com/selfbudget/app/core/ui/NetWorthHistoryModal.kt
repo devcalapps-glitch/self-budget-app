@@ -1,9 +1,7 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -26,9 +23,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,20 +30,31 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.GrayIconTile
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
-import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -70,21 +75,16 @@ fun NetWorthHistoryModal(
     val sdfMonth = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
     val sdfLabel = remember { SimpleDateFormat("MMM yyyy", Locale.getDefault()) }
 
-    // Group accounts into Assets and Liabilities
+    // Group accounts into Assets and Liabilities - via the same canonical classification
+    // (AccountBalanceCalculator.isLiability) used to compute uiState.netWorth and the persisted
+    // monthly snapshots, not a separate hardcoded account-type list. That list used to omit
+    // Mortgage/Auto Loan/Student Loan/Real Estate/Vehicle entirely (neither asset nor debt),
+    // which is exactly what made this screen's total disagree with Analytics and Accounts.
     val assetAccounts = remember(accounts) {
-        accounts.filter {
-            it.type == AccountType.CHECKING ||
-            it.type == AccountType.SAVINGS ||
-            it.type == AccountType.CASH ||
-            it.type == AccountType.INVESTMENT ||
-            it.type == AccountType.RETIREMENT
-        }
+        accounts.filterNot { AccountBalanceCalculator.isLiability(it.type) }
     }
     val debtAccounts = remember(accounts) {
-        accounts.filter {
-            it.type == AccountType.CREDIT_CARD ||
-            it.type == AccountType.LOAN
-        }
+        accounts.filter { AccountBalanceCalculator.isLiability(it.type) }
     }
 
     val totalAssets = remember(assetAccounts, accountBalances) {
@@ -95,13 +95,10 @@ fun NetWorthHistoryModal(
     }
     val currentNetWorth = totalAssets - totalDebts
 
-    val earliestSnapshot = history.firstOrNull()
-    val overallChange = earliestSnapshot?.let { currentNetWorth - it.netWorth } ?: 0.0
-    val overallChangePct = if (earliestSnapshot != null && earliestSnapshot.netWorth > 0) {
-        (overallChange / earliestSnapshot.netWorth) * 100
-    } else 0.0
+    val isDark = isAppInDarkTheme()
 
-    val isOverallPositive = overallChange >= 0.0
+    var showAssetBreakdown by remember { mutableStateOf(false) }
+    var showDebtBreakdown by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -119,43 +116,29 @@ fun NetWorthHistoryModal(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // Persistent Top App Bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
+                // Persistent Top App Bar — ✕ and title only (spec §14).
+                Surface(color = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Net Worth Details & History",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-
-                        Button(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Net worth details & history",
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // Scrollable Content
@@ -167,51 +150,10 @@ fun NetWorthHistoryModal(
                         .navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // 1. Live Net Worth Hero Card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = if (isOverallPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
-                                        contentDescription = null,
-                                        tint = if (isOverallPositive) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor(),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Total Net Worth",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "$currencySymbol%.2f".format(currentNetWorth),
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // 2. Financial Progress & Breakdown Graph
+                    // Financial Progress & Breakdown Graph — the one place this screen shows the
+                    // net worth figure (spec §14: never duplicate the same headline number in two
+                    // cards). Its own header already carries the number, the vs-last-month delta,
+                    // and the sparkline, so a separate static hero card above it was pure repeat.
                     NetWorthProgressChart(
                         history = history,
                         currentNetWorth = currentNetWorth,
@@ -220,122 +162,58 @@ fun NetWorthHistoryModal(
                         currencySymbol = currencySymbol
                     )
 
-                    // 2. Assets vs. Liabilities Split Cards
+                    // 2b. Assets vs. Liabilities Split Tiles
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Assets Card
-                        Card(
+                        AssetDebtTile(
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.1f)
-                            ),
-                            border = BorderStroke(1.dp, com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.3f))
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBalance,
-                                        contentDescription = null,
-                                        tint = com.selfbudget.app.ui.theme.getIncomeColor(),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Total Assets",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = com.selfbudget.app.ui.theme.getIncomeColor()
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "$currencySymbol%.2f".format(totalAssets),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "${assetAccounts.size} account(s)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Liabilities Card
-                        Card(
+                            icon = Icons.Default.AccountBalance,
+                            label = "Total assets",
+                            amountText = "$currencySymbol%.2f".format(totalAssets),
+                            caption = "${assetAccounts.size} account(s)",
+                            ramp = Ramp.Teal,
+                            isDark = isDark,
+                            onClick = { showAssetBreakdown = true }
+                        )
+                        AssetDebtTile(
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = ExpenseRed.copy(alpha = 0.1f)
-                            ),
-                            border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.CreditCard,
-                                        contentDescription = null,
-                                        tint = ExpenseRed,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Total Debt",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = ExpenseRed
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "$currencySymbol%.2f".format(totalDebts),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "${debtAccounts.size} account(s)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                            icon = Icons.Default.CreditCard,
+                            label = "Total debt",
+                            amountText = "$currencySymbol%.2f".format(totalDebts),
+                            caption = "${debtAccounts.size} account(s)",
+                            ramp = Ramp.Red,
+                            isDark = isDark,
+                            onClick = { showDebtBreakdown = true }
+                        )
                     }
 
                     // 3. Month-by-Month Accumulation Table
                     Text(
-                        text = "Monthly Growth History",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = "Monthly growth history",
+                        style = SelfBudgetType.heading,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     if (history.isEmpty()) {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            )
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
                         ) {
                             Text(
                                 text = "Monthly snapshot history will accumulate automatically as you use the app over time.",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = SelfBudgetType.body,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
                     } else {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 history.reversed().forEachIndexed { index, snapshot ->
@@ -360,17 +238,17 @@ fun NetWorthHistoryModal(
                                         Column {
                                             Text(
                                                 text = formattedLabel,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
+                                                style = SelfBudgetType.rowTitle,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (monthlyDelta != null) {
                                                 val isGain = monthlyDelta >= 0
+                                                val deltaRamp = if (isGain) Ramp.Teal else Ramp.Red
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         imageVector = if (isGain) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                                         contentDescription = null,
-                                                        tint = if (isGain) getIncomeColor() else ExpenseRed,
+                                                        tint = deltaRamp.secondaryText(isDark),
                                                         modifier = Modifier.size(12.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(2.dp))
@@ -379,9 +257,8 @@ fun NetWorthHistoryModal(
                                                             if (isGain) "+" else "",
                                                             monthlyDelta
                                                         ),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = if (isGain) getIncomeColor() else ExpenseRed
+                                                        style = SelfBudgetType.meta,
+                                                        color = deltaRamp.secondaryText(isDark)
                                                     )
                                                 }
                                             }
@@ -389,14 +266,13 @@ fun NetWorthHistoryModal(
 
                                         Text(
                                             text = "$currencySymbol%.2f".format(snapshot.netWorth),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
+                                            style = SelfBudgetType.rowTitle,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
 
                                     if (index < history.size - 1) {
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                     }
                                 }
                             }
@@ -407,6 +283,221 @@ fun NetWorthHistoryModal(
                     Spacer(modifier = Modifier.height(120.dp))
                 }
             }
+        }
+    }
+
+    if (showAssetBreakdown) {
+        AccountBreakdownModal(
+            title = "Total assets",
+            ramp = Ramp.Teal,
+            icon = Icons.Default.AccountBalance,
+            accounts = assetAccounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            onDismiss = { showAssetBreakdown = false }
+        )
+    }
+
+    if (showDebtBreakdown) {
+        AccountBreakdownModal(
+            title = "Total debt",
+            ramp = Ramp.Red,
+            icon = Icons.Default.CreditCard,
+            accounts = debtAccounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            onDismiss = { showDebtBreakdown = false }
+        )
+    }
+}
+
+/**
+ * Drill-down opened by tapping a [AssetDebtTile] (spec §14): every account that
+ * makes up that total assets/total debt figure, so the number is never a dead end.
+ */
+@Composable
+fun AccountBreakdownModal(
+    title: String,
+    ramp: Ramp,
+    icon: ImageVector,
+    accounts: List<AccountEntity>,
+    accountBalances: Map<String, Double>,
+    currencySymbol: String,
+    onDismiss: () -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    val total = remember(accounts, accountBalances) {
+        accounts.sumOf { acc -> kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance) }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = true
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+            ) {
+                // Persistent Top App Bar — ✕ and title only (spec §14).
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = title,
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp)
+                        .navigationBarsPadding(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Hero Total Card — neutral display number, the icon pill carries the color (spec §14).
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ShapeCard,
+                        color = ramp.tintFill(isDark)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(icon, contentDescription = null, tint = ramp.secondaryText(isDark), modifier = Modifier.size(22.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "${accounts.size} account${if (accounts.size != 1) "s" else ""}",
+                                    style = SelfBudgetType.section,
+                                    color = ramp.secondaryText(isDark)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "$currencySymbol%.2f".format(total),
+                                style = SelfBudgetType.display,
+                                color = ramp.titleText(isDark)
+                            )
+                        }
+                    }
+
+                    if (accounts.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Text(
+                                text = "No accounts in this group yet.",
+                                style = SelfBudgetType.body,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                accounts.forEachIndexed { index, acc ->
+                                    if (index > 0) SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                    val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                    val isLiability = AccountBalanceCalculator.isLiability(acc.type)
+                                    val displayBal = if (isLiability) kotlin.math.abs(rawBal) else rawBal
+                                    val sym = if (acc.currencyCode.isNotBlank()) Currencies.symbolFor(acc.currencyCode) else currencySymbol
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            RampIconTile(icon = getAccountIcon(acc.type), ramp = ramp, size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = acc.name,
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = getAccountTypeLabel(acc.type),
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "$sym%.2f".format(displayBal),
+                                            style = SelfBudgetType.rowTitle,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(120.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetDebtTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    amountText: String,
+    caption: String,
+    ramp: Ramp,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        modifier = modifier.let { if (onClick != null) it.clickable(onClick = onClick) else it },
+        shape = ShapeCard,
+        color = ramp.tintFill(isDark)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = ramp.secondaryText(isDark), modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = label, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = amountText, style = SelfBudgetType.heading, color = ramp.titleText(isDark))
+            Text(text = caption, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
         }
     }
 }

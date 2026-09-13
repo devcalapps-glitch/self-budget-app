@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.res.painterResource
+import com.selfbudget.app.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -66,6 +69,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -89,6 +93,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -116,7 +121,29 @@ import com.selfbudget.app.data.model.GoalEntity
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.UserEntity
-import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.core.ui.components.DestructivePillButton
+import com.selfbudget.app.core.ui.components.GrayIconTile
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.ui.components.ToggleRow
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapePage
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.ShapeTile
+import com.selfbudget.app.ui.theme.getExpenseColor
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.containerBorder
 import kotlinx.coroutines.launch
 
 private enum class SettingsSubScreen(val title: String) {
@@ -343,9 +370,10 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = activeSubScreen.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = SelfBudgetType.heading,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -353,8 +381,7 @@ fun SettingsScreen(
                     TextButton(onClick = onDismiss) {
                         Text(
                             text = "Done",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            style = SelfBudgetType.rowTitle,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -372,13 +399,14 @@ fun SettingsScreen(
 
         // --- MAIN CATEGORY MENU PAGE ---
         if (activeSubScreen == SettingsSubScreen.MAIN) {
-            // 1. Centered User Profile Card
-            Card(
+            val isDarkMain = isAppInDarkTheme()
+
+            // 1. Centered User Profile Header
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(
                     modifier = Modifier
@@ -392,15 +420,14 @@ fun SettingsScreen(
 
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        modifier = Modifier.size(58.dp)
+                        color = Ramp.Teal.tintFill(isDarkMain),
+                        modifier = Modifier.size(60.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = initialLetter,
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                style = SelfBudgetType.title,
+                                color = Ramp.Teal.titleText(isDarkMain)
                             )
                         }
                     }
@@ -413,116 +440,131 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = user?.displayName ?: "Google User",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            style = SelfBudgetType.heading,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Default.Verified,
                             contentDescription = "Verified Google Account",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = Ramp.Teal.secondaryText(isDarkMain),
                             modifier = Modifier.size(18.dp)
                         )
                     }
 
                     if (!user?.email.isNullOrEmpty()) {
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = user?.email ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                            style = SelfBudgetType.meta,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // 5 Distinct Categorized Menu Rows
-            SettingsCategoryRow(
-                icon = Icons.Default.Settings,
-                title = "General Preferences & Security",
-                subtitle = "Theme (${themeMode.name.lowercase()}), Currency ($currencySymbol), Biometrics & Alerts",
-                onClick = { activeSubScreen = SettingsSubScreen.PREFERENCES }
+            // Section Label
+            Text(
+                text = "PREFERENCES & SETTINGS",
+                style = SelfBudgetType.eyebrow,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
             )
 
-            SettingsCategoryRow(
-                icon = Icons.Default.Category,
-                title = "Manage Custom Categories",
-                subtitle = "View, archive, or restore custom categories",
-                onClick = { showManageCategoriesModal = true }
-            )
+            // Grouped Navigation Menu in a Single Seamless Surface
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Settings,
+                        title = "General Preferences & Security",
+                        subtitle = "Theme (${themeMode.name.lowercase()}), Currency ($currencySymbol), Biometrics",
+                        onClick = { activeSubScreen = SettingsSubScreen.PREFERENCES }
+                    )
 
-            SettingsCategoryRow(
-                icon = Icons.Default.CloudDone,
-                title = "Data & Account Management",
-                subtitle = "Google Drive sync, JSON/CSV backup, data reset & account deletion",
-                onClick = { activeSubScreen = SettingsSubScreen.BACKUP }
-            )
+                    SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
 
-            SettingsCategoryRow(
-                icon = Icons.Default.Gavel,
-                title = "Legal & Privacy",
-                subtitle = "Privacy Policy & Terms of Service",
-                onClick = { activeSubScreen = SettingsSubScreen.LEGAL }
-            )
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Category,
+                        title = "Manage Custom Categories",
+                        subtitle = "View, archive, or restore custom categories",
+                        onClick = { showManageCategoriesModal = true }
+                    )
 
-            SettingsCategoryRow(
-                icon = Icons.Default.Info,
-                title = "About Developer & Support",
-                subtitle = "Version 1.0.0, dev contact email",
-                onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
-            )
+                    SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
 
-            Spacer(modifier = Modifier.height(14.dp))
+                    SettingsGroupedItem(
+                        icon = Icons.Default.CloudDone,
+                        title = "Data & Account Management",
+                        subtitle = "Google Drive sync, JSON/CSV backup & reset",
+                        onClick = { activeSubScreen = SettingsSubScreen.BACKUP }
+                    )
 
-            OutlinedButton(
+                    SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
+
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Gavel,
+                        title = "Legal & Privacy",
+                        subtitle = "Privacy Policy & Terms of Service",
+                        onClick = { activeSubScreen = SettingsSubScreen.LEGAL }
+                    )
+
+                    SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
+
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Info,
+                        title = "About Developer & Support",
+                        subtitle = "Version 1.0.0, dev contact email",
+                        onClick = { activeSubScreen = SettingsSubScreen.ABOUT }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Sign-out is a plain, reversible action - not destructive - so it reads as a
+            // neutral secondary pill, not the Red reserved for irreversible data loss (spec §14).
+            SecondaryPillButton(
+                text = "Log out",
                 onClick = onSignOut,
+                ramp = Ramp.Gray,
+                icon = Icons.AutoMirrored.Filled.Logout,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Log Out", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
+                    .height(48.dp)
+            )
 
             Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 1: GENERAL PREFERENCES & SECURITY ---
         if (activeSubScreen == SettingsSubScreen.PREFERENCES) {
+            val isDarkPrefs = isAppInDarkTheme()
+            val chipColors = FilterChipDefaults.filterChipColors(
+                containerColor = Ramp.Gray.tintFill(isDarkPrefs),
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                selectedContainerColor = Ramp.Teal.solidFill(isDarkPrefs),
+                selectedLabelColor = Ramp.Teal.onSolidFill(isDarkPrefs),
+                selectedLeadingIconColor = Ramp.Teal.onSolidFill(isDarkPrefs)
+            )
+
             // Theme Mode Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.DarkMode,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "App Theme / Appearance",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        GrayIconTile(icon = Icons.Default.DarkMode, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(text = "App theme / appearance", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -534,11 +576,13 @@ fun SettingsScreen(
                         FilterChip(
                             selected = themeMode == AppThemeMode.SYSTEM,
                             onClick = { onSetThemeMode(AppThemeMode.SYSTEM) },
+                            shape = ShapePill,
+                            colors = chipColors,
                             label = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.SettingsSuggest, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("System")
+                                    Text("System", style = SelfBudgetType.badge)
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -546,11 +590,13 @@ fun SettingsScreen(
                         FilterChip(
                             selected = themeMode == AppThemeMode.LIGHT,
                             onClick = { onSetThemeMode(AppThemeMode.LIGHT) },
+                            shape = ShapePill,
+                            colors = chipColors,
                             label = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.LightMode, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Light")
+                                    Text("Light", style = SelfBudgetType.badge)
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -558,11 +604,13 @@ fun SettingsScreen(
                         FilterChip(
                             selected = themeMode == AppThemeMode.DARK,
                             onClick = { onSetThemeMode(AppThemeMode.DARK) },
+                            shape = ShapePill,
+                            colors = chipColors,
                             label = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.DarkMode, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Dark")
+                                    Text("Dark", style = SelfBudgetType.badge)
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -572,26 +620,17 @@ fun SettingsScreen(
             }
 
             // Currency Symbol Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AttachMoney,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Preferred Currency Symbol",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        GrayIconTile(icon = Icons.Default.AttachMoney, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(text = "Preferred currency symbol", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -604,7 +643,9 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = currencySymbol == symbol,
                                 onClick = { onSetCurrency(symbol) },
-                                label = { Text(symbol, fontWeight = FontWeight.Bold) }
+                                shape = ShapePill,
+                                colors = chipColors,
+                                label = { Text(symbol, style = SelfBudgetType.badge) }
                             )
                         }
                     }
@@ -617,31 +658,22 @@ fun SettingsScreen(
                 accounts.map { it.currencyCode }.distinct().filter { !it.equals(base, ignoreCase = true) }
             }
             if (foreignCurrencyCodes.isNotEmpty()) {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    )
+                    shape = ShapeCard,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.AttachMoney,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Exchange Rates",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            GrayIconTile(icon = Icons.Default.AttachMoney, size = 36.dp, iconSize = 18.dp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(text = "Exchange rates", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "Self Budget is offline-first, so rates aren't fetched automatically — enter them yourself to include foreign-currency accounts in your net worth total.",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = SelfBudgetType.body,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -660,7 +692,8 @@ fun SettingsScreen(
                             ) {
                                 Text(
                                     text = "1 ${Currencies.symbolFor(foreignCode)} $foreignCode =",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = SelfBudgetType.body,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )
                                 OutlinedTextField(
@@ -675,6 +708,7 @@ fun SettingsScreen(
                                     },
                                     singleLine = true,
                                     label = { Text(baseCode) },
+                                    shape = ShapeChip,
                                     modifier = Modifier.width(120.dp)
                                 )
                             }
@@ -684,59 +718,27 @@ fun SettingsScreen(
             }
 
             // Security & App Lock Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Fingerprint,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Security & App Lock",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Biometric lock on launch",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                            )
-                        }
-                    }
-
-                    Switch(
-                        checked = isBiometricEnabled,
-                        onCheckedChange = onSetBiometricEnabled
-                    )
-                }
+                ToggleRow(
+                    icon = Icons.Default.Fingerprint,
+                    title = "Biometric app lock",
+                    description = "Require Face/Touch ID on launch",
+                    checked = isBiometricEnabled,
+                    onCheckedChange = onSetBiometricEnabled
+                )
             }
 
             // Push Notifications & Alerts Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -748,39 +750,32 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            GrayIconTile(icon = Icons.Default.Notifications, size = 40.dp, iconSize = 22.dp)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text(
-                                    text = "Push Notifications & Alerts",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Text(text = "Push notifications & alerts", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     text = if (hasNotificationPermission) "Daily bill & budget alerts active" else "Tap to enable local notifications",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                    style = SelfBudgetType.meta,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
-                            Button(
-                                onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
-                            ) {
-                                Text("Enable")
-                            }
+                            PrimaryPillButton(
+                                text = "Enable",
+                                onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                                ramp = Ramp.Teal
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    OutlinedButton(
+                    SecondaryPillButton(
+                        text = "Send test notification",
+                        icon = Icons.Default.NotificationsActive,
                         onClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -788,18 +783,13 @@ fun SettingsScreen(
                                 NotificationHelper.sendNotification(
                                     context,
                                     777,
-                                    "🔔 Test Notification Received",
-                                    "Your local Push Notifications and Bill Reminders are working perfectly!"
+                                    "Test notification received",
+                                    "Your local push notifications and bill reminders are working perfectly!"
                                 )
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Send Test Notification 🔔")
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -808,28 +798,26 @@ fun SettingsScreen(
 
         // --- SUB-SCREEN 2: DATA, BACKUP & CLOUD SYNC ---
         if (activeSubScreen == SettingsSubScreen.BACKUP) {
+            val isDarkBackup = isAppInDarkTheme()
+            val isSyncError = syncStatusMessage?.let {
+                it.contains("❌") || it.contains("⚠️") || it.contains("fail", ignoreCase = true)
+            } ?: false
+
             // SECTION 1: Automated Google Drive Cloud Sync
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDone,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        GrayIconTile(icon = Icons.Default.CloudDone, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Automated Google Drive Cloud Sync",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            text = "Automated Google Drive cloud sync",
+                            style = SelfBudgetType.rowTitle,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -837,17 +825,17 @@ fun SettingsScreen(
 
                     Text(
                         text = "Zero-cost background sync to your personal Google Drive appDataFolder. Data is stored privately inside your Google Account.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     if (syncStatusMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
+                        val statusRamp = if (isSyncError) Ramp.Red else Ramp.Teal
                         Text(
                             text = syncStatusMessage!!,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            style = SelfBudgetType.meta,
+                            color = statusRamp.secondaryText(isDarkBackup)
                         )
                     }
 
@@ -857,7 +845,10 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
+                        PrimaryPillButton(
+                            text = "Drive sync",
+                            icon = Icons.Default.CloudUpload,
+                            ramp = Ramp.Teal,
                             onClick = {
                                 requestDriveAccessAndExecute { account ->
                                     onDriveSyncClick(account) { message ->
@@ -865,15 +856,13 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Drive Sync", fontSize = 12.sp)
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
 
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Drive restore",
+                            icon = Icons.Default.CloudDownload,
+                            ramp = Ramp.Teal,
                             onClick = {
                                 requestDriveAccessAndExecute { account ->
                                     onDriveRestoreClick(account) { message ->
@@ -881,46 +870,32 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Drive Restore", fontSize = 12.sp)
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
             // SECTION 2: Manual Backup & File Export
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Manual Backup & Export",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        GrayIconTile(icon = Icons.Default.FileDownload, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(text = "Manual backup & export", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
                         text = "Export or restore your full account history using JSON, or selectively export transactions, recurring bills, budget plans, savings goals, and accounts to multi-tab Excel (.xlsx) or CSV.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -929,33 +904,21 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
+                        SecondaryPillButton(
+                            text = "Export data",
+                            icon = Icons.Default.FileDownload,
+                            ramp = Ramp.Teal,
                             onClick = { showDataExportModal = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        ) {
-                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Export Data", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Import data",
+                            icon = Icons.Default.FileUpload,
+                            ramp = Ramp.Teal,
                             onClick = { dataImportPickerLauncher.launch("*/*") },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Icon(imageVector = Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Import Data...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -964,7 +927,10 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Backup JSON",
+                            icon = Icons.Default.CloudUpload,
+                            ramp = Ramp.Gray,
                             onClick = {
                                 onExportBackupJson({ jsonString ->
                                     coroutineScope.launch {
@@ -990,165 +956,136 @@ fun SettingsScreen(
                                     syncStatusMessage = "❌ Export failed: $error"
                                 })
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Backup JSON", fontSize = 11.sp)
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
 
-                        OutlinedButton(
-                            onClick = {
-                                dataImportPickerLauncher.launch("*/*")
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Restore JSON", fontSize = 11.sp)
-                        }
+                        SecondaryPillButton(
+                            text = "Restore JSON",
+                            icon = Icons.Default.CloudDownload,
+                            ramp = Ramp.Gray,
+                            onClick = { jsonRestorePickerLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
+            // Section Label: DANGER ZONE
+            Text(
+                text = "DANGER ZONE",
+                style = SelfBudgetType.eyebrow,
+                color = Ramp.Red.titleText(isDarkBackup),
+                modifier = Modifier.padding(start = 4.dp, top = 6.dp)
+            )
+
             // SECTION 3: Clean Sweep / Reset Data Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = ExpenseRed.copy(alpha = 0.08f)
-                ),
-                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, Ramp.Red.containerBorder(isDarkBackup))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CleaningServices,
-                            contentDescription = null,
-                            tint = ExpenseRed
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Clean Sweep / Reset Data",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = ExpenseRed
-                        )
+                        RampIconTile(icon = Icons.Default.CleaningServices, ramp = Ramp.Red, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Reset ledger & app data",
+                                style = SelfBudgetType.rowTitle,
+                                color = Ramp.Red.titleText(isDarkBackup)
+                            )
+                            Text(
+                                text = "Irreversible data wipe",
+                                style = SelfBudgetType.meta,
+                                color = Ramp.Red.secondaryText(isDarkBackup)
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Reset your transaction ledger only, or wipe all app records and start completely fresh.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                        text = "Reset your transaction ledger only, or permanently wipe all app records and start completely fresh.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Option 1: Reset Activity Only (Transactions)
-                    OutlinedButton(
+                    DestructivePillButton(
+                        text = "Reset activity only (transactions)",
+                        icon = Icons.AutoMirrored.Filled.ReceiptLong,
                         onClick = { showResetActivityConfirmation = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Reset Activity Only (Transactions)", fontWeight = FontWeight.Bold)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Text(
                         text = "• Wipes transaction history only\n• Keeps all Accounts, Wallets, Budgets, Recurring rules, and Goals intact",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
                     )
 
                     // Option 2: Reset All App Data
-                    Button(
+                    DestructivePillButton(
+                        text = "Reset all app data",
+                        icon = Icons.Default.DeleteForever,
                         onClick = { showResetConfirmation = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ExpenseRed,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Reset All App Data", fontWeight = FontWeight.Bold)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Text(
                         text = "• Permanently deletes all records (transactions, accounts, budgets, goals, recurring)",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                     )
                 }
             }
 
             // SECTION 4: Delete Account & Cloud Erasure Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                ),
-                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, Ramp.Red.containerBorder(isDarkBackup))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.PersonRemove,
-                            contentDescription = null,
-                            tint = ExpenseRed
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Delete Account & User Data",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = ExpenseRed
-                        )
+                        RampIconTile(icon = Icons.Default.PersonRemove, ramp = Ramp.Red, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Delete account & cloud data",
+                                style = SelfBudgetType.rowTitle,
+                                color = Ramp.Red.titleText(isDarkBackup)
+                            )
+                            Text(
+                                text = "Account deletion and cloud erasure options",
+                                style = SelfBudgetType.meta,
+                                color = Ramp.Red.secondaryText(isDarkBackup)
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Request cloud data deletion or permanently wipe on-device data & sign out.",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Submit a Google Play data safety cloud erasure request, or execute a permanent on-device wipe and sign out.",
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    OutlinedButton(
+                    DestructivePillButton(
+                        text = "Delete account options",
+                        icon = Icons.Default.DeleteForever,
                         onClick = { activeSubScreen = SettingsSubScreen.DELETE_ACCOUNT },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.4f)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = ExpenseRed.copy(alpha = 0.06f),
-                            contentColor = ExpenseRed
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteForever,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Delete Account Options", fontWeight = FontWeight.Bold)
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -1157,114 +1094,121 @@ fun SettingsScreen(
 
         // --- SUB-SCREEN 3: LEGAL & PRIVACY (CATEGORY PAGE WITH PRIVACY POLICY & TERMS OF SERVICE) ---
         if (activeSubScreen == SettingsSubScreen.LEGAL) {
-            SettingsCategoryRow(
-                icon = Icons.Default.PrivacyTip,
-                title = "Privacy Policy",
-                subtitle = "Read our 100% offline & zero-data collection policy",
-                onClick = { activeSubScreen = SettingsSubScreen.PRIVACY }
+            Text(
+                text = "POLICIES & AGREEMENTS",
+                style = SelfBudgetType.eyebrow,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SettingsGroupedItem(
+                        icon = Icons.Default.PrivacyTip,
+                        title = "Privacy Policy",
+                        subtitle = "100% offline & zero-data collection architecture",
+                        onClick = { activeSubScreen = SettingsSubScreen.PRIVACY }
+                    )
 
-            SettingsCategoryRow(
-                icon = Icons.Default.Description,
-                title = "Terms of Service",
-                subtitle = "Read app usage terms, personal license & disclaimer",
-                onClick = { activeSubScreen = SettingsSubScreen.TERMS }
-            )
+                    SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
+
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Description,
+                        title = "Terms of Service",
+                        subtitle = "App usage terms, personal license & disclaimer",
+                        onClick = { activeSubScreen = SettingsSubScreen.TERMS }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 4: PRIVACY POLICY PAGE ---
         if (activeSubScreen == SettingsSubScreen.PRIVACY) {
-            Card(
+            // No repeated "Privacy Policy" title here (spec §14): the page's own top bar
+            // already reads that - same duplicate-headline pattern fixed elsewhere.
+            val isDarkPrivacy = isAppInDarkTheme()
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.PrivacyTip,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Privacy & Data Protection",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     Text(
-                        text = "Last Updated: August 25, 2026",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        text = "Last updated: August 25, 2026",
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "1. Zero Server Data Collection",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "1. Zero server data collection",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkPrivacy)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Self Budget operates completely offline and has no external tracking servers or third-party telemetry. We do not collect, transmit, sell, or rent your personal or financial data.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "2. On-Device Local Storage",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "All accounts, transactions, budgets, goals, and recurring items are stored locally in an encrypted Room SQLite database on your device.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "3. Google Drive Private Sandbox",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Automated Cloud Sync uses the private appDataFolder scope. Backups are stored in your own Google Account. Third parties and developers have zero access to your backup files.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "4. Biometric Protection",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Fingerprint and Face Unlock authentication uses native Android BiometricPrompt hardware security (TEE). Biometric data never leaves your device's secure enclave.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    OutlinedButton(
+                    Text(
+                        text = "2. On-device local storage",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkPrivacy)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "All accounts, transactions, budgets, goals, and recurring items are stored locally in an encrypted Room SQLite database on your device.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "3. Google Drive private sandbox",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkPrivacy)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Automated cloud sync uses the private appDataFolder scope. Backups are stored in your own Google Account. Third parties and developers have zero access to your backup files.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "4. Biometric protection",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkPrivacy)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Fingerprint and Face Unlock authentication uses native Android BiometricPrompt hardware security (TEE). Biometric data never leaves your device's secure enclave.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    SecondaryPillButton(
+                        text = "View online privacy policy",
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        ramp = Ramp.Teal,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app#privacy"))
                             try {
@@ -1273,108 +1217,94 @@ fun SettingsScreen(
                                 // fallback
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("View Online Privacy Policy")
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 5: TERMS OF SERVICE PAGE ---
         if (activeSubScreen == SettingsSubScreen.TERMS) {
-            Card(
+            // No repeated "Terms of Service" title here (spec §14): the page's own top bar
+            // already reads that - same duplicate-headline pattern fixed elsewhere.
+            val isDarkTerms = isAppInDarkTheme()
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Terms of Service",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     Text(
-                        text = "Last Updated: August 25, 2026",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        text = "Last updated: August 25, 2026",
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "1. Acceptance of Terms",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "1. Acceptance of terms",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkTerms)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "By installing or using Self Budget provided by DevCalApps, you agree to be bound by these Terms of Service.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "2. License & Personal Use",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "DevCalApps grants you a personal, non-exclusive license to use Self Budget strictly for personal financial and budget management.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "3. Offline Data Control & Responsibility",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Because Self Budget is an offline-first app, you are responsible for maintaining local backups. DevCalApps is not liable for data loss caused by device damage, unbacked resets, or forgotten passcodes.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "4. Financial Advice Disclaimer",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Self Budget is a personal expense logging tool. The app does not provide accounting, tax, or legal financial advice.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    OutlinedButton(
+                    Text(
+                        text = "2. License & personal use",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkTerms)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "DevCalApps grants you a personal, non-exclusive license to use Self Budget strictly for personal financial and budget management.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "3. Offline data control & responsibility",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkTerms)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Because Self Budget is an offline-first app, you are responsible for maintaining local backups. DevCalApps is not liable for data loss caused by device damage, unbacked resets, or forgotten passcodes.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "4. Financial advice disclaimer",
+                        style = SelfBudgetType.rowTitle,
+                        color = Ramp.Teal.titleText(isDarkTerms)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Self Budget is a personal expense logging tool. The app does not provide accounting, tax, or legal financial advice.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    SecondaryPillButton(
+                        text = "View online terms of service",
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        ramp = Ramp.Teal,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app#terms"))
                             try {
@@ -1383,168 +1313,241 @@ fun SettingsScreen(
                                 // fallback
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("View Online Terms of Service")
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 6: ABOUT DEVELOPER & SUPPORT ---
         if (activeSubScreen == SettingsSubScreen.ABOUT) {
-            Card(
+            val isDarkAbout = isAppInDarkTheme()
+
+            // 1. App Identity Card
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "About Developer & Support",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "Self Budget v1.0.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Offline-first & private local storage architecture.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_app),
+                        contentDescription = "Self Budget App Icon",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(16.dp))
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:dev.cal.apps@gmail.com")
-                                    putExtra(Intent.EXTRA_SUBJECT, "Self Budget App Support & Feedback")
-                                }
-                                try {
-                                    context.startActivity(Intent.createChooser(intent, "Contact Developer"))
-                                } catch (e: Exception) {
-                                    // fallback
-                                }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Text(
+                        text = "Self Budget",
+                        style = SelfBudgetType.heading,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = "Version 1.0.0",
+                        style = SelfBudgetType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Smart, privacy-first personal finance tracking built with pure Jetpack Compose and offline Room persistence.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+
+            // Section Label: ABOUT DEVELOPER
+            Text(
+                text = "ABOUT THE DEVELOPER",
+                style = SelfBudgetType.eyebrow,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+            )
+
+            // 2. Developer Card
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GrayIconTile(icon = Icons.Default.Person, size = 36.dp, iconSize = 18.dp)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Developer Support & Feedback",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "DevCalApps",
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "dev.cal.apps@gmail.com ✉️",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                text = "Independent Android Engineering & Product Design",
+                                style = SelfBudgetType.meta,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Self Budget was built with a clear philosophy: personal finance software should be transparent, lightning fast, and entirely respectful of user privacy. There are no tracking analytics, no third-party data broker SDKs, and zero paywalls for core budgeting features.",
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Section Label: CORE PRINCIPLES
+            Text(
+                text = "CORE PRINCIPLES & PRIVACY",
+                style = SelfBudgetType.eyebrow,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+            )
+
+            // 3. Core Principles Surface
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        RampIconTile(icon = Icons.Default.PrivacyTip, ramp = Ramp.Teal, size = 32.dp, iconSize = 16.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "100% Offline-First Architecture",
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "All transactions, income, and account balances reside solely in your on-device SQLite/Room database.",
+                                style = SelfBudgetType.body,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.Top) {
+                        RampIconTile(icon = Icons.Default.CloudDone, ramp = Ramp.Blue, size = 32.dp, iconSize = 16.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Private Google Drive Sync",
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Cloud backups are stored strictly in your own private Google Drive AppData folder, inaccessible to third parties.",
+                                style = SelfBudgetType.body,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.Top) {
+                        RampIconTile(icon = Icons.Default.Fingerprint, ramp = Ramp.Purple, size = 32.dp, iconSize = 16.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Hardware-Backed Security",
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Biometric authentication utilizes the Android Keystore / BiometricPrompt framework for robust device-level protection.",
+                                style = SelfBudgetType.body,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             }
+
+            // Section Label: SUPPORT & FEEDBACK
+            Text(
+                text = "SUPPORT & FEEDBACK",
+                style = SelfBudgetType.eyebrow,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+            )
+
+            // 4. Support Actions Card
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SettingsGroupedItem(
+                        icon = Icons.Default.Email,
+                        title = "Direct Developer Email",
+                        subtitle = "dev.cal.apps@gmail.com",
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:dev.cal.apps@gmail.com")
+                                putExtra(Intent.EXTRA_SUBJECT, "Self Budget - Support & Feedback [v1.0.0]")
+                            }
+                            try {
+                                context.startActivity(Intent.createChooser(intent, "Contact Developer"))
+                            } catch (e: Exception) {
+                                // fallback
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(150.dp))
         }
 
         // --- SUB-SCREEN 7: DELETE ACCOUNT & DATA FULL PAGE ---
         if (activeSubScreen == SettingsSubScreen.DELETE_ACCOUNT) {
-            // Header Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.PersonRemove,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Delete Account & User Data",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Data deletion options & Play Policy compliance",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
+            val isDarkDelete = isAppInDarkTheme()
 
-            // Section 1: Cloud & Web Account Data Erasure Request
-            Card(
+            // Section 1: Cloud & Web Account Data Erasure Request. No separate header card
+            // here (spec §14): the page's own top bar already reads "Delete Account & Data" -
+            // restating it in a card below would just be the same duplicate-headline pattern
+            // fixed on the Net Worth page.
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                )
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Public,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        GrayIconTile(icon = Icons.Default.Public, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Account & Cloud Data Deletion",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
+                            text = "Account & cloud data deletion",
+                            style = SelfBudgetType.rowTitle,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -1552,52 +1555,41 @@ fun SettingsScreen(
 
                     Text(
                         text = "Pursuant to Google Play Data Safety policies, you have the right to request deletion of your account and associated data stored across Google Drive or cloud backups.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Button(
+                    SecondaryPillButton(
+                        text = "Open web erasure form",
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://self-budget-app.netlify.app/#delete-account"))
                             context.startActivity(intent)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Open Web Erasure Form 🌐", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
+                            .height(44.dp)
+                    )
                 }
             }
 
             // Section 2: On-Device Data Wipe & Sign Out
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = ExpenseRed.copy(alpha = 0.08f)
-                ),
-                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f))
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, Ramp.Red.containerBorder(isDarkDelete))
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteForever,
-                            contentDescription = null,
-                            tint = ExpenseRed
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        RampIconTile(icon = Icons.Default.DeleteForever, ramp = Ramp.Red, size = 36.dp, iconSize = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "On-Device Data Wipe & Sign Out",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = ExpenseRed
+                            text = "On-device data wipe & sign out",
+                            style = SelfBudgetType.rowTitle,
+                            color = Ramp.Red.titleText(isDarkDelete)
                         )
                     }
 
@@ -1605,8 +1597,7 @@ fun SettingsScreen(
 
                     Text(
                         text = "This action immediately performs the following:",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -1614,28 +1605,19 @@ fun SettingsScreen(
 
                     Text(
                         text = "• Erases all local database records (transactions, income, expense categories, budgets, and recurring items)\n• Resets all app preferences and biometric security credentials\n• Revokes and signs out of your active Google session",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
+                        style = SelfBudgetType.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    Button(
+                    DestructivePillButton(
+                        text = "Wipe local data & sign out",
                         onClick = { showAccountDeletionDialog = true },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ExpenseRed,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Wipe Local Data & Sign Out 🗑️", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
+                            .height(48.dp)
+                    )
                 }
             }
 
@@ -1645,46 +1627,30 @@ fun SettingsScreen(
 
     if (showResetActivityConfirmation) {
         Dialog(onDismissRequest = { showResetActivityConfirmation = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+            Surface(
+                shape = ShapeHero,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth(0.92f)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.AutoMirrored.Filled.ReceiptLong, ramp = Ramp.Red, size = 56.dp, iconSize = 28.dp)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Reset Activity Only?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Reset activity only?",
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Are you sure you want to delete ALL transaction activity (expenses, income, transfers)?\n\n✅ Kept: Accounts, Wallets, Budgets, Recurring rules, and Goals remain safe.\n\n❌ Deleted: Transaction history only.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Are you sure you want to delete ALL transaction activity (expenses, income, transfers)?\n\nKept: Accounts, wallets, budgets, recurring rules, and goals remain safe.\n\nDeleted: Transaction history only.",
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -1695,30 +1661,26 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { showResetActivityConfirmation = false },
-                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Reset activity",
                             onClick = {
                                 onResetTransactionsOnly()
                                 showResetActivityConfirmation = false
-                                syncStatusMessage = "✅ Transaction activity wiped. Accounts, wallets & goals preserved!"
+                                syncStatusMessage = "Transaction activity wiped. Accounts, wallets & goals preserved!"
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            ramp = Ramp.Red,
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(46.dp)
-                        ) {
-                            Text("Reset Activity", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
@@ -1727,38 +1689,22 @@ fun SettingsScreen(
 
     if (showResetConfirmation) {
         Dialog(onDismissRequest = { showResetConfirmation = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+            Surface(
+                shape = ShapeHero,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth(0.92f)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = ExpenseRed.copy(alpha = 0.15f),
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = ExpenseRed,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.Default.Delete, ramp = Ramp.Red, size = 56.dp, iconSize = 28.dp)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Reset All App Data?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Reset all app data?",
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -1766,7 +1712,7 @@ fun SettingsScreen(
 
                     Text(
                         text = "Are you sure you want to delete ALL logged transactions, category budgets, recurring bills, and accounts? This action cannot be undone.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -1777,29 +1723,25 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { showResetConfirmation = false },
-                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Reset data",
                             onClick = {
                                 onResetData()
                                 showResetConfirmation = false
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                            ramp = Ramp.Red,
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(46.dp)
-                        ) {
-                            Text("Reset Data", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
@@ -1808,38 +1750,22 @@ fun SettingsScreen(
 
     if (showAccountDeletionDialog) {
         Dialog(onDismissRequest = { showAccountDeletionDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f)),
+            Surface(
+                shape = ShapeHero,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth(0.92f)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = ExpenseRed.copy(alpha = 0.15f),
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteForever,
-                                contentDescription = null,
-                                tint = ExpenseRed,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.Default.DeleteForever, ramp = Ramp.Red, size = 56.dp, iconSize = 28.dp)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Wipe Data & Sign Out?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Wipe data & sign out?",
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -1847,7 +1773,7 @@ fun SettingsScreen(
 
                     Text(
                         text = "Are you sure you want to permanently erase all local budget data, transactions, and sign out of your Google session? This action cannot be undone.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -1858,35 +1784,28 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(
+                        // The confirm step's destructive action may be solid red (spec §14's
+                        // one sanctioned exception to "never solid red").
+                        PrimaryPillButton(
+                            text = "Confirm wipe & sign out",
                             onClick = {
                                 showAccountDeletionDialog = false
                                 onResetData()
                                 onSignOut()
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = ExpenseRed,
-                                contentColor = Color.White
-                            ),
+                            ramp = Ramp.Red,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(46.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Confirm Wipe & Sign Out", fontWeight = FontWeight.Bold)
-                        }
+                        )
 
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { showAccountDeletionDialog = false },
-                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(44.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
@@ -1950,6 +1869,41 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun SettingsGroupedItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GrayIconTile(icon = icon, size = 38.dp, iconSize = 20.dp)
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = subtitle, style = SelfBudgetType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
 private fun SettingsCategoryRow(
     icon: ImageVector,
     iconTint: Color = MaterialTheme.colorScheme.primary,
@@ -1957,14 +1911,13 @@ private fun SettingsCategoryRow(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-        )
+        shape = ShapeCard,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
@@ -1973,7 +1926,7 @@ private fun SettingsCategoryRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = CircleShape,
+                shape = ShapeTile,
                 color = iconTint.copy(alpha = 0.12f),
                 modifier = Modifier.size(42.dp)
             ) {
@@ -1990,23 +1943,14 @@ private fun SettingsCategoryRow(
             Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+                Text(text = title, style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = subtitle, style = SelfBudgetType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }

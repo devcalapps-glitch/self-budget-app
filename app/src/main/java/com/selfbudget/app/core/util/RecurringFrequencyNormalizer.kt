@@ -16,6 +16,7 @@ object RecurringFrequencyNormalizer {
         val raw = when (frequency) {
             RecurringFrequency.WEEKLY -> amount * 52.0 / 12.0
             RecurringFrequency.BI_WEEKLY -> amount * 26.0 / 12.0
+            RecurringFrequency.SEMI_MONTHLY -> amount * 2.0
             RecurringFrequency.MONTHLY -> amount
             RecurringFrequency.YEARLY -> amount / 12.0
         }

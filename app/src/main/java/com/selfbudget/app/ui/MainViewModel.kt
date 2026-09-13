@@ -270,9 +270,10 @@ class MainViewModel @Inject constructor(
 
     fun signInWithGoogle(context: Context, webClientId: String) {
         viewModelScope.launch {
-            val result = authManager.signInWithGoogle(context, webClientId)
-            if (result is com.selfbudget.app.core.auth.AuthResult.Error) {
-                _authError.value = result.message
+            when (val result = authManager.signInWithGoogle(context, webClientId)) {
+                is com.selfbudget.app.core.auth.AuthResult.Error -> _authError.value = result.message
+                is com.selfbudget.app.core.auth.AuthResult.Cancelled -> _authError.value = null
+                is com.selfbudget.app.core.auth.AuthResult.Success -> Unit
             }
         }
     }
@@ -295,7 +296,9 @@ class MainViewModel @Inject constructor(
         timestamp: Long = System.currentTimeMillis(),
         isRecurring: Boolean = false,
         recurringFrequency: RecurringFrequency = RecurringFrequency.MONTHLY,
-        transferAccountId: String? = null
+        transferAccountId: String? = null,
+        linkedRecurringId: String? = null,
+        recurringCycleDueDate: Long? = null
     ) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
@@ -318,7 +321,9 @@ class MainViewModel @Inject constructor(
                     note = note,
                     paymentMethod = paymentMethod ?: "Cash",
                     receiptImageUri = receiptUri,
-                    transferAccountId = transferAccountId
+                    transferAccountId = transferAccountId,
+                    linkedRecurringId = linkedRecurringId,
+                    recurringCycleDueDate = recurringCycleDueDate
                 )
                 repository.addTransaction(transaction)
             }
@@ -436,8 +441,7 @@ class MainViewModel @Inject constructor(
     private suspend fun syncBudgetForRecurringExpense(userId: String, categoryId: String, amount: Double, frequency: RecurringFrequency) {
         val monthlyAmount = RecurringFrequencyNormalizer.toMonthlyAmount(amount, frequency)
         val suggestedLimit = Math.ceil(monthlyAmount)
-        val existingBudget = uiState.value.budgets.firstOrNull { it.categoryId == categoryId }
-            ?: repository.getBudgetForCategory(userId, categoryId, _selectedMonthYear.value)
+        val existingBudget = repository.getBudgetForCategory(userId, categoryId, _selectedMonthYear.value)
 
         if (existingBudget == null) {
             repository.setBudget(
@@ -463,14 +467,44 @@ class MainViewModel @Inject constructor(
     fun deleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+            revertRecurringCycleIfStillCurrent(transaction)
         }
+    }
+
+    /**
+     * Undoes the cycle advance from posting a recurring item, when the transaction that posted it
+     * is the one just deleted - otherwise a mistakenly-posted recurring transaction (e.g. posted
+     * for Sep 25, then deleted) leaves the recurring item's next due date stuck on the following
+     * cycle (Oct 25) instead of restoring Sep 25, silently skipping it.
+     *
+     * Only rolls back when the recurring item's current nextDueDate still matches exactly what
+     * this posting advanced it to - if anything else has posted or been edited since, the link is
+     * stale and reverting could incorrectly undo separate history, so it's left alone.
+     */
+    private suspend fun revertRecurringCycleIfStillCurrent(transaction: TransactionEntity) {
+        val recurringId = transaction.linkedRecurringId ?: return
+        val fulfilledDueDate = transaction.recurringCycleDueDate ?: return
+        val recurring = uiState.value.recurringList.firstOrNull { it.id == recurringId } ?: return
+
+        val advancedDueDate = RecurringScheduler.computeNextDueDate(fulfilledDueDate, recurring.frequency)
+        if (recurring.nextDueDate != advancedDueDate) return
+
+        val restoredRemaining = RecurringScheduler.incrementOccurrences(recurring.remainingOccurrences)
+        repository.updateRecurringTransaction(
+            recurring.copy(
+                nextDueDate = fulfilledDueDate,
+                remainingOccurrences = restoredRemaining,
+                // Only undo the auto-archive from this posting finishing off a finite lifespan,
+                // never a status the user set themselves.
+                isArchived = if (recurring.isArchived && RecurringScheduler.isFinished(recurring.remainingOccurrences)) false else recurring.isArchived
+            )
+        )
     }
 
     fun setCategoryBudget(categoryId: String, limit: Double, rolloverEnabled: Boolean = false) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            val existing = uiState.value.budgets.firstOrNull { it.categoryId == categoryId }
-                ?: repository.getBudgetForCategory(user.id, categoryId, _selectedMonthYear.value)
+            val existing = repository.getBudgetForCategory(user.id, categoryId, _selectedMonthYear.value)
             val budget = BudgetEntity(
                 id = existing?.id ?: UUID.randomUUID().toString(),
                 userId = user.id,
@@ -487,7 +521,15 @@ class MainViewModel @Inject constructor(
     fun deleteCategoryBudget(categoryId: String) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            repository.deleteBudget(user.id, categoryId, _selectedMonthYear.value)
+            repository.setBudget(
+                BudgetEntity(
+                    userId = user.id,
+                    categoryId = categoryId,
+                    amountLimit = 0.0,
+                    monthYear = _selectedMonthYear.value,
+                    isAutoSynced = false
+                )
+            )
         }
     }
 
@@ -532,32 +574,39 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun postRecurringTransaction(recurring: RecurringTransactionEntity) {
+    fun postRecurringTransaction(recurring: RecurringTransactionEntity, postAmount: Double = recurring.amount) {
         viewModelScope.launch {
             addTransaction(
                 title = recurring.title,
-                amount = recurring.amount,
+                amount = postAmount,
                 type = recurring.type,
                 categoryId = recurring.categoryId,
                 accountId = recurring.accountId,
                 note = "Recurring (${recurring.frequency.name.lowercase().replace('_', '-')})",
                 paymentMethod = recurring.paymentMethod,
-                transferAccountId = recurring.transferAccountId
+                transferAccountId = recurring.transferAccountId,
+                linkedRecurringId = recurring.id,
+                recurringCycleDueDate = recurring.nextDueDate
             )
 
-            val postedDueDate = recurring.nextDueDate
-            val nextDueDate = RecurringScheduler.computeNextDueDate(postedDueDate, recurring.frequency)
-            val remaining = RecurringScheduler.decrementOccurrences(recurring.remainingOccurrences)
-            val finished = RecurringScheduler.isFinished(remaining)
-            val updated = recurring.copy(
-                nextDueDate = nextDueDate,
-                remainingOccurrences = remaining,
-                // A finite recurring item (e.g. "last loan payment") auto-archives itself once
-                // its remaining occurrences run out, instead of lingering forever with a stale
-                // due date, generating reminders, and counting toward budget projections.
-                isArchived = recurring.isArchived || finished
-            )
-            repository.updateRecurringTransaction(updated)
+            // If this is a full (or greater) payment of the recurring amount, advance to next cycle.
+            // If it is a partial payment, retain the current due date so the user can post the remainder.
+            val isPartial = postAmount < (recurring.amount - 0.005)
+            if (!isPartial) {
+                val postedDueDate = recurring.nextDueDate
+                val nextDueDate = RecurringScheduler.computeNextDueDate(postedDueDate, recurring.frequency)
+                val remaining = RecurringScheduler.decrementOccurrences(recurring.remainingOccurrences)
+                val finished = RecurringScheduler.isFinished(remaining)
+                val updated = recurring.copy(
+                    nextDueDate = nextDueDate,
+                    remainingOccurrences = remaining,
+                    // A finite recurring item (e.g. "last loan payment") auto-archives itself once
+                    // its remaining occurrences run out, instead of lingering forever with a stale
+                    // due date, generating reminders, and counting toward budget projections.
+                    isArchived = recurring.isArchived || finished
+                )
+                repository.updateRecurringTransaction(updated)
+            }
         }
     }
 
@@ -632,7 +681,7 @@ class MainViewModel @Inject constructor(
         name: String,
         targetAmount: Double,
         targetDate: Long? = null,
-        colorHex: String = "#4CAF50",
+        colorHex: String = "#059669",
         linkedAccountId: String? = null
     ) {
         val user = currentUser.value ?: return

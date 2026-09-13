@@ -1,8 +1,9 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,21 +11,21 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,13 +41,90 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.ShapeTile
+import com.selfbudget.app.ui.theme.containerBorder
+import com.selfbudget.app.ui.theme.getAccentColor
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+
+@Composable
+fun CompactMonthYearHeader(
+    currentMonthYear: String,
+    onSelectMonthYear: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null
+) {
+    var showPickerDialog by remember { mutableStateOf(false) }
+    val isDark = isAppInDarkTheme()
+
+    val formattedDisplay = remember(currentMonthYear) {
+        try {
+            val date = SimpleDateFormat("yyyy-MM", Locale.getDefault()).parse(currentMonthYear)
+            if (date != null) {
+                SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(date)
+            } else {
+                currentMonthYear
+            }
+        } catch (e: Exception) {
+            currentMonthYear
+        }
+    }
+
+    Surface(
+        shape = ShapePill,
+        color = Ramp.Gray.tintFill(isDark),
+        modifier = modifier
+            .height(36.dp)
+            .clip(ShapePill)
+            .clickable { showPickerDialog = true }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = formattedDisplay,
+                style = SelfBudgetType.rowTitle,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Select Month",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+
+    if (showPickerDialog) {
+        MonthYearPickerDialog(
+            currentMonthYear = currentMonthYear,
+            onDismiss = { showPickerDialog = false },
+            onConfirm = { newMonthYear ->
+                onSelectMonthYear(newMonthYear)
+                showPickerDialog = false
+            }
+        )
+    }
+}
 
 @Composable
 fun MonthYearHeader(
@@ -56,6 +134,7 @@ fun MonthYearHeader(
     onSelectMonthYear: (String) -> Unit
 ) {
     var showPickerDialog by remember { mutableStateOf(false) }
+    val isDark = isAppInDarkTheme()
 
     val formattedDisplay = remember(currentMonthYear) {
         try {
@@ -74,9 +153,8 @@ fun MonthYearHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        shape = ShapeCard,
+        color = Ramp.Gray.tintFill(isDark)
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -85,14 +163,12 @@ fun MonthYearHeader(
             // Left Previous Month Button (Generous 52dp Touch Target)
             IconButton(
                 onClick = onPreviousMonth,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                modifier = Modifier.size(52.dp)
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = "Previous Month",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = getAccentColor(),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -102,7 +178,7 @@ fun MonthYearHeader(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ShapeTile)
                     .clickable { showPickerDialog = true }
                     .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -111,14 +187,13 @@ fun MonthYearHeader(
                 Icon(
                     imageVector = Icons.Default.CalendarMonth,
                     contentDescription = "Select Month",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = getAccentColor(),
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = formattedDisplay,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = SelfBudgetType.heading,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -133,14 +208,12 @@ fun MonthYearHeader(
             // Right Next Month Button (Generous 52dp Touch Target)
             IconButton(
                 onClick = onNextMonth,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
+                modifier = Modifier.size(52.dp)
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "Next Month",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = getAccentColor(),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -159,120 +232,257 @@ fun MonthYearHeader(
     }
 }
 
+/**
+ * Full-page interactive Month & Year selector with clean minimal layout and high-contrast dark mode support.
+ */
 @Composable
 fun MonthYearPickerDialog(
     currentMonthYear: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    val months = listOf(
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    val monthData = listOf(
+        Pair("Jan", "January"),
+        Pair("Feb", "February"),
+        Pair("Mar", "March"),
+        Pair("Apr", "April"),
+        Pair("May", "May"),
+        Pair("Jun", "June"),
+        Pair("Jul", "July"),
+        Pair("Aug", "August"),
+        Pair("Sep", "September"),
+        Pair("Oct", "October"),
+        Pair("Nov", "November"),
+        Pair("Dec", "December")
     )
 
-    val cal = remember(currentMonthYear) {
+    val actualNow = remember { Calendar.getInstance() }
+    val actualYear = actualNow.get(Calendar.YEAR)
+    val actualMonthIndex = actualNow.get(Calendar.MONTH)
+
+    val initialCal = remember(currentMonthYear) {
         Calendar.getInstance().apply {
             try {
                 val date = SimpleDateFormat("yyyy-MM", Locale.getDefault()).parse(currentMonthYear)
                 if (date != null) {
                     time = date
                 }
-            } catch (e: Exception) {
-                // Default to current date
-            }
+            } catch (_: Exception) { }
         }
     }
 
-    var selectedYear by remember { mutableIntStateOf(cal.get(Calendar.YEAR)) }
-    var selectedMonthIndex by remember { mutableIntStateOf(cal.get(Calendar.MONTH)) }
+    var selectedYear by remember { mutableIntStateOf(initialCal.get(Calendar.YEAR)) }
+    var selectedMonthIndex by remember { mutableIntStateOf(initialCal.get(Calendar.MONTH)) }
 
-    AlertDialog(
+    val selectedMonthFull = monthData[selectedMonthIndex].second
+    val isDark = isAppInDarkTheme()
+
+    Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(dismissOnClickOutside = true, dismissOnBackPress = true),
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Select Month & Year",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
-                }
-            }
-        },
-        text = {
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            color = MaterialTheme.colorScheme.background
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Year Selector Row
+                // Header Bar: close · title · quiet "Current" action
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { selectedYear-- }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous Year")
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(color = Ramp.Gray.tintFill(isDark), shape = CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     Text(
-                        text = "$selectedYear",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "Select month & year",
+                        style = SelfBudgetType.heading,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    IconButton(onClick = { selectedYear++ }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Year")
+                    TextButton(
+                        onClick = {
+                            selectedYear = actualYear
+                            selectedMonthIndex = actualMonthIndex
+                        }
+                    ) {
+                        Text(
+                            text = "Current",
+                            style = SelfBudgetType.body,
+                            color = Ramp.Teal.secondaryText(isDark)
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 12-Month Grid
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                // Unified Card containing Year Selector, 12-Month Grid, and Action Button
+                Surface(
+                    shape = ShapeHero,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Ramp.Gray.containerBorder(isDark)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    itemsIndexed(months) { index, monthName ->
-                        FilterChip(
-                            selected = selectedMonthIndex == index,
-                            onClick = { selectedMonthIndex = index },
-                            label = {
-                                Text(
-                                    text = monthName,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    fontSize = 14.sp
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Year Selector Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { selectedYear-- },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Ramp.Gray.tintFill(isDark), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                    contentDescription = "Previous Year",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "$selectedYear",
+                                    style = SelfBudgetType.title,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (selectedYear == actualYear) {
+                                    Text(
+                                        text = "Current year",
+                                        style = SelfBudgetType.meta,
+                                        color = Ramp.Teal.secondaryText(isDark)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { selectedYear++ },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Ramp.Gray.tintFill(isDark), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = "Next Year",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // 12 Months Grid (4 rows x 3 columns) — Teal selected state (spec §20)
+                        for (row in 0 until 4) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                for (col in 0 until 3) {
+                                    val index = row * 3 + col
+                                    val (shortName, fullName) = monthData[index]
+                                    val isSelected = selectedMonthIndex == index
+                                    val isCurrentActual = selectedYear == actualYear && index == actualMonthIndex
+
+                                    Surface(
+                                        shape = ShapeTile,
+                                        color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(52.dp)
+                                            .clip(ShapeTile)
+                                            .clickable { selectedMonthIndex = index }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.align(Alignment.Center),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = shortName,
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = fullName,
+                                                    style = SelfBudgetType.meta,
+                                                    color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+
+                                            if (isCurrentActual && !isSelected) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .padding(4.dp)
+                                                        .size(6.dp)
+                                                        .background(Ramp.Teal.solidFill(isDark), CircleShape)
+                                                        .align(Alignment.TopEnd)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (row < 3) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Confirm action — single Done control (spec §14/§19)
+                        PrimaryPillButton(
+                            text = "View $selectedMonthFull $selectedYear",
+                            onClick = {
+                                val monthFormatted = String.format("%02d", selectedMonthIndex + 1)
+                                onConfirm("$selectedYear-$monthFormatted")
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
                         )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val monthFormatted = String.format("%02d", selectedMonthIndex + 1)
-                    onConfirm("$selectedYear-$monthFormatted")
-                }
-            ) {
-                Text("Select", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
         }
-    )
+    }
 }

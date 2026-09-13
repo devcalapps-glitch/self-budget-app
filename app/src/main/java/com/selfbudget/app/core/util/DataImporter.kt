@@ -2,6 +2,7 @@ package com.selfbudget.app.core.util
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.withTransaction
 import com.google.gson.Gson
 import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.model.*
@@ -143,7 +144,11 @@ object DataImporter {
             val header = rows.first().map { it.trim().lowercase() }
             val dataRows = rows.drop(1)
 
-            val parsed = if (header.any { it.contains("recurring id") || it.contains("remaining occurrences") || it.contains("frequency") }) {
+            val parsed = if (header.any { it.contains("category id") || (it.contains("category name") && it.contains("icon name")) || (it.contains("category") && it.contains("icon")) }) {
+                // Categories CSV
+                val categories = dataRows.mapNotNull { row -> parseCategoryRow(header, row) }
+                ParsedImportData(format = "CSV (Categories)", fileName = fileName, categories = categories)
+            } else if (header.any { it.contains("recurring id") || it.contains("remaining occurrences") || it.contains("frequency") }) {
                 // Recurring CSV
                 val recList = dataRows.mapNotNull { row -> parseRecurringRow(header, row, userId) }
                 ParsedImportData(format = "CSV (Recurring Bills)", fileName = fileName, recurring = recList)
@@ -209,6 +214,7 @@ object DataImporter {
             }
 
             val accounts = mutableListOf<AccountEntity>()
+            val categories = mutableListOf<CategoryEntity>()
             val transactions = mutableListOf<TransactionEntity>()
             val budgets = mutableListOf<BudgetEntity>()
             val recurring = mutableListOf<RecurringTransactionEntity>()
@@ -227,7 +233,9 @@ object DataImporter {
                     val dataRows = rows.drop(1)
 
                     val normalizedName = sheetName.lowercase()
-                    if (normalizedName.contains("transaction") && !normalizedName.contains("recurring")) {
+                    if (normalizedName.contains("category") || normalizedName.contains("categories")) {
+                        categories.addAll(dataRows.mapNotNull { parseCategoryRow(header, it) })
+                    } else if (normalizedName.contains("transaction") && !normalizedName.contains("recurring")) {
                         transactions.addAll(dataRows.mapNotNull { parseTransactionRow(header, it, userId) })
                     } else if (normalizedName.contains("recurring")) {
                         recurring.addAll(dataRows.mapNotNull { parseRecurringRow(header, it, userId) })
@@ -239,7 +247,9 @@ object DataImporter {
                         accounts.addAll(dataRows.mapNotNull { parseAccountRow(header, it, userId) })
                     } else {
                         // Fallback detection via header columns
-                        if (header.any { it.contains("remaining occurrences") || it.contains("frequency") }) {
+                        if (header.any { it.contains("category id") || (it.contains("category name") && it.contains("icon")) }) {
+                            categories.addAll(dataRows.mapNotNull { parseCategoryRow(header, it) })
+                        } else if (header.any { it.contains("remaining occurrences") || it.contains("frequency") }) {
                             recurring.addAll(dataRows.mapNotNull { parseRecurringRow(header, it, userId) })
                         } else if (header.any { it.contains("budget limit") || it.contains("month / period") }) {
                             budgets.addAll(dataRows.mapNotNull { parseBudgetRow(header, it, userId) })
@@ -261,6 +271,7 @@ object DataImporter {
                     format = "Excel Workbook (.xlsx)",
                     fileName = fileName,
                     accounts = accounts,
+                    categories = categories,
                     transactions = transactions,
                     budgets = budgets,
                     recurring = recurring,
@@ -273,39 +284,168 @@ object DataImporter {
     }
 
     // -------------------------------------------------------------
-    // ATOMIC ROOM DB COMMIT
+    // ATOMIC ROOM DB COMMIT WITH SMART ENTITY RESOLUTION & AUTO-CREATION
     // -------------------------------------------------------------
     suspend fun commitImportToDatabase(
         db: AppDatabase,
         data: ParsedImportData
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
-            db.runInTransaction {
-                kotlinx.coroutines.runBlocking {
-                    if (data.categories.isNotEmpty()) {
-                        db.categoryDao().insertCategories(data.categories)
+            db.withTransaction {
+                // 1. Insert explicitly imported categories
+                if (data.categories.isNotEmpty()) {
+                    db.categoryDao().insertCategories(data.categories)
+                }
+
+                // 2. Fetch all known categories (to resolve names / IDs)
+                val existingCategories = db.categoryDao().getAllCategoriesSync().toMutableList()
+                val categoryMapById = existingCategories.associateBy { it.id }.toMutableMap()
+                val categoryMapByName = existingCategories.associateBy { it.name.trim().lowercase() }.toMutableMap()
+
+                suspend fun resolveOrCreateCategory(nameOrId: String, type: TransactionType = TransactionType.EXPENSE): String {
+                    val trimmed = nameOrId.trim()
+                    if (trimmed.isBlank() || trimmed.equals("none", ignoreCase = true) || trimmed.equals("n/a", ignoreCase = true)) {
+                        return "cat_other"
                     }
-                    if (data.accounts.isNotEmpty()) {
-                        db.accountDao().insertAccounts(data.accounts)
+                    // 1. Exact ID match
+                    categoryMapById[trimmed]?.let { return it.id }
+                    // 2. Name match (case-insensitive)
+                    categoryMapByName[trimmed.lowercase()]?.let { return it.id }
+
+                    // 3. Auto-create missing category so transactions / budgets have valid category records
+                    val newCatId = "cat_" + trimmed.lowercase().replace(Regex("[^a-z0-9_]"), "_").take(24).ifBlank { UUID.randomUUID().toString().take(8) }
+                    val newCategory = CategoryEntity(
+                        id = newCatId,
+                        name = trimmed.toWordTitleCase(),
+                        iconName = when (type) {
+                            TransactionType.INCOME -> "AccountBalanceWallet"
+                            TransactionType.TRANSFER -> "SwapHoriz"
+                            else -> "Category"
+                        },
+                        colorHex = when (type) {
+                            TransactionType.INCOME -> "#10B981"
+                            TransactionType.TRANSFER -> "#3B82F6"
+                            else -> "#6B7280"
+                        },
+                        type = type,
+                        isDefault = false,
+                        isArchived = false
+                    )
+                    db.categoryDao().insertCategory(newCategory)
+                    existingCategories.add(newCategory)
+                    categoryMapById[newCategory.id] = newCategory
+                    categoryMapByName[newCategory.name.lowercase()] = newCategory
+                    return newCategory.id
+                }
+
+                // 3. Insert explicitly imported accounts
+                if (data.accounts.isNotEmpty()) {
+                    db.accountDao().insertAccounts(data.accounts)
+                }
+
+                // 4. Fetch all known accounts (to resolve names / IDs)
+                val userId = data.transactions.firstOrNull()?.userId
+                    ?: data.recurring.firstOrNull()?.userId
+                    ?: data.budgets.firstOrNull()?.userId
+                    ?: data.goals.firstOrNull()?.userId
+                    ?: data.accounts.firstOrNull()?.userId
+                    ?: "default_user"
+
+                val existingAccounts = db.accountDao().getAllAccountsSync(userId).toMutableList()
+                val accountMapById = existingAccounts.associateBy { it.id }.toMutableMap()
+                val accountMapByName = existingAccounts.associateBy { it.name.trim().lowercase() }.toMutableMap()
+
+                suspend fun resolveOrCreateAccount(nameOrId: String, preferredType: AccountType = AccountType.CHECKING): String {
+                    val trimmed = nameOrId.trim()
+                    if (trimmed.isBlank() || trimmed.equals("none", ignoreCase = true) || trimmed.equals("n/a", ignoreCase = true)) {
+                        return existingAccounts.firstOrNull()?.id ?: "acc_checking"
                     }
-                    if (data.transactions.isNotEmpty()) {
-                        db.transactionDao().insertTransactions(data.transactions)
+                    // 1. Exact ID match
+                    accountMapById[trimmed]?.let { return it.id }
+                    // 2. Name match (case-insensitive)
+                    accountMapByName[trimmed.lowercase()]?.let { return it.id }
+
+                    // 3. Auto-create missing account so references never orphan
+                    val newAccId = "acc_" + trimmed.lowercase().replace(Regex("[^a-z0-9_]"), "_").take(24).ifBlank { UUID.randomUUID().toString().take(8) }
+                    val newAccount = AccountEntity(
+                        id = newAccId,
+                        userId = userId,
+                        name = trimmed.toWordTitleCase(),
+                        type = preferredType,
+                        initialBalance = 0.0,
+                        isDefault = existingAccounts.isEmpty(),
+                        currencyCode = "USD"
+                    )
+                    db.accountDao().insertAccount(newAccount)
+                    existingAccounts.add(newAccount)
+                    accountMapById[newAccount.id] = newAccount
+                    accountMapByName[newAccount.name.lowercase()] = newAccount
+                    return newAccount.id
+                }
+
+                suspend fun resolveOptionalAccount(nameOrId: String?): String? {
+                    if (nameOrId.isNullOrBlank()) return null
+                    val trimmed = nameOrId.trim()
+                    if (trimmed.equals("none", ignoreCase = true) || trimmed.equals("n/a", ignoreCase = true) || trimmed.contains("direct savings", ignoreCase = true)) {
+                        return null
                     }
-                    if (data.budgets.isNotEmpty()) {
-                        db.budgetDao().insertBudgets(data.budgets)
-                    }
-                    if (data.recurring.isNotEmpty()) {
-                        db.recurringDao().insertRecurringList(data.recurring)
-                    }
-                    if (data.goals.isNotEmpty()) {
-                        db.goalDao().insertGoals(data.goals)
-                    }
-                    if (data.snapshots.isNotEmpty()) {
-                        db.netWorthDao().insertSnapshots(data.snapshots)
-                    }
-                    if (data.exchangeRates.isNotEmpty()) {
-                        db.exchangeRateDao().insertRates(data.exchangeRates)
-                    }
+                    return resolveOrCreateAccount(trimmed)
+                }
+
+                // 5. Remap Transactions
+                val resolvedTransactions = data.transactions.map { tx ->
+                    val resolvedCatId = resolveOrCreateCategory(tx.categoryId, tx.type)
+                    val resolvedAccId = resolveOrCreateAccount(tx.accountId)
+                    val resolvedTransferAccId = resolveOptionalAccount(tx.transferAccountId)
+                    tx.copy(
+                        categoryId = resolvedCatId,
+                        accountId = resolvedAccId,
+                        transferAccountId = resolvedTransferAccId
+                    )
+                }
+                if (resolvedTransactions.isNotEmpty()) {
+                    db.transactionDao().insertTransactions(resolvedTransactions)
+                }
+
+                // 6. Remap Recurring Transactions
+                val resolvedRecurring = data.recurring.map { rec ->
+                    val resolvedCatId = resolveOrCreateCategory(rec.categoryId, rec.type)
+                    val resolvedAccId = resolveOrCreateAccount(rec.accountId)
+                    val resolvedTransferAccId = resolveOptionalAccount(rec.transferAccountId)
+                    rec.copy(
+                        categoryId = resolvedCatId,
+                        accountId = resolvedAccId,
+                        transferAccountId = resolvedTransferAccId
+                    )
+                }
+                if (resolvedRecurring.isNotEmpty()) {
+                    db.recurringDao().insertRecurringList(resolvedRecurring)
+                }
+
+                // 7. Remap Budgets
+                val resolvedBudgets = data.budgets.map { b ->
+                    val resolvedCatId = resolveOrCreateCategory(b.categoryId, TransactionType.EXPENSE)
+                    b.copy(categoryId = resolvedCatId)
+                }
+                if (resolvedBudgets.isNotEmpty()) {
+                    db.budgetDao().insertBudgets(resolvedBudgets)
+                }
+
+                // 8. Remap Goals
+                val resolvedGoals = data.goals.map { g ->
+                    val resolvedLinkedAccId = resolveOptionalAccount(g.linkedAccountId)
+                    g.copy(linkedAccountId = resolvedLinkedAccId)
+                }
+                if (resolvedGoals.isNotEmpty()) {
+                    db.goalDao().insertGoals(resolvedGoals)
+                }
+
+                // 9. Snapshots & Rates
+                if (data.snapshots.isNotEmpty()) {
+                    db.netWorthDao().insertSnapshots(data.snapshots)
+                }
+                if (data.exchangeRates.isNotEmpty()) {
+                    db.exchangeRateDao().insertRates(data.exchangeRates)
                 }
             }
             Result.success(data.totalCount)
@@ -317,6 +457,44 @@ object DataImporter {
     // -------------------------------------------------------------
     // ROW PARSING HELPERS
     // -------------------------------------------------------------
+    private fun parseCategoryRow(header: List<String>, row: List<String>): CategoryEntity? {
+        if (row.isEmpty()) return null
+        val idIdx = header.indexOfFirst { it == "category id" || it == "id" || it.startsWith("category id") }
+        val nameIdx = header.indexOfFirst { it == "category name" || it == "name" || (it.contains("name") && !it.contains("icon")) }
+        val typeIdx = header.indexOfFirst { it == "type" || it == "category type" }
+        val iconIdx = header.indexOfFirst { it.contains("icon") }
+        val colorIdx = header.indexOfFirst { it.contains("color") }
+        val defIdx = header.indexOfFirst { it.contains("default") }
+        val archIdx = header.indexOfFirst { it.contains("archive") || it.contains("status") }
+
+        val id = if (idIdx >= 0 && idIdx < row.size && row[idIdx].isNotBlank()) row[idIdx].trim() else UUID.randomUUID().toString()
+        val name = if (nameIdx >= 0 && nameIdx < row.size) row[nameIdx].trim() else "Category"
+
+        val rawType = if (typeIdx >= 0 && typeIdx < row.size) row[typeIdx].trim().uppercase() else "EXPENSE"
+        val type = when {
+            rawType.contains("INCOME") -> TransactionType.INCOME
+            rawType.contains("TRANSFER") -> TransactionType.TRANSFER
+            else -> TransactionType.EXPENSE
+        }
+
+        val iconName = if (iconIdx >= 0 && iconIdx < row.size && row[iconIdx].isNotBlank()) row[iconIdx].trim() else "Category"
+        val colorHex = if (colorIdx >= 0 && colorIdx < row.size && row[colorIdx].isNotBlank()) row[colorIdx].trim() else "#6B7280"
+        val isDefault = if (defIdx >= 0 && defIdx < row.size) row[defIdx].lowercase().contains("yes") || row[defIdx].lowercase().contains("true") else false
+        val isArchived = if (archIdx >= 0 && archIdx < row.size) row[archIdx].lowercase().contains("yes") || row[archIdx].lowercase().contains("true") || row[archIdx].lowercase().contains("archive") else false
+
+        if (name.isBlank()) return null
+
+        return CategoryEntity(
+            id = id,
+            name = name,
+            iconName = iconName,
+            colorHex = colorHex,
+            type = type,
+            isDefault = isDefault,
+            isArchived = isArchived
+        )
+    }
+
     private fun parseTransactionRow(header: List<String>, row: List<String>, userId: String): TransactionEntity? {
         if (row.isEmpty()) return null
         val idIdx = header.indexOfFirst { it == "transaction id" || it == "id" || it.startsWith("transaction id") }
@@ -325,8 +503,8 @@ object DataImporter {
         val typeIdx = header.indexOfFirst { it == "type" || it == "transaction type" }
         val amountIdx = header.indexOfFirst { it == "amount" || it.contains("amount") }
         val catIdx = header.indexOfFirst { it == "category" || it.contains("category") }
-        val accIdx = header.indexOfFirst { it == "account / wallet" || it == "account" || (it.contains("account") && !it.contains("transfer") && !it.contains("id") && !it.contains("name")) }
-        val transferIdx = header.indexOfFirst { it.contains("transfer") }
+        val accIdx = header.indexOfFirst { it == "account / wallet" || it == "account" || (it.contains("account") && !it.contains("transfer") && !it.contains("destination") && !it.contains("id") && !it.contains("name")) }
+        val transferIdx = header.indexOfFirst { it.contains("transfer") || it.contains("destination") }
         val methodIdx = header.indexOfFirst { it.contains("method") || it.contains("payment") }
         val noteIdx = header.indexOfFirst { it.contains("note") || it.contains("memo") }
 
@@ -376,11 +554,13 @@ object DataImporter {
         val typeIdx = header.indexOfFirst { it == "type" }
         val amountIdx = header.indexOfFirst { it == "amount" || it.contains("amount") }
         val catIdx = header.indexOfFirst { it == "category" || it.contains("category") }
-        val accIdx = header.indexOfFirst { it == "account" || it.contains("account") }
+        val accIdx = header.indexOfFirst { it == "account" || it == "account / wallet" || (it.contains("account") && !it.contains("transfer") && !it.contains("debt")) }
+        val transferIdx = header.indexOfFirst { it.contains("transfer") || it.contains("debt") || it.contains("destination") }
         val freqIdx = header.indexOfFirst { it == "frequency" || it.contains("frequency") }
         val dueIdx = header.indexOfFirst { it.contains("due") || it.contains("date") }
         val remainIdx = header.indexOfFirst { it.contains("remaining") || it.contains("occurrences") }
         val statusIdx = header.indexOfFirst { it == "status" || it.contains("status") }
+        val methodIdx = header.indexOfFirst { it.contains("method") || it.contains("payment") }
         val noteIdx = header.indexOfFirst { it.contains("note") }
 
         val id = if (idIdx >= 0 && idIdx < row.size && row[idIdx].isNotBlank()) row[idIdx] else UUID.randomUUID().toString()
@@ -399,6 +579,8 @@ object DataImporter {
         val nextDueDate = parseDateStringToMillis(rawDate)
         val remainingOccurrences = if (remainIdx >= 0 && remainIdx < row.size) row[remainIdx].trim().toIntOrNull() else null
         val isArchived = if (statusIdx >= 0 && statusIdx < row.size) row[statusIdx].lowercase().contains("paused") || row[statusIdx].lowercase().contains("archive") else false
+        val paymentMethod = if (methodIdx >= 0 && methodIdx < row.size) row[methodIdx].trim().ifBlank { "Credit Card" } else "Credit Card"
+        val transferAccountId = if (transferIdx >= 0 && transferIdx < row.size) row[transferIdx].trim().ifBlank { null } else null
         val note = if (noteIdx >= 0 && noteIdx < row.size) row[noteIdx].trim().ifBlank { null } else null
 
         if (title.isBlank() && amount == 0.0) return null
@@ -415,6 +597,8 @@ object DataImporter {
             nextDueDate = nextDueDate,
             remainingOccurrences = remainingOccurrences,
             isArchived = isArchived,
+            paymentMethod = paymentMethod,
+            transferAccountId = transferAccountId,
             note = note
         )
     }
@@ -455,6 +639,8 @@ object DataImporter {
         val accIdx = header.indexOfFirst { it.contains("account") }
         val targetDateIdx = header.indexOfFirst { it.contains("target date") || it.contains("deadline") }
         val createdDateIdx = header.indexOfFirst { it.contains("created") }
+        val colorIdx = header.indexOfFirst { it.contains("color") }
+        val iconIdx = header.indexOfFirst { it.contains("icon") }
 
         val id = if (idIdx >= 0 && idIdx < row.size && row[idIdx].isNotBlank()) row[idIdx] else UUID.randomUUID().toString()
         val name = if (nameIdx >= 0 && nameIdx < row.size) row[nameIdx].trim() else "Savings Goal"
@@ -464,6 +650,8 @@ object DataImporter {
 
         val targetDate = if (targetDateIdx >= 0 && targetDateIdx < row.size && !row[targetDateIdx].lowercase().contains("no deadline")) parseDateStringToMillis(row[targetDateIdx].trim()) else null
         val createdAt = if (createdDateIdx >= 0 && createdDateIdx < row.size) parseDateStringToMillis(row[createdDateIdx].trim()) else System.currentTimeMillis()
+        val colorHex = if (colorIdx >= 0 && colorIdx < row.size && row[colorIdx].isNotBlank()) row[colorIdx].trim() else "#059669"
+        val iconName = if (iconIdx >= 0 && iconIdx < row.size && row[iconIdx].isNotBlank()) row[iconIdx].trim() else "Savings"
 
         if (name.isBlank() && targetAmount == 0.0) return null
 
@@ -474,6 +662,8 @@ object DataImporter {
             targetAmount = targetAmount,
             savedAmount = savedAmount,
             targetDate = targetDate,
+            colorHex = colorHex,
+            iconName = iconName,
             linkedAccountId = linkedAccountId,
             createdAt = createdAt
         )
@@ -482,14 +672,17 @@ object DataImporter {
     private fun parseAccountRow(header: List<String>, row: List<String>, userId: String): AccountEntity? {
         if (row.isEmpty()) return null
         val idIdx = header.indexOfFirst { it == "account id" || it == "id" || it.startsWith("account id") }
-        val nameIdx = header.indexOfFirst { it == "account name" || it == "name" || (it.contains("name") && !it.contains("user")) }
+        val nameIdx = header.indexOfFirst { it == "account name" || it == "name" || (it.contains("name") && !it.contains("user") && !it.contains("icon")) }
         val typeIdx = header.indexOfFirst { it == "account type" || it == "type" || (it.contains("type") && !it.contains("transaction")) }
         val initBalIdx = header.indexOfFirst { it.contains("initial") }
         val currIdx = header.indexOfFirst { it.contains("currency") }
         val limitIdx = header.indexOfFirst { it.contains("credit limit") }
         val aprIdx = header.indexOfFirst { it.contains("apr") || it.contains("interest") }
         val minPayIdx = header.indexOfFirst { it.contains("minimum payment") }
+        val termIdx = header.indexOfFirst { it.contains("term") || it.contains("months") }
         val defIdx = header.indexOfFirst { it.contains("default") }
+        val colorIdx = header.indexOfFirst { it.contains("color") }
+        val iconIdx = header.indexOfFirst { it.contains("icon") }
 
         val id = if (idIdx >= 0 && idIdx < row.size && row[idIdx].isNotBlank()) row[idIdx] else UUID.randomUUID().toString()
         val name = if (nameIdx >= 0 && nameIdx < row.size) row[nameIdx].trim() else "Account"
@@ -504,6 +697,11 @@ object DataImporter {
                 rawType.contains("CASH") -> AccountType.CASH
                 rawType.contains("INVEST") -> AccountType.INVESTMENT
                 rawType.contains("RETIRE") -> AccountType.RETIREMENT
+                rawType.contains("MORTGAGE") -> AccountType.MORTGAGE
+                rawType.contains("AUTO") -> AccountType.AUTO_LOAN
+                rawType.contains("STUDENT") -> AccountType.STUDENT_LOAN
+                rawType.contains("REAL") -> AccountType.REAL_ESTATE
+                rawType.contains("VEHICLE") -> AccountType.VEHICLE
                 rawType.contains("LOAN") -> AccountType.LOAN
                 else -> AccountType.CHECKING
             }
@@ -514,7 +712,10 @@ object DataImporter {
         val creditLimit = if (limitIdx >= 0 && limitIdx < row.size && !row[limitIdx].lowercase().contains("n/a")) row[limitIdx].replace("$", "").replace(",", "").trim().toDoubleOrNull() else null
         val interestRateApr = if (aprIdx >= 0 && aprIdx < row.size && !row[aprIdx].lowercase().contains("n/a")) row[aprIdx].replace("%", "").replace(",", "").trim().toDoubleOrNull() else null
         val minimumPayment = if (minPayIdx >= 0 && minPayIdx < row.size && !row[minPayIdx].lowercase().contains("n/a")) row[minPayIdx].replace("$", "").replace(",", "").trim().toDoubleOrNull() else null
+        val loanTermMonths = if (termIdx >= 0 && termIdx < row.size && !row[termIdx].lowercase().contains("n/a")) row[termIdx].trim().toIntOrNull() else null
         val isDefault = if (defIdx >= 0 && defIdx < row.size) row[defIdx].lowercase().contains("yes") || row[defIdx].lowercase().contains("true") else false
+        val colorHex = if (colorIdx >= 0 && colorIdx < row.size && row[colorIdx].isNotBlank()) row[colorIdx].trim() else "#2563EB"
+        val iconName = if (iconIdx >= 0 && iconIdx < row.size && row[iconIdx].isNotBlank()) row[iconIdx].trim() else "AccountBalance"
 
         if (name.isBlank()) return null
 
@@ -524,11 +725,14 @@ object DataImporter {
             name = name,
             type = type,
             initialBalance = initialBalance,
+            colorHex = colorHex,
+            iconName = iconName,
             currencyCode = currencyCode,
             isDefault = isDefault,
             creditLimit = creditLimit,
             interestRateApr = interestRateApr,
-            minimumPayment = minimumPayment
+            minimumPayment = minimumPayment,
+            loanTermMonths = loanTermMonths
         )
     }
 

@@ -1,8 +1,6 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,16 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,16 +30,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.DoneChip
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.GoalEntity
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.titleText
 
 internal data class GoalDetailItem(
     val goal: GoalEntity,
@@ -80,7 +80,9 @@ fun SavingsGoalsAnalyticsModal(
         goalDetails.count { it.goal.targetAmount > 0 && it.currentAmount >= it.goal.targetAmount }
     }
 
-    val themeAccentColor = getIncomeColor()
+    // Report identity: Savings goals = Amber (spec §11). "Goal met" always reads Teal (spec §22).
+    val ramp = Ramp.Amber
+    val isDark = isAppInDarkTheme()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -98,48 +100,31 @@ fun SavingsGoalsAnalyticsModal(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // Persistent Header
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
+                // Persistent Header — ✕ and title only (spec §14).
+                Surface(color = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Savings Goals Analytics",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-
-                        Button(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Savings goals analytics",
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // Scrollable Content
@@ -149,38 +134,20 @@ fun SavingsGoalsAnalyticsModal(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Overall Progress Hero Summary Card
+                    // 1. Overall Progress Hero Summary Card — neutral display number (spec §11).
                     item {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = themeAccentColor.copy(alpha = 0.15f),
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Savings,
-                                                contentDescription = null,
-                                                tint = themeAccentColor,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
+                                    RampIconTile(icon = Icons.Default.Savings, ramp = ramp, size = 36.dp, iconSize = 20.dp)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        text = "Total Saved",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
+                                        text = "Total saved",
+                                        style = SelfBudgetType.heading,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -189,13 +156,12 @@ fun SavingsGoalsAnalyticsModal(
 
                                 Text(
                                     text = "$currencySymbol%.2f".format(totalSaved),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = themeAccentColor
+                                    style = SelfBudgetType.display,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "of $currencySymbol%.2f target".format(totalTarget),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = SelfBudgetType.meta,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
@@ -206,35 +172,23 @@ fun SavingsGoalsAnalyticsModal(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = themeAccentColor
+                                        .clip(ShapeChip),
+                                    color = ramp.c400,
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "Goals Met:",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            text = "$goalsMetCount / ${goalDetails.size}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
+                                    Text(
+                                        text = "Goals met",
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    NeutralBadge(text = "$goalsMetCount / ${goalDetails.size}")
                                 }
                             }
                         }
@@ -244,8 +198,7 @@ fun SavingsGoalsAnalyticsModal(
                     item {
                         Text(
                             text = "Goals (${goalDetails.size})",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            style = SelfBudgetType.heading,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -254,30 +207,25 @@ fun SavingsGoalsAnalyticsModal(
                     if (goalDetails.isEmpty()) {
                         item {
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
                                     modifier = Modifier.padding(24.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Savings,
-                                        contentDescription = null,
-                                        tint = themeAccentColor,
-                                        modifier = Modifier.size(40.dp)
-                                    )
+                                    RampIconTile(icon = Icons.Default.Savings, ramp = ramp, size = 56.dp, iconSize = 28.dp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "No Savings Goals Set",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        text = "No savings goals set",
+                                        style = SelfBudgetType.heading,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Add a savings goal from the Plan tab to track progress here.",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        text = "Set a goal from the Plan tab to track it here.",
+                                        style = SelfBudgetType.body,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center
                                     )
@@ -285,82 +233,97 @@ fun SavingsGoalsAnalyticsModal(
                             }
                         }
                     } else {
-                        items(goalDetails) { detail ->
-                            val isMet = detail.goal.targetAmount > 0 && detail.currentAmount >= detail.goal.targetAmount
-
-                            Card(
+                        item {
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                Column {
+                                    goalDetails.forEachIndexed { index, detail ->
+                                        val isMet = detail.goal.targetAmount > 0 && detail.currentAmount >= detail.goal.targetAmount
+                                        val rowRamp = if (isMet) Ramp.Teal else ramp
+
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp)
                                         ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = themeAccentColor.copy(alpha = 0.2f),
-                                                modifier = Modifier.size(36.dp)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = if (isMet) Icons.Default.CheckCircle else Icons.Default.Savings,
-                                                        contentDescription = null,
-                                                        tint = themeAccentColor,
-                                                        modifier = Modifier.size(20.dp)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    RampIconTile(
+                                                        icon = if (isMet) Icons.Default.CheckCircle else Icons.Default.Savings,
+                                                        ramp = rowRamp,
+                                                        size = 36.dp,
+                                                        iconSize = 18.dp
                                                     )
+                                                    Spacer(modifier = Modifier.width(12.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = detail.goal.name,
+                                                            style = SelfBudgetType.rowTitle,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = detail.linkedAccount?.let { "Linked to ${it.name}" } ?: "Manual goal",
+                                                            style = SelfBudgetType.meta,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+
+                                                if (isMet) {
+                                                    Text(
+                                                        text = "$currencySymbol%.2f saved".format(detail.currentAmount),
+                                                        style = SelfBudgetType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                } else {
+                                                    Column(horizontalAlignment = Alignment.End) {
+                                                        Text(
+                                                            text = "$currencySymbol%.2f".format(detail.currentAmount),
+                                                            style = SelfBudgetType.rowTitle,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = "of $currencySymbol%.2f".format(detail.goal.targetAmount),
+                                                            style = SelfBudgetType.meta,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Column {
-                                                Text(
-                                                    text = detail.goal.name,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = detail.linkedAccount?.let { "Linked to ${it.name}" } ?: "Manual goal",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            // Goal met replaces the bar+percentage with a done chip (spec §22) instead
+                                            // of a progress bar/number that could read over 100%.
+                                            if (isMet) {
+                                                DoneChip(text = "Goal met", ramp = Ramp.Teal)
+                                            } else {
+                                                LinearProgressIndicator(
+                                                    progress = { detail.progress },
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(6.dp)
+                                                        .clip(ShapeChip),
+                                                    color = rowRamp.c400,
+                                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
                                                 )
                                             }
                                         }
 
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "$currencySymbol%.2f".format(detail.currentAmount),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = themeAccentColor
-                                            )
-                                            Text(
-                                                text = "of $currencySymbol%.2f".format(detail.goal.targetAmount),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        if (index < goalDetails.size - 1) {
+                                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    LinearProgressIndicator(
-                                        progress = { detail.progress },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = themeAccentColor,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
                                 }
                             }
                         }

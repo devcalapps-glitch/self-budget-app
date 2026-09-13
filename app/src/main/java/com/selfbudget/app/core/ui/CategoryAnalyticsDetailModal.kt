@@ -1,8 +1,6 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,18 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -51,23 +40,31 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.selfbudget.app.core.ui.getCategoryIcon
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.feature.analytics.AnalyticsTimeframe
-import com.selfbudget.app.ui.theme.getExpenseColor
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.sectionRamp
+import com.selfbudget.app.ui.theme.titleText
+import com.selfbudget.app.ui.theme.tintFill
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 data class CategoryDetailItem(
     val category: CategoryEntity,
@@ -119,7 +116,7 @@ fun CategoryAnalyticsDetailModal(
             .map { (catId, txs) ->
                 val sum = txs.sumOf { it.amount }
                 val cat = catMap[catId] ?: CategoryEntity(
-                    catId, "Uncategorized", "MoreHoriz", "#607D8B", transactionType
+                    catId, "Uncategorized", "MoreHoriz", "#64748B", transactionType
                 )
                 val pct = if (totalAmount > 0) (sum / totalAmount).toFloat() else 0f
                 val avg = if (txs.isNotEmpty()) sum / txs.size else 0.0
@@ -148,7 +145,42 @@ fun CategoryAnalyticsDetailModal(
     }
     val maxMonthlyTotal = remember(monthlyTotals) { monthlyTotals.maxOrNull()?.coerceAtLeast(1f) ?: 1f }
 
-    val themeAccentColor = if (transactionType == TransactionType.INCOME) getIncomeColor() else getExpenseColor()
+    // Report identity ramp (spec §11): Spending = Coral, Income = Teal.
+    val reportRamp = if (transactionType == TransactionType.INCOME) Ramp.Teal else Ramp.Coral
+
+    // Chart items: category ramp per row, capped at 6 visible + a "Other" rollup (spec §15).
+    val chartItems = remember(categoryDetails, transactionType) {
+        if (categoryDetails.size <= 6) {
+            categoryDetails
+        } else {
+            val top = categoryDetails.take(5)
+            val rest = categoryDetails.drop(5)
+            val other = CategoryDetailItem(
+                category = CategoryEntity(
+                    id = "__other__",
+                    name = "Other",
+                    iconName = "MoreHoriz",
+                    colorHex = "#888780",
+                    type = transactionType
+                ),
+                totalAmount = rest.sumOf { it.totalAmount },
+                percentage = rest.sumOf { it.percentage.toDouble() }.toFloat(),
+                transactionCount = rest.sumOf { it.transactionCount },
+                averageAmount = 0.0
+            )
+            top + other
+        }
+    }
+    val dominantItem = chartItems.maxByOrNull { it.percentage }
+    val isDominant = (dominantItem?.percentage ?: 0f) >= 0.85f
+
+    fun rampFor(item: CategoryDetailItem): Ramp = when {
+        item.category.id == "__other__" -> Ramp.Gray
+        transactionType == TransactionType.INCOME -> Ramp.Teal
+        else -> sectionRamp(getExpenseCategoryGroup(item.category))
+    }
+
+    val isDark = isAppInDarkTheme()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -166,63 +198,43 @@ fun CategoryAnalyticsDetailModal(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // Persistent Header
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
+                // Persistent Header — ✕ and title only (spec §14: one Done action, in the footer, never duplicated).
+                Surface(color = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title,
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val displaySubtitle = subtitle.ifBlank { periodLabel }
+                            if (displaySubtitle.isNotBlank()) {
                                 Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
+                                    text = displaySubtitle,
+                                    style = SelfBudgetType.meta,
+                                    color = reportRamp.secondaryText(isDark),
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                val displaySubtitle = subtitle.ifBlank { periodLabel }
-                                if (displaySubtitle.isNotBlank()) {
-                                    Text(
-                                        text = displaySubtitle,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
                             }
                         }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Button(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
                     }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 LazyColumn(
@@ -232,142 +244,128 @@ fun CategoryAnalyticsDetailModal(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Hero Card: Total & Top Category
+                    // Hero: type badge carries color, the amount stays neutral (spec §14).
                     item {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Surface(shape = ShapePill, color = reportRamp.tintFill(isDark)) {
                                     Text(
-                                        text = if (transactionType == TransactionType.INCOME) "Total Earned" else "Total Spent",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = if (transactionType == TransactionType.INCOME) "Income" else "Expense",
+                                        style = SelfBudgetType.badge,
+                                        color = reportRamp.titleText(isDark),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(themeAccentColor.copy(alpha = 0.15f))
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = if (transactionType == TransactionType.INCOME) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                                contentDescription = null,
-                                                tint = themeAccentColor,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "${activeTxs.size} Transactions",
-                                                color = themeAccentColor,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
                                 }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Text(
                                     text = "$currencySymbol%.2f".format(totalAmount),
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.ExtraBold,
+                                    style = SelfBudgetType.display,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                NeutralBadge(text = "${activeTxs.size} transactions")
 
                                 if (categoryDetails.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     val topCat = categoryDetails.first()
                                     Text(
-                                        text = "Top Category: ${topCat.category.name} ($currencySymbol%.2f • %.1f%%)".format(topCat.totalAmount, topCat.percentage * 100),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = themeAccentColor
+                                        text = "Top category: ${topCat.category.name} ($currencySymbol%.2f • %.1f%%)".format(topCat.totalAmount, topCat.percentage * 100),
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Interactive Donut Ring Breakdown Chart
+                    // Interactive Donut Ring Breakdown Chart — or the dominance fallback (spec §15) when one
+                    // category is ~85%+ of the total, since a ring at that share reads as a solid circle.
                     if (categoryDetails.isNotEmpty()) {
                         item {
-                            Card(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
                                 Column(
                                     modifier = Modifier.padding(20.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Category Share Ring Chart",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
+                                        text = "Category share",
+                                        style = SelfBudgetType.heading,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.align(Alignment.Start)
                                     )
                                     Spacer(modifier = Modifier.height(20.dp))
 
-                                    Box(
-                                        modifier = Modifier
-                                            .size(200.dp)
-                                            .padding(10.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                            var startAngle = -90f
-                                            val strokeWidth = 20.dp.toPx()
-                                            val halfStroke = strokeWidth / 2f
-                                            val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-
-                                            categoryDetails.forEach { item ->
-                                                val sweepAngle = item.percentage * 360f
-                                                val color = try {
-                                                    Color(android.graphics.Color.parseColor(item.category.colorHex))
-                                                } catch (e: Exception) {
-                                                    themeAccentColor
-                                                }
-
-                                                drawArc(
-                                                    color = color,
-                                                    startAngle = startAngle,
-                                                    sweepAngle = sweepAngle.coerceAtLeast(1f),
-                                                    useCenter = false,
-                                                    topLeft = Offset(halfStroke, halfStroke),
-                                                    size = arcSize,
-                                                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                                    if (isDominant && dominantItem != null) {
+                                        Text(
+                                            text = "${dominantItem.category.name} is ${(dominantItem.percentage * 100).roundToInt()}% of ${if (transactionType == TransactionType.INCOME) "income" else "spending"} — bar shows the full breakdown.",
+                                            style = SelfBudgetType.body,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.align(Alignment.Start)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(20.dp)
+                                                .clip(ShapePill)
+                                        ) {
+                                            chartItems.forEach { item ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(item.percentage.coerceAtLeast(0.001f))
+                                                        .fillMaxHeight()
+                                                        .background(rampFor(item).c400)
                                                 )
-                                                startAngle += sweepAngle
                                             }
                                         }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(200.dp)
+                                                .padding(10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                                var startAngle = -90f
+                                                val strokeWidth = 20.dp.toPx()
+                                                val halfStroke = strokeWidth / 2f
+                                                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
 
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(
-                                                text = "${categoryDetails.size}",
-                                                style = MaterialTheme.typography.headlineMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "Categories",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                                chartItems.forEach { item ->
+                                                    val sweepAngle = item.percentage * 360f
+                                                    drawArc(
+                                                        color = rampFor(item).c400,
+                                                        startAngle = startAngle,
+                                                        sweepAngle = sweepAngle.coerceAtLeast(1f),
+                                                        useCenter = false,
+                                                        topLeft = Offset(halfStroke, halfStroke),
+                                                        size = arcSize,
+                                                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                                                    )
+                                                    startAngle += sweepAngle
+                                                }
+                                            }
+
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    text = "${categoryDetails.size}",
+                                                    style = SelfBudgetType.title,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Categories",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
                                     }
 
@@ -380,34 +378,33 @@ fun CategoryAnalyticsDetailModal(
                     // Annual Month-by-Month Trend Chart (If ANNUAL view)
                     if (timeframe == AnalyticsTimeframe.ANNUAL) {
                         item {
-                            Card(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
                                 Column(modifier = Modifier.padding(20.dp)) {
                                     Text(
-                                        text = "12-Month Distribution ($periodLabel)",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        text = "12-month distribution ($periodLabel)",
+                                        style = SelfBudgetType.heading,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(16.dp))
 
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(130.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                            .height(140.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
                                         verticalAlignment = Alignment.Bottom
                                     ) {
                                         val cal = Calendar.getInstance()
+                                        cal.set(Calendar.DAY_OF_MONTH, 1)
                                         for (monthIdx in 0..11) {
                                             cal.set(Calendar.MONTH, monthIdx)
                                             val mLabel = sdfMonthShort.format(cal.time)
                                             val valAmt = monthlyTotals[monthIdx]
-                                            val barFraction = if (maxMonthlyTotal > 0) (valAmt / maxMonthlyTotal).coerceIn(0.05f, 1f) else 0.05f
+                                            val barFraction = if (maxMonthlyTotal > 0) (valAmt / maxMonthlyTotal).coerceIn(0f, 1f) else 0f
 
                                             Column(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -416,16 +413,15 @@ fun CategoryAnalyticsDetailModal(
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .width(14.dp)
-                                                        .fillMaxHeight(barFraction)
-                                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                        .background(if (valAmt > 0) themeAccentColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                                        .fillMaxWidth(0.55f)
+                                                        .height((barFraction * 110).dp.coerceAtLeast(4.dp))
+                                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                                        .background(if (valAmt > 0) reportRamp.c400 else MaterialTheme.colorScheme.outlineVariant)
                                                 )
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
-                                                    text = mLabel.take(1),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold,
+                                                    text = mLabel,
+                                                    style = SelfBudgetType.meta,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
@@ -439,18 +435,18 @@ fun CategoryAnalyticsDetailModal(
                     // Detailed Category Ranking List
                     item {
                         Text(
-                            text = "Category Ranking Breakdown",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            text = "Category ranking",
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     if (categoryDetails.isEmpty()) {
                         item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            Surface(
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Box(
                                     modifier = Modifier.padding(24.dp),
@@ -458,104 +454,98 @@ fun CategoryAnalyticsDetailModal(
                                 ) {
                                     Text(
                                         text = "No ${transactionType.name.lowercase()} records logged for $periodLabel.",
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = SelfBudgetType.body,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
                     } else {
-                        items(categoryDetails, key = { it.category.id }) { item ->
-                            val catColor = try {
-                                Color(android.graphics.Color.parseColor(item.category.colorHex))
-                            } catch (e: Exception) {
-                                themeAccentColor
-                            }
-
-                            Card(
+                        item {
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.weight(1f),
-                                            verticalAlignment = Alignment.CenterVertically
+                                Column {
+                                    categoryDetails.forEachIndexed { index, item ->
+                                        val catRamp = rampFor(item)
+
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(40.dp)
-                                                    .clip(CircleShape)
-                                                    .background(catColor.copy(alpha = 0.2f)),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = getCategoryIcon(item.category),
-                                                    contentDescription = null,
-                                                    tint = catColor,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
+                                                Row(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    RampIconTile(icon = getCategoryIcon(item.category), ramp = catRamp, size = 36.dp, iconSize = 18.dp)
+
+                                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                                    Column {
+                                                        Text(
+                                                            text = item.category.name,
+                                                            style = SelfBudgetType.rowTitle,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = "${item.transactionCount} ${if (item.transactionCount == 1) "entry" else "entries"} • avg $currencySymbol%.2f".format(item.averageAmount),
+                                                            style = SelfBudgetType.meta,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = "$currencySymbol%.2f".format(item.totalAmount),
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    NeutralBadge(text = formatSharePercent(item.percentage))
+                                                }
                                             }
 
-                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Spacer(modifier = Modifier.height(10.dp))
 
-                                            Column {
-                                                Text(
-                                                    text = item.category.name,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                    text = "${item.transactionCount} entries • avg $currencySymbol%.2f".format(item.averageAmount),
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
+                                            LinearProgressIndicator(
+                                                progress = { item.percentage.coerceIn(0f, 1f) },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(6.dp)
+                                                    .clip(ShapeChip),
+                                                color = catRamp.c400,
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
                                         }
 
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "$currencySymbol%.2f".format(item.totalAmount),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "%.1f%%".format(item.percentage * 100),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = catColor
-                                            )
+                                        if (index < categoryDetails.size - 1) {
+                                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    LinearProgressIndicator(
-                                        progress = { item.percentage.coerceIn(0f, 1f) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp)),
-                                        color = catColor,
-                                        trackColor = catColor.copy(alpha = 0.18f)
-                                    )
                                 }
                             }
                         }
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(120.dp))
+                        Spacer(modifier = Modifier.height(150.dp))
                     }
                 }
             }
         }
     }
+}
+
+private fun formatSharePercent(pct: Float): String {
+    if (pct in 0f..0.009999f && pct > 0f) return "<1%"
+    return "${(pct * 100f).roundToInt()}%"
 }

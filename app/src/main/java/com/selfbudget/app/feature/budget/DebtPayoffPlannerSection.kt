@@ -1,9 +1,7 @@
 package com.selfbudget.app.feature.budget
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,16 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,14 +23,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.selfbudget.app.core.ui.DebtPayoffCalculatorDialog
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.ui.getAccountIcon
 import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.data.model.AccountEntity
-import com.selfbudget.app.data.model.AccountType
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
+import androidx.compose.ui.unit.dp
 
 /**
  * Plan tab's forward-looking "what if I paid $X/month" tool - distinct from the Analytics tab's
@@ -60,115 +58,75 @@ fun DebtPayoffPlannerSection(
     var showBlankCalculator by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = "Payoff Calculator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(text = "Payoff calculator", style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
 
-        Card(
+        // Explainer card (spec §21): icon tile + headline + body + one secondary CTA.
+        val isDark = isAppInDarkTheme()
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            shape = ShapeHero,
+            color = Ramp.Coral.tintFill(isDark)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Calculate,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.Default.Calculate, ramp = Ramp.Coral, size = 36.dp, iconSize = 20.dp)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("See exactly how long payoff takes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "See exactly how long payoff takes",
+                        style = SelfBudgetType.heading,
+                        color = Ramp.Coral.titleText(isDark)
+                    )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Pick a Credit Card or Loan from your wallet - or enter numbers by hand - then set any payment amount to see months to debt-free, total interest, and payoff date.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = SelfBudgetType.body,
+                    color = Ramp.Coral.secondaryText(isDark)
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                Button(
+                SecondaryPillButton(
+                    text = "New payoff calculation",
                     onClick = { showBlankCalculator = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(imageVector = Icons.Default.Calculate, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("New Payoff Calculation", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                )
             }
         }
 
         if (debtAccounts.isNotEmpty()) {
-            Text(
-                text = "YOUR DEBT ACCOUNTS",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.2.sp
-            )
-            debtAccounts.forEach { acc ->
-                val accColor = try {
-                    Color(android.graphics.Color.parseColor(acc.colorHex))
-                } catch (e: Exception) {
-                    MaterialTheme.colorScheme.primary
-                }
-                val remaining = kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance)
+            SectionHeaderBand(
+                title = "Your debt accounts",
+                ramp = Ramp.Coral,
+                icon = Icons.Default.Calculate
+            ) {
+                debtAccounts.forEachIndexed { index, acc ->
+                    if (index > 0) SectionRowDivider()
+                    val remaining = kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance)
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { calculatorAccount = acc },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .clickable { calculatorAccount = acc }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = accColor.copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (acc.type == AccountType.CREDIT_CARD) Icons.Default.CreditCard else Icons.Default.AccountBalance,
-                                        contentDescription = null,
-                                        tint = accColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            RampIconTile(icon = getAccountIcon(acc.type), ramp = Ramp.Coral, size = 36.dp, iconSize = 18.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text(acc.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                Text(acc.name, style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     text = "Owed: $currencySymbol%.2f".format(remaining) + (acc.interestRateApr?.let { " • %.2f%% APR".format(it) } ?: ""),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = SelfBudgetType.meta,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                         Icon(
                             imageVector = Icons.Default.Calculate,
-                            contentDescription = "Calculate Payoff",
+                            contentDescription = "Calculate payoff",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )

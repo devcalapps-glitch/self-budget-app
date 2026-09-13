@@ -111,13 +111,38 @@ class DataImporterTest {
     }
 
     @Test
+    fun testParseCategoriesCsv() {
+        val csv = """
+            Category ID,Category Name,Type,Icon Name,Color Hex,Is Default,Is Archived
+            "cat_groceries","Groceries","EXPENSE","ShoppingBag","#4CAF50","Yes","No"
+            "cat_salary","Salary","INCOME","AccountBalanceWallet","#10B981","Yes","No"
+        """.trimIndent()
+
+        val result = DataImporter.parseCsvBytes(csv.toByteArray(Charsets.UTF_8), "categories.csv", testUserId)
+        assertTrue(result.isSuccess)
+        val data = result.getOrThrow()
+
+        assertEquals("CSV (Categories)", data.format)
+        assertEquals(2, data.categories.size)
+        assertEquals("Groceries", data.categories[0].name)
+        assertEquals("ShoppingBag", data.categories[0].iconName)
+        assertEquals("#4CAF50", data.categories[0].colorHex)
+        assertEquals(TransactionType.EXPENSE, data.categories[0].type)
+        assertTrue(data.categories[0].isDefault)
+        assertFalse(data.categories[0].isArchived)
+
+        assertEquals("Salary", data.categories[1].name)
+        assertEquals(TransactionType.INCOME, data.categories[1].type)
+    }
+
+    @Test
     fun testRoundtripExcelExportAndImport() {
         val categories = listOf(CategoryEntity("cat_groceries", "Groceries", "ShoppingBag", "#4CAF50", TransactionType.EXPENSE))
-        val accounts = listOf(AccountEntity("acc_1", testUserId, "Checking Account", AccountType.CHECKING, initialBalance = 1500.0))
+        val accounts = listOf(AccountEntity("acc_1", testUserId, "Checking Account", AccountType.CHECKING, initialBalance = 1500.0, loanTermMonths = 36, colorHex = "#2563EB", iconName = "AccountBalance"))
         val transactions = listOf(TransactionEntity("tx_1", testUserId, "Supermarket", 65.40, TransactionType.EXPENSE, "cat_groceries", "acc_1"))
-        val recurring = listOf(RecurringTransactionEntity("rec_1", testUserId, "Gym", 35.0, TransactionType.EXPENSE, "cat_groceries", "acc_1", RecurringFrequency.MONTHLY))
+        val recurring = listOf(RecurringTransactionEntity("rec_1", testUserId, "Gym", 35.0, TransactionType.EXPENSE, "cat_groceries", "acc_1", RecurringFrequency.MONTHLY, transferAccountId = "acc_1"))
         val budgets = listOf(BudgetEntity("b_1", testUserId, "cat_groceries", 400.0, "2026-08"))
-        val goals = listOf(GoalEntity("g_1", testUserId, "New Laptop", 1200.0, savedAmount = 600.0))
+        val goals = listOf(GoalEntity("g_1", testUserId, "New Laptop", 1200.0, savedAmount = 600.0, colorHex = "#059669", iconName = "Laptop"))
 
         val sheets = ExcelExporter.buildSheets(
             selectedTypes = setOf(
@@ -125,7 +150,8 @@ class DataImporterTest {
                 ExportDataType.RECURRING,
                 ExportDataType.BUDGET,
                 ExportDataType.GOALS,
-                ExportDataType.ACCOUNTS
+                ExportDataType.ACCOUNTS,
+                ExportDataType.CATEGORIES
             ),
             transactions = transactions,
             categories = categories,
@@ -147,6 +173,10 @@ class DataImporterTest {
         assertEquals("Supermarket", data.transactions[0].title)
         assertEquals(65.40, data.transactions[0].amount, 0.001)
 
+        assertEquals(1, data.categories.size)
+        assertEquals("Groceries", data.categories[0].name)
+        assertEquals("ShoppingBag", data.categories[0].iconName)
+
         assertEquals(1, data.recurring.size)
         assertEquals("Gym", data.recurring[0].title)
 
@@ -155,9 +185,11 @@ class DataImporterTest {
 
         assertEquals(1, data.goals.size)
         assertEquals("New Laptop", data.goals[0].name)
+        assertEquals("#059669", data.goals[0].colorHex)
 
         assertEquals(1, data.accounts.size)
         assertEquals("Checking Account", data.accounts[0].name)
+        assertEquals(36, data.accounts[0].loanTermMonths)
     }
 
     @Test

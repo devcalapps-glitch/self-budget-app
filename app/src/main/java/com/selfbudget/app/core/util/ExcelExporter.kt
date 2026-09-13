@@ -45,7 +45,7 @@ object ExcelExporter {
                 "Category", "Account / Wallet", "Transfer Destination", "Payment Method", "Note"
             )
             val rows = transactions.map { tx ->
-                val categoryName = categoryMap[tx.categoryId]?.name ?: "General"
+                val categoryName = categoryMap[tx.categoryId]?.name ?: tx.categoryId
                 val accountName = accountMap[tx.accountId]?.name ?: tx.accountId
                 val transferAccountName = tx.transferAccountId?.let { accountMap[it]?.name ?: it } ?: ""
                 val dateStr = dateTimeFormat.format(Date(tx.timestamp))
@@ -68,12 +68,13 @@ object ExcelExporter {
         if (selectedTypes.contains(ExportDataType.RECURRING)) {
             val headers = listOf(
                 "Recurring ID", "Title", "Type", "Amount ($)", "Category",
-                "Account / Wallet", "Frequency", "Next Due Date", "Remaining Occurrences",
+                "Account / Wallet", "Transfer Destination / Debt Target", "Frequency", "Next Due Date", "Remaining Occurrences",
                 "Status", "Payment Method", "Note"
             )
             val rows = recurring.map { rec ->
-                val categoryName = categoryMap[rec.categoryId]?.name ?: "General"
+                val categoryName = categoryMap[rec.categoryId]?.name ?: rec.categoryId
                 val accountName = accountMap[rec.accountId]?.name ?: rec.accountId
+                val transferAccountName = rec.transferAccountId?.let { accountMap[it]?.name ?: it } ?: ""
                 val nextDueDateStr = dateFormat.format(Date(rec.nextDueDate))
                 val remainingStr = rec.remainingOccurrences?.toString() ?: "Indefinite"
                 val statusStr = if (rec.isArchived) "Paused / Completed" else "Active"
@@ -84,6 +85,7 @@ object ExcelExporter {
                     rec.amount,
                     categoryName,
                     accountName,
+                    transferAccountName,
                     rec.frequency.name,
                     nextDueDateStr,
                     remainingStr,
@@ -119,7 +121,7 @@ object ExcelExporter {
         if (selectedTypes.contains(ExportDataType.GOALS)) {
             val headers = listOf(
                 "Goal ID", "Goal Name", "Target Amount ($)", "Current Saved Amount ($)",
-                "Linked Account / Wallet", "Target Date", "Created Date"
+                "Linked Account / Wallet", "Target Date", "Created Date", "Color Hex", "Icon Name"
             )
             val rows = goals.map { g ->
                 val linkedAccountName = g.linkedAccountId?.let { accountMap[it]?.name ?: it } ?: "None (Direct Savings)"
@@ -132,7 +134,9 @@ object ExcelExporter {
                     g.savedAmount,
                     linkedAccountName,
                     targetDateStr,
-                    createdDateStr
+                    createdDateStr,
+                    g.colorHex,
+                    g.iconName
                 )
             }
             sheets.add(ExcelSheetData("Savings Goals", headers, rows))
@@ -142,13 +146,14 @@ object ExcelExporter {
             val headers = listOf(
                 "Account ID", "Account Name", "Account Type", "Live Balance ($)",
                 "Initial Balance ($)", "Currency", "Credit Limit ($)", "Interest Rate APR (%)",
-                "Minimum Payment ($)", "Is Default"
+                "Minimum Payment ($)", "Loan Term (Months)", "Is Default", "Color Hex", "Icon Name"
             )
             val rows = accounts.map { acc ->
                 val liveBalance = accountBalances[acc.id] ?: acc.initialBalance
                 val creditLimitStr = acc.creditLimit?.let { "%.2f".format(Locale.US, it) } ?: "N/A"
                 val aprStr = acc.interestRateApr?.let { "%.2f%%".format(Locale.US, it) } ?: "N/A"
                 val minPayStr = acc.minimumPayment?.let { "%.2f".format(Locale.US, it) } ?: "N/A"
+                val termStr = acc.loanTermMonths?.toString() ?: "N/A"
                 val isDefaultStr = if (acc.isDefault) "Yes" else "No"
                 listOf(
                     acc.id,
@@ -160,10 +165,31 @@ object ExcelExporter {
                     creditLimitStr,
                     aprStr,
                     minPayStr,
-                    isDefaultStr
+                    termStr,
+                    isDefaultStr,
+                    acc.colorHex,
+                    acc.iconName
                 )
             }
             sheets.add(ExcelSheetData("Accounts & Wallets", headers, rows))
+        }
+
+        if (selectedTypes.contains(ExportDataType.CATEGORIES)) {
+            val headers = listOf(
+                "Category ID", "Category Name", "Type", "Icon Name", "Color Hex", "Is Default", "Is Archived"
+            )
+            val rows = categories.map { cat ->
+                listOf(
+                    cat.id,
+                    cat.name,
+                    cat.type.name,
+                    cat.iconName,
+                    cat.colorHex,
+                    if (cat.isDefault) "Yes" else "No",
+                    if (cat.isArchived) "Yes" else "No"
+                )
+            }
+            sheets.add(ExcelSheetData("Categories", headers, rows))
         }
 
         return sheets

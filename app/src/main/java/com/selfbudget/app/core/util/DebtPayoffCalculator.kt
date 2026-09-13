@@ -48,4 +48,25 @@ object DebtPayoffCalculator {
 
         return PayoffEstimate(months, totalInterest, false)
     }
+
+    /**
+     * Calculates the standard fixed monthly payment for an amortized loan (e.g. mortgage, auto loan, student loan).
+     * Formula: M = P * (r * (1+r)^n) / ((1+r)^n - 1)
+     *
+     * @param balance current principal balance (positive number)
+     * @param aprPercent annual percentage rate, e.g. 6.5 for 6.5%
+     * @param termMonths duration of the loan in months
+     * @return calculated monthly payment
+     */
+    fun calculateAmortizedMonthlyPayment(balance: Double, aprPercent: Double, termMonths: Int): Double {
+        if (balance <= 0.0 || termMonths <= 0) return 0.0
+        val monthlyRate = (aprPercent / 100.0) / 12.0
+        if (monthlyRate <= 0.0) {
+            return Money.round(balance / termMonths.toDouble())
+        }
+        val factor = Math.pow(1.0 + monthlyRate, termMonths.toDouble())
+        if (factor == 1.0) return Money.round(balance / termMonths.toDouble())
+        val monthlyPayment = balance * (monthlyRate * factor) / (factor - 1.0)
+        return if (monthlyPayment.isFinite()) Money.round(monthlyPayment) else 0.0
+    }
 }

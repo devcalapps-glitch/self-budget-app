@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,39 +21,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.selfbudget.app.core.ui.getCategoryIcon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,37 +53,50 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.DestructivePillButton
+import com.selfbudget.app.core.ui.components.GrayIconTile
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.getExpenseCategoryGroup
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
-import com.selfbudget.app.ui.theme.ExpenseRed
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.sectionRamp
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 enum class DateRangeFilter(val label: String) {
-    ALL("All Time"),
-    THIS_MONTH("This Month"),
-    LAST_MONTH("Last Month"),
-    LAST_30_DAYS("Last 30 Days"),
-    THIS_YEAR("This Year")
+    ALL("All time"),
+    THIS_MONTH("This month"),
+    LAST_MONTH("Last month"),
+    LAST_30_DAYS("Last 30 days"),
+    THIS_YEAR("This year")
 }
 
 enum class SortOption(val label: String) {
-    NEWEST("Newest First ⬇️"),
-    OLDEST("Oldest First ⬆️"),
-    HIGHEST_AMOUNT("Highest Amount 💰"),
-    LOWEST_AMOUNT("Lowest Amount 🏷️")
+    NEWEST("Newest first"),
+    OLDEST("Oldest first"),
+    HIGHEST_AMOUNT("Highest amount"),
+    LOWEST_AMOUNT("Lowest amount")
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -102,7 +107,8 @@ fun SearchScreen(
     accounts: List<AccountEntity> = emptyList(),
     currencySymbol: String = "$",
     onDeleteTransaction: (TransactionEntity) -> Unit,
-    onEditTransaction: ((TransactionEntity) -> Unit)? = null
+    onEditTransaction: ((TransactionEntity) -> Unit)? = null,
+    onAddClick: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) } // null = All
@@ -191,6 +197,8 @@ fun SearchScreen(
         filteredTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     }
 
+    val isDark = isAppInDarkTheme()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -202,52 +210,38 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
+            com.selfbudget.app.core.ui.AppSearchBar(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("Search Activity") },
-                placeholder = { Text("Search", fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                placeholder = "Search activity",
+                modifier = Modifier.weight(1f)
             )
 
-            // Sleek Single Filter Button
+            // Filter pill button (spec §5 pill component)
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (activeFilterCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                border = BorderStroke(
-                    1.dp,
-                    if (activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                ),
+                shape = ShapePill,
+                color = if (activeFilterCount > 0) Ramp.Teal.tintFill(isDark) else Ramp.Gray.tintFill(isDark),
                 modifier = Modifier
-                    .height(56.dp)
+                    .height(52.dp)
                     .clickable { showFilterModal = true }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.FilterList,
                         contentDescription = "Filter",
-                        tint = if (activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (activeFilterCount > 0) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (activeFilterCount > 0) "Filter ($activeFilterCount)" else "Filter",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        style = SelfBudgetType.rowTitle,
+                        color = if (activeFilterCount > 0) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -273,9 +267,9 @@ fun SearchScreen(
                 if (selectedTypeFilter != null) {
                     item {
                         val typeLabel = when (selectedTypeFilter) {
-                            TransactionType.EXPENSE -> "Expenses 🔴"
-                            TransactionType.INCOME -> "Income 🟢"
-                            TransactionType.TRANSFER -> "Transfers 🔁"
+                            TransactionType.EXPENSE -> "Expenses"
+                            TransactionType.INCOME -> "Income"
+                            TransactionType.TRANSFER -> "Transfers"
                             else -> ""
                         }
                         ActiveFilterPill(label = typeLabel, onClear = { selectedTypeFilter = null })
@@ -299,13 +293,13 @@ fun SearchScreen(
                     }
                 }
                 item {
+                    // Quiet text action — never red, this isn't destructive (spec §24).
                     Text(
-                        text = "Reset All",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error,
+                        text = "Reset",
+                        style = SelfBudgetType.body,
+                        color = Ramp.Teal.secondaryText(isDark),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(ShapePill)
                             .clickable {
                                 searchQuery = ""
                                 selectedTypeFilter = null
@@ -322,159 +316,122 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Results Summary Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = 150.dp)
         ) {
-            Text(
-                text = "${sortedTransactions.size} Activity Record${if (sortedTransactions.size != 1) "s" else ""}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (totalFilteredIncome > 0) {
-                    Text(
-                        text = "+$currencySymbol%.2f".format(totalFilteredIncome),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = getIncomeColor()
-                    )
-                }
-                if (totalFilteredExpense > 0) {
-                    Text(
-                        text = "-$currencySymbol%.2f".format(totalFilteredExpense),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = ExpenseRed
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Results List
-        if (sortedTransactions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(240.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (activeFilterCount > 0 || searchQuery.isNotBlank()) "No records match your active filters." else "No activity logged yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(sortedTransactions, key = { it.id }) { tx ->
-                    val category = categoryMap[tx.categoryId]
-                    val account = accountMap[tx.accountId]
-                    val isIncome = tx.type == TransactionType.INCOME
-                    val isTransfer = tx.type == TransactionType.TRANSFER
-                    val sym = if (account?.currencyCode?.isNotBlank() == true) Currencies.symbolFor(account.currencyCode) else currencySymbol
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(if (onEditTransaction != null) Modifier.clickable { onEditTransaction(tx) } else Modifier),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ) {
-                        Row(
+            item {
+                // "Recent activity" section identity is Purple (design system §"Section identity colors").
+                SectionHeaderBand(
+                    title = "Activity log",
+                    ramp = Ramp.Purple,
+                    icon = Icons.Default.History,
+                    trailingText = when {
+                        totalFilteredIncome > 0 && totalFilteredExpense == 0.0 -> "+$currencySymbol%.2f".format(totalFilteredIncome)
+                        totalFilteredExpense > 0 && totalFilteredIncome == 0.0 -> "-$currencySymbol%.2f".format(totalFilteredExpense)
+                        totalFilteredIncome > 0 -> "+$currencySymbol%.2f / -$currencySymbol%.2f".format(totalFilteredIncome, totalFilteredExpense)
+                        else -> "${sortedTransactions.size} record${if (sortedTransactions.size != 1) "s" else ""}"
+                    }
+                ) {
+                    if (sortedTransactions.isEmpty()) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                val icon = when {
-                                    isTransfer -> Icons.Default.SwapHoriz
-                                    category != null -> getCategoryIcon(category)
-                                    isIncome -> Icons.Default.ArrowDownward
-                                    else -> Icons.Default.ArrowUpward
-                                }
-                                val iconColor = when {
-                                    isTransfer -> MaterialTheme.colorScheme.primary
-                                    isIncome -> com.selfbudget.app.ui.theme.getIncomeColor()
-                                    else -> com.selfbudget.app.ui.theme.getExpenseColor()
-                                }
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = if (activeFilterCount > 0 || searchQuery.isNotBlank()) "No records match your active filters." else "No activity logged yet.",
+                                style = SelfBudgetType.body,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        sortedTransactions.forEachIndexed { index, tx ->
+                            val category = categoryMap[tx.categoryId]
+                            val account = accountMap[tx.accountId]
+                            val isIncome = tx.type == TransactionType.INCOME
+                            val isTransfer = tx.type == TransactionType.TRANSFER
+                            val sym = if (account?.currencyCode?.isNotBlank() == true) Currencies.symbolFor(account.currencyCode) else currencySymbol
 
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(iconColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = iconColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = tx.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${category?.name ?: "General"}${if (account != null) " • ${account.name}" else ""} • ${dateFormat.format(Date(tx.timestamp))}",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                                    )
-                                    if (!tx.note.isNullOrBlank()) {
-                                        Text(
-                                            text = "Note: ${tx.note}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-                                        )
-                                    }
-                                }
+                            // Activity rows are colored by category identity, never by transaction sign (spec §10).
+                            val rowRamp = when {
+                                isTransfer -> Ramp.Gray
+                                isIncome -> Ramp.Teal
+                                category != null -> sectionRamp(getExpenseCategoryGroup(category))
+                                else -> Ramp.Gray
+                            }
+                            val icon = when {
+                                isTransfer -> Icons.Default.SwapHoriz
+                                category != null -> getCategoryIcon(category)
+                                isIncome -> Icons.Default.ArrowDownward
+                                else -> Icons.Default.ArrowUpward
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                val amountPrefix = when {
-                                    isTransfer -> "🔁 $sym"
-                                    isIncome -> "+$sym"
-                                    else -> "-$sym"
-                                }
-                                val amountColor = when {
-                                    isTransfer -> MaterialTheme.colorScheme.primary
-                                    isIncome -> com.selfbudget.app.ui.theme.getIncomeColor()
-                                    else -> com.selfbudget.app.ui.theme.getExpenseColor()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(if (onEditTransaction != null) Modifier.clickable { onEditTransaction(tx) } else Modifier)
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    RampIconTile(icon = icon, ramp = rowRamp, size = 36.dp, iconSize = 18.dp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = tx.title,
+                                            style = SelfBudgetType.rowTitle,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${category?.name ?: "General"}${if (account != null) " · ${account.name}" else ""} · ${dateFormat.format(Date(tx.timestamp))}",
+                                            style = SelfBudgetType.meta,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (!tx.note.isNullOrBlank()) {
+                                            Text(
+                                                text = "Note: ${tx.note}",
+                                                style = SelfBudgetType.meta,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
                                 }
 
+                                // Income reads Teal; transfers and ordinary expenses read neutral —
+                                // red is reserved for over-limit, not ordinary spending (spec §10/§13).
+                                val amountPrefix = if (isIncome) "+$sym" else if (isTransfer) sym else "-$sym"
+                                val amountColor = if (isIncome) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurface
                                 Text(
                                     text = "$amountPrefix%.2f".format(tx.amount),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
+                                    style = SelfBudgetType.rowTitle,
                                     color = amountColor
+                                )
+                            }
+
+                            if (index < sortedTransactions.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(horizontal = 14.dp)
                                 )
                             }
                         }
                     }
-                }
-                item {
-                    Spacer(modifier = Modifier.height(150.dp))
                 }
             }
         }
@@ -502,7 +459,7 @@ fun SearchScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp)
                 ) {
-                    // Header Row
+                    // Header Row: close · title · quiet reset (spec §24)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -514,13 +471,13 @@ fun SearchScreen(
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Filter Activity",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                text = "Filter activity",
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (activeFilterCount > 0) {
                             TextButton(
                                 onClick = {
                                     selectedTypeFilter = null
@@ -530,201 +487,103 @@ fun SearchScreen(
                                     selectedSortOption = SortOption.NEWEST
                                 }
                             ) {
-                                Text("Reset All", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Button(
-                                onClick = { showFilterModal = false },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Text("Apply", fontWeight = FontWeight.Bold)
+                                Text("Reset", style = SelfBudgetType.body, color = Ramp.Teal.secondaryText(isDark))
                             }
                         }
                     }
 
-                    // Section 1: Timeframe
-                    Column {
-                        Text("Timeframe", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DateRangeFilter.values().forEach { range ->
-                                FilterChip(
-                                    selected = selectedDateRange == range,
-                                    onClick = { selectedDateRange = range },
-                                    label = { Text(range.label, fontSize = 13.sp) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    FilterChipGroup(
+                        title = "Timeframe",
+                        options = DateRangeFilter.entries,
+                        optionLabel = { it.label },
+                        isSelected = { it == selectedDateRange },
+                        onSelect = { selectedDateRange = it }
+                    )
 
-                    // Section 2: Transaction Type
+                    // Section 2: Transaction Type — 8px leading dot instead of emoji (spec §24)
                     Column {
-                        Text("Transaction Type", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Transaction type", style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
+                            TypeFilterChip(
+                                label = "All types",
+                                dotColor = null,
                                 selected = selectedTypeFilter == null,
-                                onClick = { selectedTypeFilter = null },
-                                label = { Text("All Types", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                onClick = { selectedTypeFilter = null }
                             )
-                            FilterChip(
+                            TypeFilterChip(
+                                label = "Expenses",
+                                dotColor = Ramp.Red.c400,
                                 selected = selectedTypeFilter == TransactionType.EXPENSE,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.EXPENSE) null else TransactionType.EXPENSE },
-                                label = { Text("Expenses 🔴", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.EXPENSE) null else TransactionType.EXPENSE }
                             )
-                            FilterChip(
+                            TypeFilterChip(
+                                label = "Income",
+                                dotColor = Ramp.Teal.c400,
                                 selected = selectedTypeFilter == TransactionType.INCOME,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.INCOME) null else TransactionType.INCOME },
-                                label = { Text("Income 🟢", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.INCOME) null else TransactionType.INCOME }
                             )
-                            FilterChip(
+                            TypeFilterChip(
+                                label = "Transfers",
+                                dotColor = Ramp.Gray.c400,
                                 selected = selectedTypeFilter == TransactionType.TRANSFER,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.TRANSFER) null else TransactionType.TRANSFER },
-                                label = { Text("Transfers 🔁", fontSize = 13.sp) },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.TRANSFER) null else TransactionType.TRANSFER }
                             )
                         }
                     }
 
                     // Section 3: Bank Accounts
                     if (accounts.isNotEmpty()) {
-                        Column {
-                            Text("Bank Account / Wallet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = selectedAccountId == null,
-                                    onClick = { selectedAccountId = null },
-                                    label = { Text("All Accounts", fontSize = 13.sp) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                )
-                                accounts.forEach { acc ->
-                                    FilterChip(
-                                        selected = selectedAccountId == acc.id,
-                                        onClick = { selectedAccountId = if (selectedAccountId == acc.id) null else acc.id },
-                                        label = { Text(acc.name, fontSize = 13.sp) },
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                    )
-                                }
-                            }
-                        }
+                        FilterChipGroup(
+                            title = "Bank account / wallet",
+                            options = listOf<AccountEntity?>(null) + accounts,
+                            optionLabel = { it?.name ?: "All accounts" },
+                            isSelected = { it?.id == selectedAccountId },
+                            onSelect = { selectedAccountId = it?.id }
+                        )
                     }
 
-                    // Section 4: Sort Order
-                    Column {
-                        Text("Sort Order", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOption.values().forEach { option ->
-                                FilterChip(
-                                    selected = selectedSortOption == option,
-                                    onClick = { selectedSortOption = option },
-                                    label = { Text(option.label, fontSize = 13.sp) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    FilterChipGroup(
+                        title = "Sort order",
+                        options = SortOption.entries,
+                        optionLabel = { it.label },
+                        isSelected = { it == selectedSortOption },
+                        onSelect = { selectedSortOption = it }
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Inline Main Action Row inside the Filter Page Body
+                    // Footer: Cancel (secondary) + one primary stating the result (spec §24)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { showFilterModal = false },
-                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(52.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                                .height(50.dp)
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Show ${sortedTransactions.size} transaction${if (sortedTransactions.size != 1) "s" else ""}",
                             onClick = { showFilterModal = false },
-                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1.5f)
-                                .height(52.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text(
-                                text = "Apply Filters${if (activeFilterCount > 0) " ($activeFilterCount)" else ""}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
+                                .height(50.dp)
+                        )
                     }
+
+                    Spacer(modifier = Modifier.height(150.dp))
                 }
             }
         }
     }
 
-    // Delete Transaction Confirmation Modal
+    // Delete Confirmation Modal Dialog
     if (pendingDeleteTx != null) {
         val txToDelete = pendingDeleteTx!!
         val isIncome = txToDelete.type == TransactionType.INCOME
@@ -734,10 +593,8 @@ fun SearchScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = ShapeCard,
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                shadowElevation = 12.dp,
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
                     .padding(16.dp)
@@ -746,27 +603,13 @@ fun SearchScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                        modifier = Modifier.size(64.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.Default.Delete, ramp = Ramp.Red, size = 64.dp, iconSize = 32.dp, modifier = Modifier)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Delete Transaction?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Delete transaction?",
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -774,7 +617,7 @@ fun SearchScreen(
 
                     Text(
                         text = "Are you sure you want to delete this transaction record? This cannot be undone.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
@@ -782,9 +625,8 @@ fun SearchScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        shape = ShapeCard,
+                        color = Ramp.Gray.tintFill(isDark),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -796,14 +638,13 @@ fun SearchScreen(
                         ) {
                             Text(
                                 text = txToDelete.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "${if (isIncome) "+$currencySymbol" else "-$currencySymbol"}%.2f".format(txToDelete.amount),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
+                                style = SelfBudgetType.rowTitle,
+                                color = if (isIncome) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -814,30 +655,30 @@ fun SearchScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { pendingDeleteTx = null },
-                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                        )
 
-                        Button(
+                        // Confirm-dialog destructive action may be solid (spec §14).
+                        androidx.compose.material3.Button(
                             onClick = {
                                 onDeleteTransaction(txToDelete)
                                 pendingDeleteTx = null
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
+                            shape = ShapePill,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = Ramp.Red.c400,
+                                contentColor = androidx.compose.ui.graphics.Color.White
                             ),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
                         ) {
-                            Text("Delete", fontWeight = FontWeight.Bold)
+                            Text("Delete", style = SelfBudgetType.rowTitle)
                         }
                     }
                 }
@@ -847,14 +688,15 @@ fun SearchScreen(
 }
 
 @Composable
-private fun ActiveFilterPill(
+fun ActiveFilterPill(
     label: String,
     onClear: () -> Unit
 ) {
+    val isDark = isAppInDarkTheme()
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+        shape = ShapePill,
+        color = Ramp.Teal.tintFill(isDark),
+        border = BorderStroke(0.5.dp, Ramp.Teal.c600)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -862,15 +704,14 @@ private fun ActiveFilterPill(
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                style = SelfBudgetType.badge,
+                color = Ramp.Teal.titleText(isDark)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Clear",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = Ramp.Teal.titleText(isDark),
                 modifier = Modifier
                     .size(14.dp)
                     .clickable { onClear() }
@@ -879,6 +720,69 @@ private fun ActiveFilterPill(
     }
 }
 
-private fun String?.isNull_or_blank(): Boolean {
-    return this == null || this.trim().isEmpty()
+/** A single-select chip group (spec §20/§24): "All" (or first option) is the default selection. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun <T> FilterChipGroup(
+    title: String,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    isSelected: (T) -> Boolean,
+    onSelect: (T) -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    Column {
+        Text(title, style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(modifier = Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { option ->
+                val selected = isSelected(option)
+                FilterChip(
+                    selected = selected,
+                    onClick = { onSelect(option) },
+                    label = { Text(optionLabel(option), style = SelfBudgetType.badge) },
+                    shape = ShapePill,
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Ramp.Gray.tintFill(isDark),
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedContainerColor = Ramp.Teal.solidFill(isDark),
+                        selectedLabelColor = Ramp.Teal.let { if (isDark) it.c900 else it.c50 }
+                    )
+                )
+            }
+        }
+    }
+}
+
+/** A transaction-type filter chip with an 8px leading dot instead of an emoji (spec §24). */
+@Composable
+fun TypeFilterChip(
+    label: String,
+    dotColor: androidx.compose.ui.graphics.Color?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = SelfBudgetType.badge) },
+        leadingIcon = if (dotColor != null) {
+            {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+            }
+        } else null,
+        shape = ShapePill,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Ramp.Gray.tintFill(isDark),
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = Ramp.Teal.solidFill(isDark),
+            selectedLabelColor = Ramp.Teal.let { if (isDark) it.c900 else it.c50 }
+        )
+    )
 }

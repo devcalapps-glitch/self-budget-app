@@ -39,6 +39,23 @@ class RecurringSchedulerTest {
     }
 
     @Test
+    fun testComputeNextDueDateSemiMonthly() {
+        // 1st of the month moves to 15th
+        val cal1 = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 1, 10, 0, 0) }
+        val next1 = RecurringScheduler.computeNextDueDate(cal1.timeInMillis, RecurringFrequency.SEMI_MONTHLY)
+        val res1 = Calendar.getInstance().apply { timeInMillis = next1 }
+        assertEquals(15, res1.get(Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.SEPTEMBER, res1.get(Calendar.MONTH))
+
+        // 15th of the month moves to 1st of next month
+        val cal15 = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 15, 10, 0, 0) }
+        val next15 = RecurringScheduler.computeNextDueDate(cal15.timeInMillis, RecurringFrequency.SEMI_MONTHLY)
+        val res15 = Calendar.getInstance().apply { timeInMillis = next15 }
+        assertEquals(1, res15.get(Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.OCTOBER, res15.get(Calendar.MONTH))
+    }
+
+    @Test
     fun testComputeNextDueDateYearly() {
         val cal = Calendar.getInstance()
         val start = cal.timeInMillis

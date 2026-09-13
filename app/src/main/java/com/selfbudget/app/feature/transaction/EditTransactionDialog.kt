@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -28,7 +29,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.focusable
@@ -60,12 +60,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -77,7 +72,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -112,16 +106,35 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
+import com.selfbudget.app.core.ui.components.EntryType
+import com.selfbudget.app.core.ui.components.DestructivePillButton
+import com.selfbudget.app.core.ui.components.GrayIconTile
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.QuickAmountChips
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.ui.components.TransactionAmountHero
 import com.selfbudget.app.core.util.ReceiptOcrScanner
 import com.selfbudget.app.core.util.VoiceParser
+import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
-import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -143,7 +156,7 @@ private data class TransactionEditSnapshot(
     val budgetLimitText: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EditTransactionDialog(
     transaction: TransactionEntity,
@@ -191,8 +204,7 @@ fun EditTransactionDialog(
 
     val availableTargetAccounts = remember(availableAccounts, selectedAccount) {
         availableAccounts.filter { 
-            (it.type == AccountType.CREDIT_CARD || 
-             it.type == AccountType.LOAN || 
+            (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) || 
              it.type == AccountType.INVESTMENT || 
              it.type == AccountType.RETIREMENT || 
              it.type == AccountType.SAVINGS) && 
@@ -271,15 +283,13 @@ fun EditTransactionDialog(
     var note by remember(transaction) { mutableStateOf(transaction.note ?: "") }
 
     val existingCategoryBudget = remember(selectedCategory, budgets) {
-        selectedCategory?.let { cat -> budgets.firstOrNull { it.categoryId == cat.id } }
+        selectedCategory?.let { cat -> budgets.firstOrNull { it.categoryId == cat.id && it.amountLimit > 0.0 } }
     }
 
     LaunchedEffect(existingCategoryBudget) {
         if (existingCategoryBudget != null) {
-            setAsBudget = true
             budgetLimitText = "%.2f".format(existingCategoryBudget.amountLimit)
         } else {
-            setAsBudget = false
             budgetLimitText = ""
         }
     }
@@ -365,12 +375,10 @@ fun EditTransactionDialog(
                 onDeleteRecurring?.invoke(existingRecurring)
             }
             if (setAsBudget && selectedCategory != null) {
-                val budgetLimit = budgetLimitText.toDoubleOrNull() ?: amount
+                val budgetLimit = budgetLimitText.toDoubleOrNull() ?: 0.0
                 if (budgetLimit > 0.0) {
                     onSetCategoryBudget?.invoke(selectedCategory!!.id, budgetLimit)
                 }
-            } else if (!setAsBudget && selectedCategory != null && existingCategoryBudget != null) {
-                onDeleteCategoryBudget?.invoke(selectedCategory!!.id)
             }
         }
     }
@@ -396,7 +404,7 @@ fun EditTransactionDialog(
                         Text(
                             text = if (isEditMode) "Edit Transaction" else "Transaction Details",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Medium
                         )
                     },
                     navigationIcon = {
@@ -404,27 +412,9 @@ fun EditTransactionDialog(
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     },
-                    actions = {
-                        Button(
-                            onClick = {
-                                if (isEditMode) {
-                                    submitForm()
-                                } else {
-                                    editBaseline = captureEditSnapshot()
-                                    isEditMode = true
-                                }
-                            },
-                            enabled = !isEditMode || (isDirty && title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.padding(end = 12.dp)
-                        ) {
-                            Text(if (isEditMode) "Save" else "Edit", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
+                    // No header Edit/Save action (spec §14/§16): the header holds only close +
+                    // title. Edit is triggered from the view-mode footer; Save lives in the
+                    // edit-mode footer below.
                 )
 
                 Column(
@@ -435,7 +425,7 @@ fun EditTransactionDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    val themeColor = if (selectedType == TransactionType.INCOME) getIncomeColor() else ExpenseRed
+                    val themeColor = if (selectedType == TransactionType.INCOME) getIncomeColor() else getExpenseColor()
 
                     // Inert focus target used to steal focus away from real fields when a
                     // selection modal opens/closes (see focusAnchor LaunchedEffect above).
@@ -457,7 +447,7 @@ fun EditTransactionDialog(
                             debtAccountName = selectedTargetDebtAccount?.name,
                             isRecurringActive = isRecurring && existingRecurring != null,
                             recurringFrequency = selectedFrequency,
-                            isBudgetActive = setAsBudget && existingCategoryBudget != null,
+                            isBudgetActive = existingCategoryBudget != null && existingCategoryBudget.amountLimit > 0.0,
                             budgetLimitText = budgetLimitText,
                             onEditClick = {
                                 editBaseline = captureEditSnapshot()
@@ -469,525 +459,374 @@ fun EditTransactionDialog(
                         )
                     } else {
 
-                    // Top Amount Entry Stepper (- $0.00 +) in 44.sp ExtraBold font
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "AMOUNT ($currencySymbol)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.2.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            // Minus Button
-                            Surface(
-                                onClick = {
-                                    val current = amountText.toDoubleOrNull() ?: 0.0
-                                    val next = maxOf(0.0, current - 5.0)
-                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
-                                },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Subtract Amount",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            // Centered Big Amount Field (44.sp ExtraBold)
-                            Box(
-                                modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                OutlinedTextField(
-                                    value = amountText,
-                                    onValueChange = { input ->
-                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
-                                            amountText = input
-                                        }
-                                    },
-                                    placeholder = {
-                                        Text(
-                                            text = "0.00",
-                                            style = TextStyle(
-                                                fontSize = 44.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = themeColor.copy(alpha = 0.35f),
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    },
-                                    prefix = {
-                                        Text(
-                                            text = currencySymbol,
-                                            style = TextStyle(
-                                                fontSize = 32.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = themeColor
-                                            ),
-                                            modifier = Modifier.padding(end = 2.dp)
-                                        )
-                                    },
-                                    textStyle = TextStyle(
-                                        fontSize = 44.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = themeColor,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Decimal,
-                                        imeAction = ImeAction.Next
-                                    ),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color.Transparent,
-                                        unfocusedBorderColor = Color.Transparent,
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-
-                            // Plus Button
-                            Surface(
-                                onClick = {
-                                    val current = amountText.toDoubleOrNull() ?: 0.0
-                                    val next = current + 5.0
-                                    amountText = "%.2f".format(next)
-                                },
-                                shape = CircleShape,
-                                color = themeColor.copy(alpha = 0.15f),
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Amount",
-                                        tint = themeColor
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Quick Preset Amount Chips
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val presets = if (selectedType == TransactionType.EXPENSE) listOf(5, 10, 25, 50, 100) else listOf(50, 100, 250, 500, 1000)
-                            presets.forEach { preset ->
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                    modifier = Modifier.clickable {
-                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
-                                        amountText = "%.2f".format(currentVal + preset)
-                                    }
-                                ) {
-                                    Text(
-                                        text = "+$currencySymbol$preset",
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Transaction Type Badge
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = themeColor.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, themeColor.copy(alpha = 0.3f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (selectedType == TransactionType.EXPENSE) "Expense 🔴" else "Income 🟢",
-                                fontWeight = FontWeight.Bold,
-                                color = themeColor,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-
-                    // Title
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it.replaceFirstChar { char -> char.uppercase() } },
-                        label = { Text(if (selectedType == TransactionType.INCOME) "Title / Payer" else "Title / Merchant") },
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Words,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    // 1. Hero Amount Card
+                    TransactionAmountHero(
+                        type = if (selectedType == TransactionType.INCOME) EntryType.Income else EntryType.Expense,
+                        amountText = amountText,
+                        onAmountChange = { amountText = it },
+                        currencySymbol = currencySymbol,
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
                     )
 
-                    // Date Picker Input Box (Full-width non-focusable surface)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                showDatePickerModal = true
-                            }
-                    ) {
-                        OutlinedTextField(
-                            value = dateFormatter.format(Date(selectedTimestamp)),
-                            onValueChange = {},
-                            enabled = false,
-                            label = { Text("Date") },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = "Pick Date",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusProperties { canFocus = false }
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    QuickAmountChips(
+                        presets = listOf(10, 25, 50, 100, 250),
+                        currencySymbol = currencySymbol,
+                        onPick = { preset ->
+                            val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                            amountText = "%.2f".format(currentVal + preset)
+                        }
+                    )
+
+                    // 2. Grouped Transaction Details Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "TRANSACTION DETAILS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(start = 4.dp)
                         )
-                    }
 
-                    // Account Field (Taps to open AccountSelectionModal)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                expandedAccountDropdown = true
-                            }
-                    ) {
-                        val accountText = selectedAccount?.let { acc ->
-                            val rawBal = accountBalances[acc.id] ?: acc.initialBalance
-                            val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
-                            val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
-                            val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
-                            "${acc.name} ($accSym%.2f)".format(dispBal)
-                        } ?: if (selectedType == TransactionType.INCOME) "Select Deposit Account" else "Select Payment Account"
+                        val catName = selectedCategory?.name?.lowercase() ?: ""
+                        val isTargetCategory = catName.contains("credit") || 
+                                               catName.contains("card") || 
+                                               catName.contains("loan") || 
+                                               catName.contains("debt") || 
+                                               catName.contains("mortgage") || 
+                                               catName.contains("rent") ||
+                                               catName.contains("invest") ||
+                                               catName.contains("saving") ||
+                                               catName.contains("stock") ||
+                                               catName.contains("crypto") ||
+                                               catName.contains("401k") ||
+                                               catName.contains("ira") ||
+                                               catName.contains("retire") ||
+                                               catName.contains("transfer")
+                        val shouldShowTargetAccountField = selectedType == TransactionType.EXPENSE &&
+                                                         availableTargetAccounts.isNotEmpty() &&
+                                                         (isTargetCategory || selectedTargetDebtAccount != null)
 
-                        OutlinedTextField(
-                            value = accountText,
-                            onValueChange = {},
-                            enabled = false,
-                            label = { Text(if (selectedType == TransactionType.INCOME) "Deposit Account" else "Payment Account") },
-                            leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusProperties { canFocus = false }
-                        )
-                    }
-
-                    // Category Field (Taps to open CategorySelectionModal)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                expandedCategoryDropdown = true
-                            }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedCategory?.name ?: "Select Category",
-                            onValueChange = {},
-                            enabled = false,
-                            label = { Text("Category") },
-                            leadingIcon = { Icon(getCategoryIcon(selectedCategory), contentDescription = null) },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusProperties { canFocus = false }
-                        )
-                    }
-
-                    // Optional Target Account Field (Shown for Credit Card / Loan Debt, Investments, Savings, Retirement, etc.)
-                    val catName = selectedCategory?.name?.lowercase() ?: ""
-                    val isTargetCategory = catName.contains("credit") || 
-                                           catName.contains("card") || 
-                                           catName.contains("loan") || 
-                                           catName.contains("debt") || 
-                                           catName.contains("mortgage") || 
-                                           catName.contains("rent") ||
-                                           catName.contains("invest") ||
-                                           catName.contains("saving") ||
-                                           catName.contains("stock") ||
-                                           catName.contains("crypto") ||
-                                           catName.contains("401k") ||
-                                           catName.contains("ira") ||
-                                           catName.contains("retire") ||
-                                           catName.contains("transfer")
-                    val shouldShowTargetAccountField = selectedType == TransactionType.EXPENSE &&
-                                                     availableTargetAccounts.isNotEmpty() &&
-                                                     (isTargetCategory || selectedTargetDebtAccount != null)
-
-                    if (shouldShowTargetAccountField) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                val targetText = selectedTargetDebtAccount?.let { acc ->
-                                    val rawBal = accountBalances[acc.id] ?: acc.initialBalance
-                                    val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
-                                    if (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)) {
-                                        val dispBal = kotlin.math.abs(rawBal)
-                                        "${acc.name} ($accSym%.2f owed)".format(dispBal)
-                                    } else {
-                                        "${acc.name} ($accSym%.2f balance)".format(rawBal)
-                                    }
-                                } ?: "None (Standard Expense)"
-
-                                val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
-                                    selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
-                                    selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
-                                    catName.contains("invest") ||
-                                    catName.contains("saving") ||
-                                    catName.contains("retire") ||
-                                    catName.contains("stock") ||
-                                    catName.contains("401k") ||
-                                    catName.contains("ira")
-
-                                val labelText = if (isInvestmentOrSavings) {
-                                    "Deposit / Contribute Toward Account (Optional)"
-                                } else {
-                                    "Apply Payment Toward Debt (Optional)"
-                                }
-
-                                val iconVector = if (selectedTargetDebtAccount?.type == AccountType.INVESTMENT || selectedTargetDebtAccount?.type == AccountType.RETIREMENT || catName.contains("invest") || catName.contains("retire") || catName.contains("stock") || catName.contains("401k") || catName.contains("ira")) {
-                                    Icons.Default.TrendingUp
-                                } else if (selectedTargetDebtAccount?.type == AccountType.SAVINGS || catName.contains("saving")) {
-                                    Icons.Default.Savings
-                                } else {
-                                    Icons.Default.CreditCard
-                                }
-
-                                OutlinedTextField(
-                                    value = targetText,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text(labelText) },
-                                    leadingIcon = { Icon(iconVector, contentDescription = null) },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown") },
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Box(
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // Title Field
+                                Row(
                                     modifier = Modifier
-                                        .matchParentSize()
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = themeColor.copy(alpha = 0.12f),
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = null,
+                                                tint = themeColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    OutlinedTextField(
+                                        value = title,
+                                        onValueChange = { title = it.toWordTitleCase() },
+                                        placeholder = { Text(if (selectedType == TransactionType.INCOME) "e.g. Salary, Client Pay" else "e.g. Grocery Store, Netflix") },
+                                        label = { Text(if (selectedType == TransactionType.INCOME) "Title / Payer" else "Title / Merchant") },
+                                        keyboardOptions = KeyboardOptions(
+                                            capitalization = KeyboardCapitalization.Words,
+                                            imeAction = ImeAction.Next
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                                        ),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color.Transparent,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 70.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                )
+
+                                // Date Row
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
                                         .clickable {
                                             focusManager.clearFocus(force = true)
                                             keyboardController?.hide()
-                                            showTargetDebtAccountModal = true
+                                            showDatePickerModal = true
                                         }
-                                )
-                            }
-
-                            selectedTargetDebtAccount?.let { targetAcc ->
-                                val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(targetAcc.type)
-                                Row(
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column {
+                                            Text(
+                                                text = "Date",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = dateFormatter.format(Date(selectedTimestamp)),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
                                     Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = if (isLiability) "💡 Will reduce ${targetAcc.name} debt balance" else "💡 Will increase ${targetAcc.name} balance",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.SemiBold
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Pick Date",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            }
-                        }
-                    }
 
-                    // Dynamic Recurring Transaction Options Card
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateContentSize(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Repeat,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = if (selectedType == TransactionType.INCOME) "Recurring Income?" else "Recurring Expense?",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            text = existingRecurring?.let { "Active Recurring Item: ${currencySymbol}${"%.2f".format(it.amount)} (${it.frequency.name.lowercase().replaceFirstChar { c -> c.uppercase() }})" }
-                                                ?: if (selectedType == TransactionType.INCOME) "Schedule future paychecks" else "Schedule future bills",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (existingRecurring != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = if (existingRecurring != null) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                    }
-                                }
-
-                                Switch(
-                                    checked = isRecurring,
-                                    onCheckedChange = {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        isRecurring = it
-                                    }
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 70.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                                 )
-                            }
 
-                            if (isRecurring) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                HorizontalDivider()
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Text(
-                                    text = "Repeat Frequency",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                // Account Row
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(44.dp)
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            expandedAccountDropdown = true
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize(),
-                                        horizontalArrangement = Arrangement.SpaceEvenly,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val options = listOf(
-                                            RecurringFrequency.MONTHLY to "Monthly",
-                                            RecurringFrequency.WEEKLY to "Weekly",
-                                            RecurringFrequency.BI_WEEKLY to "Bi-weekly",
-                                            RecurringFrequency.YEARLY to "Yearly"
-                                        )
-                                        options.forEach { (freq, label) ->
-                                            val isSelected = selectedFrequency == freq
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxHeight()
-                                                    .padding(3.dp)
-                                                    .clip(RoundedCornerShape(9.dp))
-                                                    .background(
-                                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                                    )
-                                                    .clickable {
-                                                        focusManager.clearFocus(force = true)
-                                                        keyboardController?.hide()
-                                                        selectedFrequency = freq
-                                                    },
-                                                contentAlignment = Alignment.Center
-                                            ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AccountBalance,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.secondary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column {
+                                            Text(
+                                                text = if (selectedType == TransactionType.INCOME) "Deposit Account" else "Payment Account",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = selectedAccount?.name ?: "Select Account",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            selectedAccount?.let { acc ->
+                                                val rawBal = accountBalances[acc.id] ?: acc.initialBalance
+                                                val isLiab = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(acc.type)
+                                                val dispBal = if (isLiab) kotlin.math.abs(rawBal) else rawBal
+                                                val accSym = com.selfbudget.app.core.util.Currencies.symbolFor(acc.currencyCode).ifBlank { currencySymbol }
                                                 Text(
-                                                    text = label,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontSize = 12.sp
+                                                    text = "${if (isLiab) "Owed: " else "Balance: "}$accSym%.2f".format(dispBal),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                                 )
                                             }
                                         }
                                     }
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Account",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 70.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                )
+
+                                // Category Row
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            expandedCategoryDropdown = true
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = getCategoryIcon(selectedCategory),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.tertiary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column {
+                                            Text(
+                                                text = "Category",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = selectedCategory?.name ?: "Select Category",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Category",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (shouldShowTargetAccountField) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 70.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                    )
+
+                                    val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
+                                        selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
+                                        selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
+                                        catName.contains("invest") ||
+                                        catName.contains("saving") ||
+                                        catName.contains("retire") ||
+                                        catName.contains("stock") ||
+                                        catName.contains("401k") ||
+                                        catName.contains("ira")
+
+                                    val labelText = if (isInvestmentOrSavings) "Contribute Toward Account" else "Apply Payment Toward Debt"
+                                    val iconVector = if (isInvestmentOrSavings) Icons.Default.TrendingUp else Icons.Default.CreditCard
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+                                                showTargetDebtAccountModal = true
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(38.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = iconVector,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                            Column {
+                                                Text(
+                                                    text = labelText,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = selectedTargetDebtAccount?.name ?: "None (Standard Expense)",
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDropDown,
+                                            contentDescription = "Select Target",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Dynamic Budget Option Card (Only for Expense transactions)
-                    if (selectedType == TransactionType.EXPENSE) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateContentSize(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            )
+                    // 3. Grouped Planning & Automation Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "PLANNING & AUTOMATION",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth().animateContentSize()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
@@ -996,98 +835,228 @@ fun EditTransactionDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountBalanceWallet,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Repeat,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
                                         Column {
                                             Text(
-                                                text = "Set Category Budget?",
+                                                text = if (selectedType == TransactionType.INCOME) "Recurring Income?" else "Recurring Expense?",
                                                 style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold
+                                                fontWeight = FontWeight.Medium
                                             )
                                             Text(
-                                                text = existingCategoryBudget?.let { "Active Category Budget: ${currencySymbol}${"%.2f".format(it.amountLimit)}/mo" }
-                                                    ?: selectedCategory?.let { "Set monthly limit for ${it.name}" }
-                                                    ?: "Show on Budget page with monthly limit",
+                                                text = existingRecurring?.let { "Active: ${currencySymbol}${"%.2f".format(it.amount)} (${it.frequency.name.lowercase().replaceFirstChar { c -> c.uppercase() }})" }
+                                                    ?: if (selectedType == TransactionType.INCOME) "Schedule future paychecks" else "Schedule future bills",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (existingCategoryBudget != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontWeight = if (existingCategoryBudget != null) FontWeight.SemiBold else FontWeight.Normal
+                                                color = if (existingRecurring != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontWeight = if (existingRecurring != null) FontWeight.Medium else FontWeight.Normal
                                             )
                                         }
                                     }
 
                                     Switch(
-                                        checked = setAsBudget,
+                                        checked = isRecurring,
                                         onCheckedChange = {
                                             focusManager.clearFocus(force = true)
                                             keyboardController?.hide()
-                                            setAsBudget = it
-                                            if (it && budgetLimitText.isBlank()) {
-                                                budgetLimitText = amountText.ifBlank { "" }
-                                            }
+                                            isRecurring = it
+                                        },
+                                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = com.selfbudget.app.ui.theme.getAccentColor(),
+                                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            uncheckedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                }
+
+                                if (isRecurring) {
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    Text(
+                                        text = "Repeat Frequency",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    com.selfbudget.app.core.ui.components.FrequencySegmentedControl(
+                                        selected = selectedFrequency,
+                                        onSelect = { freq ->
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            selectedFrequency = freq
                                         }
                                     )
                                 }
 
-                                if (setAsBudget) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    HorizontalDivider()
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                if (selectedType == TransactionType.EXPENSE) {
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Category Budget Scope Information Banner
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                                        modifier = Modifier.fillMaxWidth()
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Info,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(38.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.AccountBalanceWallet,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.secondary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Set Category Budget?",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = existingCategoryBudget?.let { "Active: ${currencySymbol}${"%.2f".format(it.amountLimit)}/mo" }
+                                                        ?: selectedCategory?.let { "Limit for ${it.name}" }
+                                                        ?: "Show on Budget page with monthly limit",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (existingCategoryBudget != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontWeight = if (existingCategoryBudget != null) FontWeight.Medium else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+
+                                        Switch(
+                                            checked = setAsBudget,
+                                            onCheckedChange = { isChecked ->
+                                                focusManager.clearFocus(force = true)
+                                                keyboardController?.hide()
+                                                setAsBudget = isChecked
+                                                if (isChecked && budgetLimitText.isBlank()) {
+                                                    val existingLimit = existingCategoryBudget?.amountLimit
+                                                    if (existingLimit != null && existingLimit > 0.0) {
+                                                        budgetLimitText = "%.2f".format(existingLimit)
+                                                    }
+                                                }
+                                            },
+                                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                checkedThumbColor = Color.White,
+                                                checkedTrackColor = com.selfbudget.app.ui.theme.getAccentColor(),
+                                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                                uncheckedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                        )
+                                    }
+
+                                    if (setAsBudget) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        OutlinedTextField(
+                                            value = budgetLimitText,
+                                            onValueChange = { input ->
+                                                if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                                                    budgetLimitText = input
+                                                }
+                                            },
+                                            label = { Text("Monthly Limit Amount ($currencySymbol)") },
+                                            placeholder = { Text("0.00") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            shape = ShapeChip,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Grouped Note & Receipt Tools Section
+                    if (selectedType == TransactionType.EXPENSE || receiptImageUri != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "TOOLS & ATTACHMENTS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+
+                            Surface(
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            imagePickerLauncher.launch("image/*")
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (receiptImageUri != null) getIncomeColor().copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = if (isScanningOcr) Icons.Default.AutoAwesome else (if (receiptImageUri != null) Icons.Default.Check else Icons.Default.CameraAlt),
+                                                    contentDescription = null,
+                                                    tint = if (receiptImageUri != null) getIncomeColor() else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column {
                                             Text(
-                                                text = "Note: This monthly limit applies to ALL bills and expenses in this category, not just this single item.",
+                                                text = if (receiptImageUri != null) "Receipt Scanned" else "Scan Receipt (OCR)",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (receiptImageUri != null) "Receipt photo attached" else "Auto-fill merchant, amount & date",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                fontSize = 12.sp,
-                                                lineHeight = 16.sp,
-                                                fontWeight = FontWeight.Medium
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                             )
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Text(
-                                        text = "Monthly Budget Limit",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    OutlinedTextField(
-                                        value = budgetLimitText,
-                                        onValueChange = { input ->
-                                            if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                                                budgetLimitText = input
-                                            }
-                                        },
-                                        label = { Text("Monthly Limit Amount ($currencySymbol)") },
-                                        placeholder = { Text("0.00") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.fillMaxWidth()
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -1096,9 +1065,7 @@ fun EditTransactionDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Action Buttons Layout:
-                    // Row 1: [ Cancel ] | [ Save Changes ]
-                    // Row 2: [ 🗑️ Delete Transaction ] (if onDelete != null)
+                    // Action Buttons Layout (spec §14/§16: one primary + one secondary, destructive isolated below)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1107,7 +1074,8 @@ fun EditTransactionDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedButton(
+                            SecondaryPillButton(
+                                text = "Cancel",
                                 onClick = {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
@@ -1115,32 +1083,23 @@ fun EditTransactionDialog(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                            ) {
-                                Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
+                                    .height(54.dp)
+                            )
 
-                            Button(
+                            PrimaryPillButton(
+                                text = "Save changes",
                                 onClick = { submitForm() },
                                 enabled = title.isNotBlank() && (amountText.toDoubleOrNull() ?: 0.0) > 0.0,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
+                                ramp = Ramp.Teal,
                                 modifier = Modifier
                                     .weight(1.3f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
+                                    .height(54.dp)
+                            )
                         }
 
                         if (onDelete != null) {
-                            OutlinedButton(
+                            DestructivePillButton(
+                                text = "Delete transaction",
                                 onClick = {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
@@ -1148,13 +1107,8 @@ fun EditTransactionDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
-                            ) {
-                                Text("Delete Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
+                                    .height(54.dp)
+                            )
                         }
                     }
 
@@ -1188,7 +1142,7 @@ fun EditTransactionDialog(
                             showDatePickerModal = false
                         }
                     ) {
-                        Text("OK", fontWeight = FontWeight.Bold)
+                        Text("OK", fontWeight = FontWeight.Medium)
                     }
                 },
                 dismissButton = {
@@ -1244,10 +1198,8 @@ fun EditTransactionDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = ShapeCard,
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                shadowElevation = 12.dp,
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
                     .padding(16.dp)
@@ -1256,28 +1208,13 @@ fun EditTransactionDialog(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Glowing Red Trash Badge
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                        modifier = Modifier.size(64.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
+                    RampIconTile(icon = Icons.Default.Delete, ramp = Ramp.Red, size = 64.dp, iconSize = 32.dp)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Delete Transaction?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Delete transaction?",
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -1285,7 +1222,7 @@ fun EditTransactionDialog(
 
                     Text(
                         text = "Are you sure you want to delete this transaction record? This cannot be undone.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = SelfBudgetType.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
@@ -1294,9 +1231,8 @@ fun EditTransactionDialog(
 
                     // Highlighted Transaction Card
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        shape = ShapeCard,
+                        color = Ramp.Gray.tintFill(isAppInDarkTheme()),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1308,50 +1244,43 @@ fun EditTransactionDialog(
                         ) {
                             Text(
                                 text = transaction.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                style = SelfBudgetType.rowTitle,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "${if (isIncome) "+" else "-"}$currencySymbol%.2f".format(transaction.amount),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isIncome) com.selfbudget.app.ui.theme.getIncomeColor() else com.selfbudget.app.ui.theme.getExpenseColor()
+                                style = SelfBudgetType.rowTitle,
+                                color = if (isIncome) getIncomeColor() else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Action Buttons Row
+                    // Action Buttons Row — the confirm step's destructive button may be solid red (spec §14)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = { showDeleteConfirmation = false },
-                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold)
-                        }
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Delete",
                             onClick = {
                                 onDelete(transaction)
                                 showDeleteConfirmation = false
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            ),
+                            ramp = Ramp.Red,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
-                        ) {
-                            Text("Delete", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
@@ -1435,83 +1364,109 @@ private fun TransactionViewModeSummary(
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "AMOUNT",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.2.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${if (isIncome) "+" else "-"}$currencySymbol${"%.2f".format(transaction.amount)}",
-                style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = themeColor)
-            )
-        }
-
+        // Hero Amount Card — neutral display number, the type badge is the only colored element (spec §14)
+        val heroRamp = if (isIncome) Ramp.Teal else Ramp.Red
+        val isDarkHero = isAppInDarkTheme()
         Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = themeColor.copy(alpha = 0.15f),
-            border = BorderStroke(1.dp, themeColor.copy(alpha = 0.3f)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
+            shape = ShapeHero,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(color = heroRamp.tintFill(isDarkHero), shape = ShapePill) {
+                    Text(
+                        text = if (isIncome) "INCOME" else "EXPENSE",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        style = SelfBudgetType.eyebrow,
+                        color = heroRamp.titleText(isDarkHero)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = if (isIncome) "Income 🟢" else "Expense 🔴",
-                    fontWeight = FontWeight.Bold,
-                    color = themeColor,
-                    fontSize = 14.sp
+                    text = "${if (isIncome) "+" else "-"}$currencySymbol${"%.2f".format(transaction.amount)}",
+                    style = SelfBudgetType.display,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
-        ViewModeInfoRow(
-            icon = Icons.Default.Info,
-            label = if (isIncome) "Title / Payer" else "Title / Merchant",
-            value = transaction.title
-        )
-        ViewModeInfoRow(icon = Icons.Default.CalendarToday, label = "Date", value = dateFormatter.format(Date(transaction.timestamp)))
-        ViewModeInfoRow(
-            icon = Icons.Default.AccountBalance,
-            label = if (isIncome) "Deposit Account" else "Payment Account",
-            value = accountName ?: "—"
-        )
-        ViewModeInfoRow(icon = Icons.Default.Category, label = "Category", value = categoryName ?: "—")
-
-        if (debtAccountName != null) {
-            ViewModeInfoRow(icon = Icons.Default.CreditCard, label = "Applied Toward Debt", value = debtAccountName)
-        }
-
-        if (isRecurringActive) {
-            ViewModeInfoRow(
-                icon = Icons.Default.Repeat,
-                label = "Recurring",
-                value = recurringFrequency.name.lowercase().replaceFirstChar { it.uppercase() },
-                valueColor = MaterialTheme.colorScheme.primary
+        // Grouped Details Card
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = "Transaction details",
+                style = SelfBudgetType.section,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp)
             )
+
+            Surface(
+                shape = ShapeCard,
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    ViewModeInfoItem(
+                        icon = Icons.Default.Info,
+                        label = if (isIncome) "Title / Payer" else "Title / Merchant",
+                        value = transaction.title
+                    )
+                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    ViewModeInfoItem(
+                        icon = Icons.Default.CalendarToday,
+                        label = "Date",
+                        value = dateFormatter.format(Date(transaction.timestamp))
+                    )
+                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    ViewModeInfoItem(
+                        icon = Icons.Default.AccountBalance,
+                        label = if (isIncome) "Deposit Account" else "Payment Account",
+                        value = accountName ?: "—"
+                    )
+                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    ViewModeInfoItem(
+                        icon = Icons.Default.Category,
+                        label = "Category",
+                        value = categoryName ?: "—"
+                    )
+
+                    if (debtAccountName != null) {
+                        SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        ViewModeInfoItem(
+                            icon = Icons.Default.CreditCard,
+                            label = "Applied Toward Debt",
+                            value = debtAccountName
+                        )
+                    }
+
+                    if (isRecurringActive) {
+                        SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        ViewModeInfoItem(
+                            icon = Icons.Default.Repeat,
+                            label = "Recurring Schedule",
+                            value = recurringFrequency.name.lowercase().replaceFirstChar { it.uppercase() }
+                        )
+                    }
+
+                    if (isBudgetActive) {
+                        SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                        ViewModeInfoItem(
+                            icon = Icons.Default.AccountBalanceWallet,
+                            label = "Monthly Category Budget",
+                            value = "$currencySymbol${budgetLimitText.ifBlank { "0.00" }}/mo"
+                        )
+                    }
+                }
+            }
         }
 
-        if (isBudgetActive) {
-            ViewModeInfoRow(
-                icon = Icons.Default.AccountBalanceWallet,
-                label = "Monthly Category Budget",
-                value = "$currencySymbol${budgetLimitText.ifBlank { "0.00" }}/mo",
-                valueColor = MaterialTheme.colorScheme.primary
-            )
-        }
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(12.dp))
-
+        // Buttons (spec §14: Close + Edit pair, destructive isolated below)
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1520,89 +1475,69 @@ private fun TransactionViewModeSummary(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                SecondaryPillButton(
+                    text = "Close",
                     onClick = onClose,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                ) {
-                    Text("Close", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
 
-                Button(
+                PrimaryPillButton(
+                    text = "Edit transaction",
                     onClick = onEditClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+                    ramp = Ramp.Teal,
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("Edit Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
             }
 
             if (canDelete) {
-                OutlinedButton(
+                DestructivePillButton(
+                    text = "Delete transaction",
                     onClick = onDeleteClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.5.dp, ExpenseRed.copy(alpha = 0.6f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
-                ) {
-                    Text("Delete Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
             }
         }
     }
 }
 
+/** Detail-row icon tiles are Gray (spec §14): they label a field TYPE, not a category. */
 @Composable
-private fun ViewModeInfoRow(
+private fun ViewModeInfoItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    value: String,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
+    value: String
 ) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
+            GrayIconTile(icon = icon, size = 36.dp, iconSize = 18.dp)
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 0.8.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = valueColor
-                )
-            }
+            Text(
+                text = label,
+                style = SelfBudgetType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = value,
+            style = SelfBudgetType.rowTitle,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End
+        )
     }
 }

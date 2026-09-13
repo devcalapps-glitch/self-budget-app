@@ -1,17 +1,11 @@
 package com.selfbudget.app.core.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,19 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -46,15 +35,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.NeutralBadge
+import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.data.model.AccountEntity
@@ -62,7 +49,15 @@ import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.feature.analytics.AnalyticsTimeframe
-import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.titleText
+import com.selfbudget.app.ui.theme.tintFill
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -154,7 +149,9 @@ fun DebtPayoffAnalyticsModal(
     }
     val maxMonthlyTotal = remember(monthlyTotals) { monthlyTotals.maxOrNull()?.coerceAtLeast(1f) ?: 1f }
 
-    val themeAccentColor = getIncomeColor()
+    // Report identity: Debt payoff = Purple (spec §11).
+    val ramp = Ramp.Purple
+    val isDark = isAppInDarkTheme()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -172,60 +169,42 @@ fun DebtPayoffAnalyticsModal(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // Persistent Header
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
+                // Persistent Header — ✕ and title only (spec §14).
+                Surface(color = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = title,
+                                style = SelfBudgetType.heading,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (subtitle.isNotBlank()) {
                                 Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    text = subtitle,
+                                    style = SelfBudgetType.meta,
+                                    color = ramp.secondaryText(isDark),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                if (subtitle.isNotBlank()) {
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
                             }
                         }
-
-                        Button(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
                     }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // Scrollable Content
@@ -235,16 +214,12 @@ fun DebtPayoffAnalyticsModal(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Total Debt Payoff Hero Summary Banner Card
+                    // 1. Total Debt Payoff Hero Summary — neutral display number (spec §11).
                     item {
-                        Card(
+                        Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Row(
@@ -253,38 +228,20 @@ fun DebtPayoffAnalyticsModal(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = themeAccentColor.copy(alpha = 0.15f),
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.TrendingDown,
-                                                    contentDescription = null,
-                                                    tint = themeAccentColor,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
+                                        RampIconTile(icon = Icons.Default.TrendingDown, ramp = ramp, size = 36.dp, iconSize = 20.dp)
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Text(
-                                            text = "Debt Eliminated",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
+                                            text = "Debt eliminated",
+                                            style = SelfBudgetType.heading,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
 
-                                    Surface(
-                                        shape = RoundedCornerShape(20.dp),
-                                        color = themeAccentColor.copy(alpha = 0.15f)
-                                    ) {
+                                    Surface(shape = ShapePill, color = ramp.tintFill(isDark)) {
                                         Text(
-                                            text = if (timeframe == AnalyticsTimeframe.MONTHLY) "Monthly Paydown" else "YTD Paydown",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = themeAccentColor,
+                                            text = if (timeframe == AnalyticsTimeframe.MONTHLY) "Monthly paydown" else "YTD paydown",
+                                            style = SelfBudgetType.badge,
+                                            color = ramp.titleText(isDark),
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                         )
                                     }
@@ -294,36 +251,27 @@ fun DebtPayoffAnalyticsModal(
 
                                 Text(
                                     text = "$currencySymbol%.2f".format(totalPaidOffInPeriod),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = themeAccentColor
+                                    style = SelfBudgetType.display,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "Remaining Debt Balance:",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            text = "$currencySymbol%.2f".format(totalRemainingDebt),
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
+                                    Text(
+                                        text = "Remaining debt balance",
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "$currencySymbol%.2f".format(totalRemainingDebt),
+                                        style = SelfBudgetType.rowTitle,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -332,18 +280,15 @@ fun DebtPayoffAnalyticsModal(
                     // 2. Annual Monthly Breakdown Bar Chart (Only visible in Annual mode)
                     if (timeframe == AnalyticsTimeframe.ANNUAL) {
                         item {
-                            Card(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
                                 Column(modifier = Modifier.padding(20.dp)) {
                                     Text(
-                                        text = "$periodLabel Monthly Payoff History",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
+                                        text = "$periodLabel monthly payoff history",
+                                        style = SelfBudgetType.heading,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(16.dp))
@@ -351,11 +296,12 @@ fun DebtPayoffAnalyticsModal(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(110.dp),
+                                            .height(120.dp),
                                         horizontalArrangement = Arrangement.SpaceEvenly,
                                         verticalAlignment = Alignment.Bottom
                                     ) {
                                         val cal = Calendar.getInstance()
+                                        cal.set(Calendar.DAY_OF_MONTH, 1)
                                         for (m in 0..11) {
                                             cal.set(Calendar.MONTH, m)
                                             val monthLabel = sdfMonthShort.format(cal.time)
@@ -367,28 +313,17 @@ fun DebtPayoffAnalyticsModal(
                                                 verticalArrangement = Arrangement.Bottom,
                                                 modifier = Modifier.weight(1f)
                                             ) {
-                                                if (mVal > 0) {
-                                                    Text(
-                                                        text = "$currencySymbol%.0f".format(mVal),
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = themeAccentColor
-                                                    )
-                                                    Spacer(modifier = Modifier.height(2.dp))
-                                                }
-
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth(0.55f)
-                                                        .height((barFraction * 75).dp.coerceAtLeast(4.dp))
+                                                        .height((barFraction * 90).dp.coerceAtLeast(4.dp))
                                                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                        .background(if (mVal > 0) themeAccentColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                                        .background(if (mVal > 0) ramp.c400 else MaterialTheme.colorScheme.outlineVariant)
                                                 )
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
                                                     text = monthLabel,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
+                                                    style = SelfBudgetType.meta,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
@@ -401,48 +336,36 @@ fun DebtPayoffAnalyticsModal(
 
                     // 3. Debt Account Breakdown Section Header
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Debt Accounts (${debtAccountDetails.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Text(
+                            text = "Debt accounts (${debtAccountDetails.size})",
+                            style = SelfBudgetType.heading,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
 
                     // 4. Debt Account Detail List Items
                     if (debtAccountDetails.isEmpty()) {
                         item {
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
                                     modifier = Modifier.padding(24.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = themeAccentColor,
-                                        modifier = Modifier.size(40.dp)
-                                    )
+                                    RampIconTile(icon = Icons.Default.CheckCircle, ramp = Ramp.Teal, size = 56.dp, iconSize = 28.dp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "No Debt Accounts Logged",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        text = "No debt accounts logged",
+                                        style = SelfBudgetType.heading,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Add a Credit Card or Loan account to track payoff progress.",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        text = "Add a credit card or loan account to track payoff progress.",
+                                        style = SelfBudgetType.body,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center
                                     )
@@ -450,87 +373,78 @@ fun DebtPayoffAnalyticsModal(
                             }
                         }
                     } else {
-                        items(debtAccountDetails) { detail ->
-                            val acc = detail.account
-                            val accColor = try { Color(android.graphics.Color.parseColor(acc.colorHex)) } catch (_: Exception) { MaterialTheme.colorScheme.primary }
-                            val icon = when (acc.type) {
-                                AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-                                else -> Icons.Default.AccountBalance
-                            }
-
-                            Card(
+                        item {
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                Column {
+                                    debtAccountDetails.forEachIndexed { index, detail ->
+                                        val acc = detail.account
+                                        val icon = when (acc.type) {
+                                            AccountType.CREDIT_CARD -> Icons.Default.CreditCard
+                                            else -> Icons.Default.AccountBalance
+                                        }
+
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp)
                                         ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = accColor.copy(alpha = 0.2f),
-                                                modifier = Modifier.size(36.dp)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = icon,
-                                                        contentDescription = null,
-                                                        tint = accColor,
-                                                        modifier = Modifier.size(20.dp)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    RampIconTile(icon = icon, ramp = ramp, size = 36.dp, iconSize = 18.dp)
+                                                    Spacer(modifier = Modifier.width(12.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = acc.name,
+                                                            style = SelfBudgetType.rowTitle,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = "${detail.paymentCount} payment(s) • Remaining: $currencySymbol%.2f".format(detail.currentRemainingBalance),
+                                                            style = SelfBudgetType.meta,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = "$currencySymbol%.2f".format(detail.totalPaidOff),
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    NeutralBadge(text = "${(detail.percentageOfTotal * 100).toInt()}% of total")
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Column {
-                                                Text(
-                                                    text = acc.name,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = "${detail.paymentCount} payment(s) • Remaining: $currencySymbol%.2f".format(detail.currentRemainingBalance),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            LinearProgressIndicator(
+                                                progress = { detail.percentageOfTotal.coerceIn(0f, 1f) },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(6.dp)
+                                                    .clip(ShapeChip),
+                                                color = ramp.c400,
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
                                         }
 
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "$currencySymbol%.2f".format(detail.totalPaidOff),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = themeAccentColor
-                                            )
-                                            Text(
-                                                text = "%.1f%% of total".format(detail.percentageOfTotal * 100),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        if (index < debtAccountDetails.size - 1) {
+                                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    LinearProgressIndicator(
-                                        progress = { detail.percentageOfTotal.coerceIn(0f, 1f) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = themeAccentColor,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
                                 }
                             }
                         }

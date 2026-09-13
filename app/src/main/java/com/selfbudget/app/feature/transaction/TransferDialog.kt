@@ -7,10 +7,14 @@ import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +26,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,15 +33,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,15 +62,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -73,15 +83,24 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
+import com.selfbudget.app.core.util.toWordTitleCase
+import com.selfbudget.app.core.ui.components.EntryType
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.QuickAmountChips
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
+import com.selfbudget.app.core.ui.components.TransactionAmountHero
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.core.util.VoiceParser
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.getIncomeColor
 
 /**
  * Full-screen modal transfer form: move money between two of the user's own accounts.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TransferDialog(
     accounts: List<AccountEntity>,
@@ -142,6 +161,15 @@ fun TransferDialog(
         }
     }
 
+    fun swapAccounts() {
+        val temp = fromAccount
+        fromAccount = toAccount
+        toAccount = temp
+    }
+
+    val isDark = isSystemInDarkTheme()
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -153,16 +181,31 @@ fun TransferDialog(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .drawWithContent {
+                    drawContent()
+                    if (!isDark) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    primaryColor.copy(alpha = 0.035f),
+                                    Color.Transparent
+                                ),
+                                center = Offset(size.width * 0.5f, 160f),
+                                radius = size.width * 0.75f
+                            )
+                        )
+                    }
+                },
             color = MaterialTheme.colorScheme.background
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Transfer Between Accounts",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            text = "Transfer Funds",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
                         )
                     },
                     navigationIcon = {
@@ -170,20 +213,8 @@ fun TransferDialog(
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     },
-                    actions = {
-                        Button(
-                            onClick = { doTransfer() },
-                            enabled = isValid,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = getIncomeColor(),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.padding(end = 12.dp)
-                        ) {
-                            Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
+                    // No header Transfer action (spec §14/§16): the header holds only close +
+                    // title; the single primary action lives in the footer button below.
                 )
 
                 Column(
@@ -202,96 +233,172 @@ fun TransferDialog(
                             .focusable()
                     )
 
-                    // 1. Top Amount Entry Stepper (- $0.00 +) without card wrapping
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                    // 1. Top Amount Hero Card
+                    TransactionAmountHero(
+                        type = EntryType.Transfer,
+                        amountText = amountText,
+                        onAmountChange = { amountText = it },
+                        currencySymbol = currencySymbol,
+                        badgeText = "TRANSFER AMOUNT",
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    QuickAmountChips(
+                        presets = listOf(10, 25, 50, 100, 250),
+                        currencySymbol = currencySymbol,
+                        onPick = { preset ->
+                            val currentVal = amountText.toDoubleOrNull() ?: 0.0
+                            amountText = "%.2f".format(currentVal + preset)
+                        }
+                    )
+
+                    // 2. Grouped Transfer Account Details Card
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "TRANSFER AMOUNT ($currencySymbol)",
+                            text = "TRANSFER ACCOUNTS",
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.2.sp
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(start = 4.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Minus Button
-                            Surface(
-                                onClick = {
-                                    val current = amountText.toDoubleOrNull() ?: 0.0
-                                    val next = maxOf(0.0, current - 1.0)
-                                    amountText = if (next == 0.0) "" else "%.2f".format(next)
-                                },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.size(44.dp)
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Subtract Amount",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                                // From Account Row
+                                TransferAccountRow(
+                                    title = "From (Source Account)",
+                                    account = fromAccount,
+                                    currencySymbol = currencySymbol,
+                                    accountBalances = accountBalances,
+                                    isSource = true,
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
+                                        pickingFrom = true
+                                    }
+                                )
 
-                            // Centered Big Amount Field (44.sp ExtraBold)
-                            Box(
-                                modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                OutlinedTextField(
-                                    value = amountText,
-                                    onValueChange = { input ->
-                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
-                                            amountText = input
+                                // Divider with central Swap button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                                    )
+
+                                    Surface(
+                                        onClick = { swapAccounts() },
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                                        shadowElevation = 2.dp,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.SwapVert,
+                                                contentDescription = "Swap Source and Destination",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
-                                    },
-                                    placeholder = {
-                                        Text(
-                                            text = "0.00",
-                                            style = TextStyle(
-                                                fontSize = 44.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
+                                    }
+                                }
+
+                                // To Account Row
+                                TransferAccountRow(
+                                    title = "To (Destination Account)",
+                                    account = toAccount,
+                                    currencySymbol = currencySymbol,
+                                    accountBalances = accountBalances,
+                                    isSource = false,
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
+                                        pickingTo = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (fromAccount != null && fromAccount?.id == toAccount?.id) {
+                        Surface(
+                            shape = ShapeChip,
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Source and destination accounts must be different.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+
+                    // 3. Grouped Note & Memo Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "NOTE & MEMO",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.EditNote,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
                                         )
-                                    },
-                                    prefix = {
-                                        Text(
-                                            text = currencySymbol,
-                                            style = TextStyle(
-                                                fontSize = 32.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            ),
-                                            modifier = Modifier.padding(end = 2.dp)
-                                        )
-                                    },
-                                    textStyle = TextStyle(
-                                        fontSize = 44.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Decimal,
-                                        imeAction = ImeAction.Next
-                                    ),
-                                    keyboardActions = KeyboardActions(
-                                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                                    ),
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                OutlinedTextField(
+                                    value = note,
+                                    onValueChange = { note = it.toWordTitleCase() },
+                                    label = { Text("Transfer Note (optional)") },
+                                    placeholder = { Text("e.g. Monthly savings transfer") },
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                     singleLine = true,
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Color.Transparent,
@@ -302,166 +409,33 @@ fun TransferDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
-
-                            // Plus Button
-                            Surface(
-                                onClick = {
-                                    val current = amountText.toDoubleOrNull() ?: 0.0
-                                    val next = current + 1.0
-                                    amountText = "%.2f".format(next)
-                                },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Amount",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Quick Preset Amount Chips ($5, $10, $25, $50, $100)
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(5, 10, 25, 50, 100).forEach { preset ->
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                                    modifier = Modifier.clickable {
-                                        val currentVal = amountText.toDoubleOrNull() ?: 0.0
-                                        amountText = "%.2f".format(currentVal + preset)
-                                    }
-                                ) {
-                                    Text(
-                                        text = "+$currencySymbol$preset",
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
                         }
                     }
-
-                    AccountPickerField(
-                        label = "From Account",
-                        account = fromAccount,
-                        onClick = { pickingFrom = true }
-                    )
-
-                    AccountPickerField(
-                        label = "To Account",
-                        account = toAccount,
-                        onClick = { pickingTo = true }
-                    )
-
-                    if (fromAccount != null && fromAccount?.id == toAccount?.id) {
-                        Text(
-                            text = "Pick two different accounts.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        label = { Text("Note (optional)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Voice Assistant Entry Button
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shadowElevation = 6.dp,
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clickable {
-                                    focusManager.clearFocus(force = true)
-                                    keyboardController?.hide()
-                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                        putExtra(
-                                            RecognizerIntent.EXTRA_PROMPT,
-                                            "e.g. '100 dollars'"
-                                        )
-                                    }
-                                    voiceLauncher.launch(intent)
-                                }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Entry Mic",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Voice",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // Action Buttons (spec §8: one primary + one secondary)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = onDismiss,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        }
+                                .height(50.dp)
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = "Save transfer",
                             onClick = { doTransfer() },
                             enabled = isValid,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = getIncomeColor(),
-                                contentColor = Color.White
-                            ),
+                            ramp = Ramp.Teal,
                             modifier = Modifier
                                 .weight(1.3f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
+                                .height(50.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(150.dp))
@@ -526,44 +500,84 @@ fun TransferDialog(
 }
 
 @Composable
-private fun AccountPickerField(label: String, account: AccountEntity?, onClick: () -> Unit) {
-    androidx.compose.material3.Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+private fun TransferAccountRow(
+    title: String,
+    account: AccountEntity?,
+    currencySymbol: String,
+    accountBalances: Map<String, Double>,
+    isSource: Boolean,
+    onClick: () -> Unit
+) {
+    val accColor = remember(account) {
+        if (account == null) Color.Gray
+        else {
+            try {
+                Color(android.graphics.Color.parseColor(account.colorHex))
+            } catch (e: Exception) {
+                Color(0xFF2196F3)
+            }
+        }
+    }
+
+    val rawBalance = account?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0
+    val sym = account?.let { if (it.currencyCode.isNotBlank()) Currencies.symbolFor(it.currencyCode) else currencySymbol } ?: currencySymbol
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Icon(
-                    imageVector = Icons.Default.AccountBalance,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        text = account?.let { "${it.name} (${Currencies.symbolFor(it.currencyCode)})" } ?: "Select an account",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
+            Surface(
+                shape = CircleShape,
+                color = accColor.copy(alpha = 0.15f),
+                modifier = Modifier.size(38.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalance,
+                        contentDescription = null,
+                        tint = accColor,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = "Select",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = account?.name ?: "Select account",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = if (account != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                if (account != null) {
+                    Text(
+                        text = "Balance: $sym%.2f".format(rawBalance),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
+
+        Icon(
+            imageVector = Icons.Default.ArrowDropDown,
+            contentDescription = "Select",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
+

@@ -28,7 +28,8 @@ enum class ExportDataType(
     RECURRING("Recurring Transactions", "Scheduled recurring bills, subscriptions, and paychecks", "recurring_transactions"),
     BUDGET("Budget Plan", "Configured monthly category budget ceilings and limits", "budget_plan"),
     GOALS("Savings Goals", "Savings targets, saved balances, and linked accounts", "savings_goals"),
-    ACCOUNTS("Accounts & Wallets", "Bank accounts, credit cards, cash wallets, and balances", "accounts_and_wallets")
+    ACCOUNTS("Accounts & Wallets", "Bank accounts, credit cards, cash wallets, and balances", "accounts_and_wallets"),
+    CATEGORIES("Categories", "Expense, income, and transfer category definitions and icons", "categories")
 }
 
 object CsvExporter {
@@ -48,7 +49,7 @@ object CsvExporter {
 
         sb.append("Transaction ID,Date,Title,Type,Amount ($),Category,Account / Wallet,Transfer Destination Account,Payment Method,Note\n")
         for (tx in transactions) {
-            val categoryName = categoryMap[tx.categoryId]?.name ?: "General"
+            val categoryName = categoryMap[tx.categoryId]?.name ?: tx.categoryId
             val accountName = accountMap[tx.accountId]?.name ?: tx.accountId
             val transferAccountName = tx.transferAccountId?.let { accountMap[it]?.name ?: it } ?: ""
             val dateStr = dateTimeFormat.format(Date(tx.timestamp))
@@ -81,10 +82,11 @@ object CsvExporter {
         val accountMap = accounts.associateBy { it.id }
         val sb = StringBuilder()
 
-        sb.append("Recurring ID,Title,Type,Amount ($),Category,Account / Wallet,Frequency,Next Due Date,Remaining Occurrences,Status,Payment Method,Note\n")
+        sb.append("Recurring ID,Title,Type,Amount ($),Category,Account / Wallet,Transfer Destination / Debt Target,Frequency,Next Due Date,Remaining Occurrences,Status,Payment Method,Note\n")
         for (rec in recurring) {
-            val categoryName = categoryMap[rec.categoryId]?.name ?: "General"
+            val categoryName = categoryMap[rec.categoryId]?.name ?: rec.categoryId
             val accountName = accountMap[rec.accountId]?.name ?: rec.accountId
+            val transferAccountName = rec.transferAccountId?.let { accountMap[it]?.name ?: it } ?: ""
             val nextDueDateStr = dateFormat.format(Date(rec.nextDueDate))
             val remainingStr = rec.remainingOccurrences?.toString() ?: "Indefinite"
             val statusStr = if (rec.isArchived) "Paused / Completed" else "Active"
@@ -92,6 +94,7 @@ object CsvExporter {
             val noteEscaped = escapeCsvField(rec.note ?: "")
             val paymentMethodEscaped = escapeCsvField(rec.paymentMethod ?: "Credit Card")
             val accountEscaped = escapeCsvField(accountName)
+            val transferEscaped = escapeCsvField(transferAccountName)
 
             sb.append("${rec.id},")
             sb.append("$titleEscaped,")
@@ -99,6 +102,7 @@ object CsvExporter {
             sb.append("%.2f,".format(Locale.US, rec.amount))
             sb.append("${escapeCsvField(categoryName)},")
             sb.append("$accountEscaped,")
+            sb.append("$transferEscaped,")
             sb.append("${rec.frequency.name},")
             sb.append("$nextDueDateStr,")
             sb.append("$remainingStr,")
@@ -139,7 +143,7 @@ object CsvExporter {
         val accountMap = accounts.associateBy { it.id }
         val sb = StringBuilder()
 
-        sb.append("Goal ID,Goal Name,Target Amount ($),Saved Amount ($),Linked Account / Wallet,Target Date,Created Date\n")
+        sb.append("Goal ID,Goal Name,Target Amount ($),Saved Amount ($),Linked Account / Wallet,Target Date,Created Date,Color Hex,Icon Name\n")
         for (g in goals) {
             val linkedAccountName = g.linkedAccountId?.let { accountMap[it]?.name ?: it } ?: "None (Direct Savings)"
             val targetDateStr = g.targetDate?.let { dateFormat.format(Date(it)) } ?: "No deadline"
@@ -151,7 +155,9 @@ object CsvExporter {
             sb.append("%.2f,".format(Locale.US, g.savedAmount))
             sb.append("${escapeCsvField(linkedAccountName)},")
             sb.append("$targetDateStr,")
-            sb.append("$createdDateStr\n")
+            sb.append("$createdDateStr,")
+            sb.append("${escapeCsvField(g.colorHex)},")
+            sb.append("${escapeCsvField(g.iconName)}\n")
         }
         return sb.toString()
     }
@@ -162,12 +168,13 @@ object CsvExporter {
     ): String {
         val sb = StringBuilder()
 
-        sb.append("Account ID,Account Name,Account Type,Live Balance ($),Initial Balance ($),Currency,Credit Limit ($),Interest Rate APR (%),Minimum Payment ($),Is Default\n")
+        sb.append("Account ID,Account Name,Account Type,Live Balance ($),Initial Balance ($),Currency,Credit Limit ($),Interest Rate APR (%),Minimum Payment ($),Loan Term (Months),Is Default,Color Hex,Icon Name\n")
         for (acc in accounts) {
             val liveBalance = accountBalances[acc.id] ?: acc.initialBalance
             val creditLimitStr = acc.creditLimit?.let { "%.2f".format(Locale.US, it) } ?: "N/A"
             val aprStr = acc.interestRateApr?.let { "%.2f%%".format(Locale.US, it) } ?: "N/A"
             val minPayStr = acc.minimumPayment?.let { "%.2f".format(Locale.US, it) } ?: "N/A"
+            val termStr = acc.loanTermMonths?.toString() ?: "N/A"
             val isDefaultStr = if (acc.isDefault) "Yes" else "No"
 
             sb.append("${acc.id},")
@@ -179,7 +186,30 @@ object CsvExporter {
             sb.append("$creditLimitStr,")
             sb.append("$aprStr,")
             sb.append("$minPayStr,")
-            sb.append("$isDefaultStr\n")
+            sb.append("$termStr,")
+            sb.append("$isDefaultStr,")
+            sb.append("${escapeCsvField(acc.colorHex)},")
+            sb.append("${escapeCsvField(acc.iconName)}\n")
+        }
+        return sb.toString()
+    }
+
+    fun generateCategoriesCsv(
+        categories: List<CategoryEntity>
+    ): String {
+        val sb = StringBuilder()
+        sb.append("Category ID,Category Name,Type,Icon Name,Color Hex,Is Default,Is Archived\n")
+        for (cat in categories) {
+            val isDefaultStr = if (cat.isDefault) "Yes" else "No"
+            val isArchivedStr = if (cat.isArchived) "Yes" else "No"
+
+            sb.append("${cat.id},")
+            sb.append("${escapeCsvField(cat.name)},")
+            sb.append("${cat.type.name},")
+            sb.append("${escapeCsvField(cat.iconName)},")
+            sb.append("${escapeCsvField(cat.colorHex)},")
+            sb.append("$isDefaultStr,")
+            sb.append("$isArchivedStr\n")
         }
         return sb.toString()
     }
@@ -225,6 +255,7 @@ object CsvExporter {
                     ExportDataType.BUDGET -> generateBudgetCsv(budgets, categories)
                     ExportDataType.GOALS -> generateGoalsCsv(goals, accounts)
                     ExportDataType.ACCOUNTS -> generateAccountsCsv(accounts, accountBalances)
+                    ExportDataType.CATEGORIES -> generateCategoriesCsv(categories)
                 }
                 val fileName = "SelfBudget_${singleType.filePrefix}_$timestamp.csv"
                 writeAndShareSingleCsv(context, fileName, csvContent, "Self Budget - ${singleType.title} Export")
@@ -253,6 +284,10 @@ object CsvExporter {
                         ExportDataType.ACCOUNTS -> Pair(
                             generateAccountsCsv(accounts, accountBalances),
                             "accounts_and_wallets.csv"
+                        )
+                        ExportDataType.CATEGORIES -> Pair(
+                            generateCategoriesCsv(categories),
+                            "categories.csv"
                         )
                     }
 

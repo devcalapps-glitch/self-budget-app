@@ -17,6 +17,28 @@ object RecurringScheduler {
         when (frequency) {
             RecurringFrequency.WEEKLY -> cal.add(Calendar.WEEK_OF_YEAR, 1)
             RecurringFrequency.BI_WEEKLY -> cal.add(Calendar.WEEK_OF_YEAR, 2)
+            RecurringFrequency.SEMI_MONTHLY -> {
+                val day = cal.get(Calendar.DAY_OF_MONTH)
+                if (day <= 15) {
+                    if (day == 1) {
+                        cal.set(Calendar.DAY_OF_MONTH, 15)
+                    } else if (day == 15) {
+                        cal.add(Calendar.MONTH, 1)
+                        cal.set(Calendar.DAY_OF_MONTH, 1)
+                    } else {
+                        cal.add(Calendar.DAY_OF_MONTH, 15)
+                    }
+                } else {
+                    val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                    if (day >= maxDay - 1) {
+                        cal.add(Calendar.MONTH, 1)
+                        cal.set(Calendar.DAY_OF_MONTH, 15)
+                    } else {
+                        cal.add(Calendar.MONTH, 1)
+                        cal.set(Calendar.DAY_OF_MONTH, (day - 15).coerceAtLeast(1))
+                    }
+                }
+            }
             RecurringFrequency.MONTHLY -> cal.add(Calendar.MONTH, 1)
             RecurringFrequency.YEARLY -> cal.add(Calendar.YEAR, 1)
         }
@@ -28,6 +50,9 @@ object RecurringScheduler {
      * indefinitely (no finite lifespan was set). Never goes below 0.
      */
     fun decrementOccurrences(remaining: Int?): Int? = remaining?.let { (it - 1).coerceAtLeast(0) }
+
+    /** Inverse of [decrementOccurrences], used to undo a posting whose transaction gets deleted. */
+    fun incrementOccurrences(remaining: Int?): Int? = remaining?.let { it + 1 }
 
     /**
      * True once a finite-lifespan recurring item (e.g. "12 more loan payments") has used up all

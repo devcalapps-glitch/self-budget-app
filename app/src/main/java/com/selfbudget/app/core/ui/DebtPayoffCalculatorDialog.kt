@@ -2,7 +2,9 @@ package com.selfbudget.app.core.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,25 +17,38 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,8 +58,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -53,8 +71,12 @@ import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.core.util.DebtPayoffCalculator
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
-import com.selfbudget.app.ui.theme.ExpenseRed
+import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapePill
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -67,6 +89,7 @@ import java.util.Locale
  * to the account or the ledger, unlike DebtPayoffAnalyticsModal which tracks real historical
  * payoff progress from posted transactions.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DebtPayoffCalculatorDialog(
     accounts: List<AccountEntity>,
@@ -90,6 +113,7 @@ fun DebtPayoffCalculatorDialog(
     }
 
     var selectedAccount by remember { mutableStateOf(preselectedAccount) }
+    var showAccountDropdown by remember { mutableStateOf(false) }
     val initialFields = remember { prefillFor(preselectedAccount) }
     var balanceText by remember { mutableStateOf(initialFields.first) }
     var aprText by remember { mutableStateOf(initialFields.second) }
@@ -144,11 +168,9 @@ fun DebtPayoffCalculatorDialog(
                                 Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Payoff Calculator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Payoff calculator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                         }
-                        Button(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) {
-                            Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
+                        // Done lives in the footer only — never duplicated in the header (spec §14/§19).
                     }
                 }
 
@@ -156,202 +178,436 @@ fun DebtPayoffCalculatorDialog(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (debtAccounts.isNotEmpty()) {
-                        Column {
-                            Text(
-                                text = "DEBT ACCOUNT (OPTIONAL)",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.2.sp
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                            ) {
-                                FilterChip(
-                                    selected = selectedAccount == null,
-                                    onClick = { selectAccount(null) },
-                                    label = { Text("Manual Entry", fontWeight = FontWeight.Bold) }
-                                )
-                                debtAccounts.forEach { acc ->
-                                    FilterChip(
-                                        selected = selectedAccount?.id == acc.id,
-                                        onClick = { selectAccount(acc) },
-                                        label = { Text(acc.name, fontWeight = FontWeight.Bold) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = if (acc.type == AccountType.CREDIT_CARD) Icons.Default.CreditCard else Icons.Default.AccountBalance,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = balanceText,
-                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) balanceText = input },
-                        label = { Text("Current Balance Owed ($currencySymbol)") },
-                        placeholder = { Text("0.00") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = aprText,
-                            onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) aprText = input },
-                            label = { Text("Interest Rate APR (%)") },
-                            placeholder = { Text("24.99") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
+                    // 1. Debt Account Selection Grouped Surface
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "SELECT DEBT ACCOUNT",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                         )
-                        OutlinedTextField(
-                            value = paymentText,
-                            onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) paymentText = input },
-                            label = { Text("Monthly Payment ($currencySymbol)") },
-                            placeholder = { Text("0.00") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
 
-                    Text(
-                        text = "Projected Payoff",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    when {
-                        !canCalculate -> {
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "Enter a balance and a monthly payment to see how long payoff will take.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(18.dp)
-                                )
-                            }
-                        }
-                        result != null && result.isPaymentTooLow -> {
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(containerColor = ExpenseRed.copy(alpha = 0.1f)),
-                                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Warning, contentDescription = null, tint = ExpenseRed)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = "This payment won't cover the monthly interest - the balance will never shrink. Increase the payment amount.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = ExpenseRed,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-                        result != null -> {
-                            val years = result.monthsToPayoff / 12
-                            val remMonths = result.monthsToPayoff % 12
-                            val payoffDateLabel = remember(result.monthsToPayoff) {
-                                val cal = Calendar.getInstance()
-                                cal.add(Calendar.MONTH, result.monthsToPayoff)
-                                SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
-                            }
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(18.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showAccountDropdown = true }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = getIncomeColor().copy(alpha = 0.15f),
-                                            modifier = Modifier.size(36.dp)
+                                            color = if (selectedAccount != null) {
+                                                getExpenseColor().copy(alpha = 0.15f)
+                                            } else {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                            },
+                                            modifier = Modifier.size(40.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Default.Calculate, contentDescription = null, tint = getIncomeColor(), modifier = Modifier.size(20.dp))
+                                                Icon(
+                                                    imageVector = if (selectedAccount != null) {
+                                                        getAccountIcon(selectedAccount!!.type)
+                                                    } else {
+                                                        Icons.Default.EditNote
+                                                    },
+                                                    contentDescription = null,
+                                                    tint = if (selectedAccount != null) getExpenseColor() else MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
                                             }
                                         }
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(14.dp))
                                         Column {
                                             Text(
-                                                text = "Debt-free in ${result.monthsToPayoff} month" + if (result.monthsToPayoff == 1) "" else "s",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                text = (if (years > 0) "$years yr${if (years != 1) "s" else ""} $remMonths mo • " else "$remMonths mo • ") + "Paid off by $payoffDateLabel",
-                                                style = MaterialTheme.typography.bodySmall,
+                                                text = if (selectedAccount != null) "Linked Debt Account" else "Calculation Mode",
+                                                style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            Text(
+                                                text = selectedAccount?.name ?: "Manual Entry",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (selectedAccount != null) {
+                                                val owed = kotlin.math.abs(accountBalances[selectedAccount!!.id] ?: selectedAccount!!.initialBalance)
+                                                Text(
+                                                    text = "Owed: $currencySymbol%.2f".format(owed) + (selectedAccount!!.interestRateApr?.let { " • %.2f%% APR".format(it) } ?: ""),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Custom balance, APR & payment",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Account",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Spacer(modifier = Modifier.height(14.dp))
+                                }
 
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Total Interest Paid", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(
-                                            "$currencySymbol%.2f".format(result.totalInterestPaid),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = ExpenseRed
+                                DropdownMenu(
+                                    expanded = showAccountDropdown,
+                                    onDismissRequest = { showAccountDropdown = false },
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.85f)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    // Manual Entry Option
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(34.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.EditNote,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Manual Entry",
+                                                        fontWeight = if (selectedAccount == null) FontWeight.Medium else FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = "Custom amounts",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                if (selectedAccount == null) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            selectAccount(null)
+                                            showAccountDropdown = false
+                                        }
+                                    )
+
+                                    if (debtAccounts.isNotEmpty()) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                                         )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Total Paid (Balance + Interest)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                        Text(
-                                            "$currencySymbol%.2f".format(balance + result.totalInterestPaid),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+
+                                        debtAccounts.forEach { acc ->
+                                            val isSelected = selectedAccount?.id == acc.id
+                                            val owed = kotlin.math.abs(accountBalances[acc.id] ?: acc.initialBalance)
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Surface(
+                                                            shape = CircleShape,
+                                                            color = getExpenseColor().copy(alpha = 0.15f),
+                                                            modifier = Modifier.size(34.dp)
+                                                        ) {
+                                                            Box(contentAlignment = Alignment.Center) {
+                                                                Icon(
+                                                                    imageVector = getAccountIcon(acc.type),
+                                                                    contentDescription = null,
+                                                                    tint = getExpenseColor(),
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                        Spacer(modifier = Modifier.width(12.dp))
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                text = acc.name,
+                                                                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Medium,
+                                                                color = MaterialTheme.colorScheme.onSurface
+                                                            )
+                                                            Text(
+                                                                text = "Owed: $currencySymbol%.2f".format(owed) + (acc.interestRateApr?.let { " • %.2f%% APR".format(it) } ?: ""),
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                        if (isSelected) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Check,
+                                                                contentDescription = "Selected",
+                                                                tint = getExpenseColor(),
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                },
+                                                onClick = {
+                                                    selectAccount(acc)
+                                                    showAccountDropdown = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(100.dp))
+                    // 2. Hero Target Monthly Payment Card — shared component (spec §16):
+                    // every amount-entry card in the app uses this one implementation.
+                    com.selfbudget.app.core.ui.components.TransactionAmountHero(
+                        type = com.selfbudget.app.core.ui.components.EntryType.Expense,
+                        amountText = paymentText,
+                        onAmountChange = { paymentText = it },
+                        currencySymbol = currencySymbol,
+                        badgeText = "MONTHLY PAYMENT",
+                        ramp = com.selfbudget.app.ui.theme.Ramp.Coral,
+                        stepAmount = 25.0
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    com.selfbudget.app.core.ui.components.QuickAmountChips(
+                        presets = listOf(25, 50, 100, 200, 500),
+                        currencySymbol = currencySymbol,
+                        onPick = { preset ->
+                            val currentVal = paymentText.toDoubleOrNull() ?: 0.0
+                            paymentText = "%.2f".format(currentVal + preset)
+                        }
+                    )
+
+                    // 3. Debt Balance & APR Details Grouped Surface
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "DEBT PARAMETERS",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                        )
+
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = balanceText,
+                                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) balanceText = input },
+                                        label = { Text("Balance Owed ($currencySymbol)") },
+                                        placeholder = { Text("0.00") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.AccountBalanceWallet,
+                                                contentDescription = null,
+                                                tint = getExpenseColor(),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        shape = ShapeChip,
+                                        modifier = Modifier.weight(1.1f)
+                                    )
+
+                                    OutlinedTextField(
+                                        value = aprText,
+                                        onValueChange = { input -> if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) aprText = input },
+                                        label = { Text("APR (%)") },
+                                        placeholder = { Text("24.99") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Percent,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        shape = ShapeChip,
+                                        modifier = Modifier.weight(0.9f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Projected Payoff Grouped Surface
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "PROJECTED PAYOFF",
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.eyebrow,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                        )
+
+                        when {
+                            !canCalculate -> {
+                                Surface(
+                                    shape = ShapeCard,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Enter a balance and a monthly payment to see how long payoff will take.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(18.dp)
+                                    )
+                                }
+                            }
+                            result != null && result.isPaymentTooLow -> {
+                                Surface(
+                                    shape = ShapeCard,
+                                    color = getExpenseColor().copy(alpha = 0.1f),
+                                    border = BorderStroke(1.dp, getExpenseColor().copy(alpha = 0.3f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Warning, contentDescription = null, tint = getExpenseColor())
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "This payment won't cover the monthly interest - the balance will never shrink. Increase the payment amount.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = getExpenseColor(),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                            result != null -> {
+                                val years = result.monthsToPayoff / 12
+                                val remMonths = result.monthsToPayoff % 12
+                                val payoffDateLabel = remember(result.monthsToPayoff) {
+                                    val cal = Calendar.getInstance()
+                                    cal.add(Calendar.MONTH, result.monthsToPayoff)
+                                    SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+                                }
+                                Surface(
+                                    shape = ShapeCard,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(18.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = getIncomeColor().copy(alpha = 0.15f),
+                                                modifier = Modifier.size(38.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.Calculate, contentDescription = null, tint = getIncomeColor(), modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Debt-free in ${result.monthsToPayoff} month" + if (result.monthsToPayoff == 1) "" else "s",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = (if (years > 0) "$years yr${if (years != 1) "s" else ""} $remMonths mo • " else "$remMonths mo • ") + "Paid off by $payoffDateLabel",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            // Total interest is information, not an alarm — neutral, not red (spec §19).
+                                            Text("Total interest paid", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                "$currencySymbol%.2f".format(result.totalInterestPaid),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Total Paid (Balance + Interest)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                "$currencySymbol%.2f".format(balance + result.totalInterestPaid),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Bottom Action Button
+                    Button(
+                        onClick = onDismiss,
+                        shape = ShapePill,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }

@@ -17,8 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +39,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 
 @Composable
 fun LoginScreen(
@@ -71,8 +74,7 @@ fun LoginScreen(
 
             Text(
                 text = "Self Budget",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
+                style = SelfBudgetType.title.copy(fontSize = 28.sp),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
@@ -80,7 +82,7 @@ fun LoginScreen(
 
             Text(
                 text = "Track expenses, control budgets, and master your financial freedom.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = SelfBudgetType.body,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -128,15 +130,14 @@ fun LoginScreen(
 
             if (errorMessage != null) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                Surface(
+                    shape = ShapeChip,
+                    color = Ramp.Red.tintFill(isDark)
                 ) {
                     Text(
                         text = errorMessage,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        style = MaterialTheme.typography.bodySmall,
+                        color = Ramp.Red.titleText(isDark),
+                        style = SelfBudgetType.meta,
                         modifier = Modifier.padding(12.dp),
                         textAlign = TextAlign.Center
                     )
