@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.util.VoiceParser
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.TransactionType
@@ -248,10 +249,7 @@ fun SetBudgetDialog(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -261,13 +259,7 @@ fun SetBudgetDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            CircularBackButton(onClick = onDismiss)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (!isEditing) "Set category budget" else if (isEditMode) "Edit category budget" else "Category budget details",

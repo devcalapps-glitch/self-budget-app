@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.data.model.CategoryEntity
@@ -200,21 +201,15 @@ fun CategoryAnalyticsDetailModal(
                     .statusBarsPadding()
             ) {
                 // Persistent Header — ✕ and title only (spec §14: one Done action, in the footer, never duplicated).
-                Surface(color = MaterialTheme.colorScheme.surface) {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
+                        CircularBackButton(onClick = onDismiss)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = title,
@@ -235,7 +230,6 @@ fun CategoryAnalyticsDetailModal(
                             }
                         }
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 LazyColumn(

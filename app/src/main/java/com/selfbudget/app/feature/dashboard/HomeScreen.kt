@@ -119,6 +119,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.CompactMonthYearHeader
 import com.selfbudget.app.core.ui.EditCustomAccountDialog
 import com.selfbudget.app.core.ui.MonthYearHeader
@@ -1748,20 +1749,17 @@ private fun UpcomingBillsModal(
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                Surface(color = MaterialTheme.colorScheme.surface) {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = "Upcoming bills", style = SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 Column(
@@ -2118,9 +2116,7 @@ fun FullTransactionHistoryDialog(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background

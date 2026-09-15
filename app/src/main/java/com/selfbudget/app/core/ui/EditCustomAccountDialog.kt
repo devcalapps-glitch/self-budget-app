@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.DestructivePillButton
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
@@ -246,9 +247,7 @@ fun EditCustomAccountDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                 )

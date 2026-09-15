@@ -80,6 +80,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.RecurringFrequency
@@ -107,12 +108,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.DestructivePillButton
 import com.selfbudget.app.core.ui.components.GrayIconTile
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.QuickAmountChips
 import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.ReceiptPhotoSourceDialog
 import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.core.ui.components.TransactionAmountHero
@@ -332,6 +335,32 @@ fun EditTransactionDialog(
         }
     }
 
+    var showReceiptSourceDialog by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempCameraUri != null) {
+            val uri = tempCameraUri!!
+            receiptImageUri = uri
+            isScanningOcr = true
+            ReceiptOcrScanner.scanReceipt(
+                context,
+                uri,
+                onSuccess = { scanResult ->
+                    isScanningOcr = false
+                    scanResult.merchantName?.let { title = it }
+                    scanResult.totalAmount?.let { amountText = "%.2f".format(it) }
+                    scanResult.timestamp?.let { selectedTimestamp = it }
+                },
+                onError = {
+                    isScanningOcr = false
+                }
+            )
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -412,13 +441,17 @@ fun EditTransactionDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.padding(start = 12.dp, end = 8.dp)
+                        )
                     },
                     // No header Edit/Save action (spec §14/§16): the header holds only close +
                     // title. Edit is triggered from the view-mode footer; Save lives in the
                     // edit-mode footer below.
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
                 )
 
                 Column(
@@ -1021,7 +1054,7 @@ fun EditTransactionDialog(
                                         .clickable {
                                             focusManager.clearFocus(force = true)
                                             keyboardController?.hide()
-                                            imagePickerLauncher.launch("image/*")
+                                            showReceiptSourceDialog = true
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1341,6 +1374,24 @@ fun EditTransactionDialog(
             onAddCustomAccount = {
                 showTargetDebtAccountModal = false
                 showNewAccountDialog = true
+            }
+        )
+    }
+
+    if (showReceiptSourceDialog) {
+        ReceiptPhotoSourceDialog(
+            onDismiss = { showReceiptSourceDialog = false },
+            onTakePhoto = {
+                try {
+                    val uri = ReceiptOcrScanner.createTempReceiptUri(context)
+                    tempCameraUri = uri
+                    takePictureLauncher.launch(uri)
+                } catch (e: Exception) {
+                    imagePickerLauncher.launch("image/*")
+                }
+            },
+            onChooseGallery = {
+                imagePickerLauncher.launch("image/*")
             }
         )
     }

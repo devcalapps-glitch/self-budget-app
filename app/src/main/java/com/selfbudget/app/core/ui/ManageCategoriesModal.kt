@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.data.model.CategoryEntity
@@ -243,13 +244,7 @@ fun ManageCategoriesModal(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    CircularBackButton(onClick = onDismiss)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Manage Custom Categories",
@@ -257,7 +252,6 @@ fun ManageCategoriesModal(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
                     modifier = Modifier

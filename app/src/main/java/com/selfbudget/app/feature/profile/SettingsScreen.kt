@@ -103,6 +103,7 @@ import com.google.android.gms.common.api.Scope
 import com.google.api.services.drive.DriveScopes
 import com.selfbudget.app.core.ui.DataExportModal
 import com.selfbudget.app.core.ui.DataImportPreviewModal
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.util.CloudSyncManager
 import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.core.util.Currencies
@@ -326,9 +327,7 @@ fun SettingsScreen(
         // Unified Top Navigation Header Bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            shadowElevation = 4.dp
+            color = MaterialTheme.colorScheme.background
         ) {
             Row(
                 modifier = Modifier
@@ -342,7 +341,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (activeSubScreen != SettingsSubScreen.MAIN || onDismiss != null) {
-                        IconButton(
+                        CircularBackButton(
                             onClick = {
                                 if (activeSubScreen != SettingsSubScreen.MAIN) {
                                     activeSubScreen = when (activeSubScreen) {
@@ -353,17 +352,10 @@ fun SettingsScreen(
                                 } else {
                                     onDismiss?.invoke()
                                 }
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                            }
+                        )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = activeSubScreen.title,
                         style = SelfBudgetType.title,

@@ -45,6 +45,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.IconTile
 import com.selfbudget.app.core.ui.components.NeutralBadge
@@ -193,13 +195,7 @@ fun PlanReviewModal(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     actions = {
                         PrimaryPillButton(
@@ -211,10 +207,11 @@ fun PlanReviewModal(
                             ramp = Ramp.Teal
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
                 )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
                     modifier = Modifier
@@ -338,7 +335,7 @@ fun PlanReviewModal(
             ) {
                 Surface(
                     shape = ShapeCard,
-                    color = MaterialTheme.colorScheme.surface,
+                    color = MaterialTheme.colorScheme.background,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
                     shadowElevation = 8.dp,
                     modifier = Modifier
@@ -362,16 +359,7 @@ fun PlanReviewModal(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(
-                            onClick = { editingCategory = null },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = { editingCategory = null })
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Adjust Budget Limit",

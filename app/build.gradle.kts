@@ -107,6 +107,7 @@ dependencies {
     implementation(libs.material)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation("org.xerial:sqlite-jdbc:3.45.1.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     ksp(libs.hilt.compiler)

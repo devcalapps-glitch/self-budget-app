@@ -33,6 +33,7 @@ import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.getCategoryIcon
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -198,13 +199,7 @@ fun SetRecurringDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     // Save lives in the footer only — never duplicated as a header action (spec §14/§19).
                     colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(

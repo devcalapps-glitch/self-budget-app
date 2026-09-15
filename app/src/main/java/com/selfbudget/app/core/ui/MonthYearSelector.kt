@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,18 +21,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,10 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
@@ -292,194 +295,193 @@ fun MonthYearPickerDialog(
             color = MaterialTheme.colorScheme.background
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header Bar: close · title · quiet "Current" action
+                // Header Bar: back · title · "Current" action button — fixed, never scrolls with content.
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(color = Ramp.Gray.tintFill(isDark), shape = CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    CircularBackButton(onClick = onDismiss)
 
                     Text(
                         text = "Select month & year",
-                        style = SelfBudgetType.heading,
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = SelfBudgetType.title,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(horizontal = 8.dp)
                     )
 
-                    TextButton(
+                    SecondaryPillButton(
+                        text = "Current",
                         onClick = {
                             selectedYear = actualYear
                             selectedMonthIndex = actualMonthIndex
-                        }
-                    ) {
-                        Text(
-                            text = "Current",
-                            style = SelfBudgetType.body,
-                            color = Ramp.Teal.secondaryText(isDark)
-                        )
-                    }
+                        },
+                        ramp = Ramp.Teal,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                        modifier = Modifier.height(36.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Unified Card containing Year Selector, 12-Month Grid, and Action Button
-                Surface(
-                    shape = ShapeHero,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Ramp.Gray.containerBorder(isDark)),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Year Selector Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = { selectedYear-- },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .background(Ramp.Gray.tintFill(isDark), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                    contentDescription = "Previous Year",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "$selectedYear",
-                                    style = SelfBudgetType.title,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                if (selectedYear == actualYear) {
+                    // Unified Card containing Year Selector, 12-Month Grid, and Action Button
+                    Surface(
+                        shape = ShapeHero,
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Ramp.Gray.containerBorder(isDark)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Year Selector Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { selectedYear-- },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(Ramp.Gray.tintFill(isDark), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                        contentDescription = "Previous Year",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        text = "Current year",
-                                        style = SelfBudgetType.meta,
-                                        color = Ramp.Teal.secondaryText(isDark)
+                                        text = "$selectedYear",
+                                        style = SelfBudgetType.title,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (selectedYear == actualYear) {
+                                        Text(
+                                            text = "Current year",
+                                            style = SelfBudgetType.meta,
+                                            color = Ramp.Teal.secondaryText(isDark)
+                                        )
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { selectedYear++ },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(Ramp.Gray.tintFill(isDark), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = "Next Year",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
 
-                            IconButton(
-                                onClick = { selectedYear++ },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .background(Ramp.Gray.tintFill(isDark), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = "Next Year",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                        Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
-                        Spacer(modifier = Modifier.height(14.dp))
+                            // 12 Months Grid (4 rows x 3 columns) — Teal selected state (spec §20)
+                            for (row in 0 until 4) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    for (col in 0 until 3) {
+                                        val index = row * 3 + col
+                                        val (shortName, fullName) = monthData[index]
+                                        val isSelected = selectedMonthIndex == index
+                                        val isCurrentActual = selectedYear == actualYear && index == actualMonthIndex
 
-                        // 12 Months Grid (4 rows x 3 columns) — Teal selected state (spec §20)
-                        for (row in 0 until 4) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                for (col in 0 until 3) {
-                                    val index = row * 3 + col
-                                    val (shortName, fullName) = monthData[index]
-                                    val isSelected = selectedMonthIndex == index
-                                    val isCurrentActual = selectedYear == actualYear && index == actualMonthIndex
-
-                                    Surface(
-                                        shape = ShapeTile,
-                                        color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(52.dp)
-                                            .clip(ShapeTile)
-                                            .clickable { selectedMonthIndex = index }
-                                    ) {
-                                        Box(
+                                        Surface(
+                                            shape = ShapeTile,
+                                            color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
                                             modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                .weight(1f)
+                                                .height(52.dp)
+                                                .clip(ShapeTile)
+                                                .clickable { selectedMonthIndex = index }
                                         ) {
-                                            Column(
-                                                modifier = Modifier.align(Alignment.Center),
-                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
                                             ) {
-                                                Text(
-                                                    text = shortName,
-                                                    style = SelfBudgetType.rowTitle,
-                                                    color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = fullName,
-                                                    style = SelfBudgetType.meta,
-                                                    color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
+                                                Column(
+                                                    modifier = Modifier.align(Alignment.Center),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        text = shortName,
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = fullName,
+                                                        style = SelfBudgetType.meta,
+                                                        color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
 
-                                            if (isCurrentActual && !isSelected) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .padding(4.dp)
-                                                        .size(6.dp)
-                                                        .background(Ramp.Teal.solidFill(isDark), CircleShape)
-                                                        .align(Alignment.TopEnd)
-                                                )
+                                                if (isCurrentActual && !isSelected) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .padding(4.dp)
+                                                            .size(6.dp)
+                                                            .background(Ramp.Teal.solidFill(isDark), CircleShape)
+                                                            .align(Alignment.TopEnd)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                if (row < 3) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
                             }
-                            if (row < 3) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Confirm action — single Done control (spec §14/§19)
+                            PrimaryPillButton(
+                                text = "View $selectedMonthFull $selectedYear",
+                                onClick = {
+                                    val monthFormatted = String.format("%02d", selectedMonthIndex + 1)
+                                    onConfirm("$selectedYear-$monthFormatted")
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            )
                         }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Confirm action — single Done control (spec §14/§19)
-                        PrimaryPillButton(
-                            text = "View $selectedMonthFull $selectedYear",
-                            onClick = {
-                                val monthFormatted = String.format("%02d", selectedMonthIndex + 1)
-                                onConfirm("$selectedYear-$monthFormatted")
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                        )
                     }
                 }
             }

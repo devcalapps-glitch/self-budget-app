@@ -197,6 +197,7 @@ before writing a one-off `Row`/`Surface`/`Button`.
 | `SecondaryPillButton(text, onClick, ramp=Teal, icon=null)` | `AppButtons.kt` | Outlined action, and neutral (Gray) actions like sign-out |
 | `DestructivePillButton(text, onClick, icon=null)` | `AppButtons.kt` | Isolated destructive trigger — always outlined Red, never solid, never paired beside the primary/secondary row |
 | `DoneChip(text, ramp=Teal)` | `AppButtons.kt` | Non-interactive "completed" chip (e.g. "Posted") instead of a re-clickable button |
+| `CircularBackButton(onClick, modifier, contentDescription="Back")` | `AppButtons.kt` | 38dp circular neutral back button tile (`Ramp.Gray.tintFill` container + `ArrowBack` glyph). Header container must be `colorScheme.background` (never `.surface`) and flat (no divider/border/elevation) — see §8.17. Inset is always 16dp from the screen edge / 8dp to the title — see §8.18 for the `TopAppBar` vs. hand-rolled-`Row` modifier rules. |
 | `ToggleRow(icon, title, checked, onCheckedChange, description=null)` | `ToggleRow.kt` | Settings toggle: gray tile + statement title + switch (Teal when on) |
 | `FieldRow(icon, label, value, isPlaceholder=false, showChevron=false, onClick=null)` | `FieldRow.kt` | Form/detail-sheet field: gray tile + floating label + value (muted if placeholder) |
 | `SectionHeaderBand(title, ramp, icon=null, countPill=null, ...) { content }` | `SectionHeaderBand.kt` | The sectioned-container pattern: tinted header band + hairline-divided rows, one bordered `Surface` — never a floating color bar above separate cards |
@@ -285,9 +286,45 @@ these as load-bearing, not optional style preferences:
     This provides uniform brand consistency across both light mode (Brand Teal 400 `#1D9E75`)
     and dark mode (Dark Green `#196338` with pure white text), paired alongside
     a neutral `SecondaryPillButton(text = "Close")`.
-16. **Subpage Navigation with Back Arrow (`Icons.AutoMirrored.Filled.ArrowBack`)**:
-    - **All Subpages, Detail Views, Entry-Point Flows, Action Pages & Settings**: On all subpages, sub-screens, Settings, Settings sub-pages, read-only detail sheets, edit modals, history views, confirmation/action pages, and all creation subpages opened from "What do you want to add?" (including **Add Expense**, **Add Income**, **Add Transfer**, **Set / Edit Budget**, **Add / Edit Recurring**, **Add / Edit Account or Asset**, **Add / Edit Goal**, **Add Custom Category**, **Transaction Details**, **Confirm & Post**, **Category Budget Details**, **Account & Asset Details**, **Savings Goal Details**, **Adjust Budget Limit**, Settings, Settings sub-pages, Spent & Bills breakdown, Committed Bills, Committed Paychecks, Unbudgeted Spending, Budgeted Categories, Category Analytics, Savings Goal Analytics, Debt Payoff Analytics, Net Worth History, All Transactions, Data Export, and All Accounts), the top navigation bar must strictly use the Back arrow (`Icons.AutoMirrored.Filled.ArrowBack`, `contentDescription = "Back"` with `tint = MaterialTheme.colorScheme.onSurface`). Never use an `✕` (Close) icon on subpages, detail screens, creation flow subpages, action pages, or Settings.
-    - **Root Menu Hubs**: Only the root entry picker modal ("What do you want to add?") uses `✕` / Close. Once a subpage/flow is selected, that subpage uses the Back arrow.
+16. **Subpage Navigation with Circular Back Button (`CircularBackButton`)**:
+    - **All Subpages, Detail Views, Entry-Point Flows, Action Pages & Settings**: On all subpages, sub-screens, Settings, Settings sub-pages, read-only detail sheets, edit modals, history views, confirmation/action pages, and all creation subpages opened from "What do you want to add?" (including **Add Expense**, **Add Income**, **Add Transfer**, **Set / Edit Budget**, **Add / Edit Recurring**, **Add / Edit Account or Asset**, **Add / Edit Goal**, **Add Custom Category**, **Transaction Details**, **Confirm & Post**, **Category Budget Details**, **Account & Asset Details**, **Savings Goal Details**, **Adjust Budget Limit**, Settings, Settings sub-pages, Spent & Bills breakdown, Committed Bills, Committed Paychecks, Unbudgeted Spending, Budgeted Categories, Category Analytics, Savings Goal Analytics, Debt Payoff Analytics, Net Worth History, All Transactions, Data Export, and All Accounts), the top navigation bar must strictly use the unified circular back button (`CircularBackButton(onClick = ...)`). It renders a 38dp diameter circle with `Ramp.Gray.tintFill(isDark)` background, a 20dp `Icons.AutoMirrored.Filled.ArrowBack` glyph tinted with `MaterialTheme.colorScheme.onSurface`, and `contentDescription = "Back"`. Never use an unstyled plain back arrow or an `✕` (Close) icon on subpages, detail screens, creation flow subpages, action pages, or Settings.
+    - **Root Menu Hubs**: Only the root entry picker modal ("What do you want to add?") uses `✕` / Close. Once a subpage/flow is selected, that subpage uses `CircularBackButton`.
+17. **Header Container: Flat, `background`-colored, No Divider**: Every header
+    that hosts `CircularBackButton` (`TopAppBar` or a hand-rolled `Surface { Row
+    { ... } }`) must strictly use `color = MaterialTheme.colorScheme.background`
+    — never `colorScheme.surface`. `CircularBackButton`'s pill fill
+    (`Ramp.Gray.tintFill`) is the *same value* as `colorScheme.surface` in this
+    theme, so a header painted `.surface` renders the circle invisible (it
+    blends into the bar behind it) — this was a real, shipped bug across ~20
+    screens (`EditTransactionDialog`, `TransferDialog`, `RecurringBillsModal`,
+    etc.) before being fixed. Do not add `tonalElevation`, `shadowElevation`,
+    a `border`, or a trailing `HorizontalDivider` to a header container —
+    headers are flat with no line, shadow, or border separating them from the
+    page content below (`Surface(color = MaterialTheme.colorScheme.background)`
+    and nothing else). This was also a real, shipped inconsistency: several
+    headers carried `tonalElevation`/`shadowElevation` (a soft drop-shadow
+    gradient reads as a dividing line) or an explicit `HorizontalDivider(color
+    = colorScheme.outlineVariant)` (a solid, too-heavy gray line vs. the app's
+    actual subtle `rgba(0,0,0,0.08)` divider token) while most screens had
+    neither — both were removed everywhere for a uniform, borderless header.
+18. **Uniform Back-Button Inset (16dp from the screen edge, 8dp to the title)**:
+    `CircularBackButton` must sit exactly 16dp from the screen's leading edge
+    and 8dp before the title text, on every header, with no exceptions.
+    - **Hand-rolled `Row` headers** (`Surface(...) { Row(modifier =
+      Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp))
+      { CircularBackButton(...); Spacer(Modifier.width(8.dp)); Text(...) } }`):
+      the 16dp comes from the Row's own horizontal padding; add nothing further
+      to the button itself.
+    - **`TopAppBar`-based headers**: Compose's `TopAppBar` bakes in a fixed
+      4dp start inset on the `navigationIcon` slot and butts the title flush
+      against the icon's measured width with no gap of its own — so
+      `CircularBackButton` must be given `modifier =
+      Modifier.padding(start = 12.dp, end = 8.dp)` in every `navigationIcon =
+      { ... }` slot (4dp built-in + 12dp explicit = 16dp total; 8dp end gives
+      the title its gap). Never pass the button bare (no modifier) or with
+      only `start = 4.dp` inside a `TopAppBar` — both were shipped
+      inconsistencies (the button sat flush against the screen edge, and/or
+      the title touched it) fixed across 16 files.
 
 ## 9. File index
 
@@ -301,7 +338,7 @@ app/src/main/java/com/selfbudget/app/
 │   ├── Shapes.kt       # ShapePill/Tile/Chip/Card/Hero/Page
 │   └── Theme.kt        # SelfBudgetTheme(), light/dark ColorScheme wiring
 └── core/ui/components/
-    ├── AppButtons.kt              # Primary/Secondary/DestructivePillButton, DoneChip
+    ├── AppButtons.kt              # Primary/Secondary/DestructivePillButton, DoneChip, CircularBackButton
     ├── IconTile.kt                # IconTile, RampIconTile, GrayIconTile
     ├── FieldRow.kt                # FieldRow
     ├── ToggleRow.kt               # ToggleRow

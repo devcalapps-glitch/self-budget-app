@@ -1,17 +1,23 @@
 package com.selfbudget.app.core.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +47,7 @@ fun PrimaryPillButton(
     enabled: Boolean = true,
     ramp: Ramp = Ramp.Coral,
     icon: ImageVector? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     val isDark = isAppInDarkTheme()
     val containerColor = if (isDark && ramp == Ramp.Teal) Color(0xFF196338) else ramp.c400
@@ -55,6 +62,7 @@ fun PrimaryPillButton(
             containerColor = containerColor,
             contentColor = contentColor,
         ),
+        contentPadding = contentPadding,
         modifier = modifier,
     ) {
         if (icon != null) {
@@ -74,6 +82,7 @@ fun SecondaryPillButton(
     enabled: Boolean = true,
     ramp: Ramp = Ramp.Teal,
     icon: ImageVector? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     val isDark = isAppInDarkTheme()
     val color = ramp.secondaryText(isDark)
@@ -83,6 +92,7 @@ fun SecondaryPillButton(
         shape = ShapePill,
         border = BorderStroke(0.5.dp, color),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+        contentPadding = contentPadding,
         modifier = modifier,
     ) {
         if (icon != null) {
@@ -104,6 +114,7 @@ fun DestructivePillButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     val isDark = isAppInDarkTheme()
     val borderColor = if (isDark) Ramp.Red.c600 else Ramp.Red.c200
@@ -114,6 +125,7 @@ fun DestructivePillButton(
         shape = ShapePill,
         border = BorderStroke(0.5.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = textColor),
+        contentPadding = contentPadding,
         modifier = modifier,
     ) {
         if (icon != null) {
@@ -145,5 +157,32 @@ fun DoneChip(text: String, modifier: Modifier = Modifier, ramp: Ramp = Ramp.Teal
             )
             Text(text, style = SelfBudgetType.rowTitle, color = ramp.titleText(isDark))
         }
+    }
+}
+
+/**
+ * Unified circular back navigation button (spec §7, §8.16).
+ * 38dp diameter CircleShape with Ramp.Gray.tintFill(isDark) container
+ * and 20dp ArrowBack glyph tinted with MaterialTheme.colorScheme.onSurface.
+ */
+@Composable
+fun CircularBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String = "Back",
+) {
+    val isDark = isAppInDarkTheme()
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(38.dp)
+            .background(color = Ramp.Gray.tintFill(isDark), shape = CircleShape)
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

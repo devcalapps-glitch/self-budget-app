@@ -185,4 +185,44 @@ class FullLifecycleIntegrationTest {
         // Updated Net Worth: $1,000 USD + $1,150 USD = $2,150.00 USD
         assertEquals(2150.0, updatedNetWorth, 0.001)
     }
+
+    @Test
+    fun testWorkflow8_NetWorthCalculationWithNegativeLoanLiability() {
+        // Workflow 8:
+        // Accounts:
+        // 1. Checking: $1,000.00 (Asset)
+        // 2. Savings: $2,000.00 (Asset)
+        // 3. Credit Card: $0.00 (Liability)
+        // 4. Auto Loan: -$15,000.00 (Negative Liability)
+        // 5. Investment: $5,000.00 (Asset)
+        // Master Net Worth Formula:
+        // $1,000 + $2,000 + $0 - $15,000 + $5,000 = -$7,000.00
+        val accChecking = AccountEntity(id = "w8_chk", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 1000.0)
+        val accSavings = AccountEntity(id = "w8_sav", userId = "u1", name = "Savings", type = AccountType.SAVINGS, initialBalance = 2000.0)
+        val accCreditCard = AccountEntity(id = "w8_cc", userId = "u1", name = "Credit Card", type = AccountType.CREDIT_CARD, initialBalance = 0.0)
+        val accAutoLoan = AccountEntity(id = "w8_loan", userId = "u1", name = "Auto Loan", type = AccountType.LOAN, initialBalance = -15000.0)
+        val accInvestment = AccountEntity(id = "w8_inv", userId = "u1", name = "Brokerage", type = AccountType.INVESTMENT, initialBalance = 5000.0)
+
+        val accounts = listOf(accChecking, accSavings, accCreditCard, accAutoLoan, accInvestment)
+
+        // 1. Confirm that AccountBalanceCalculator identifies loan as a liability
+        assertTrue("AccountType.LOAN must be classified as a liability", AccountBalanceCalculator.isLiability(accAutoLoan.type))
+        assertTrue("AccountType.CREDIT_CARD must be classified as a liability", AccountBalanceCalculator.isLiability(accCreditCard.type))
+
+        // 2. Confirm individual account balances
+        assertEquals(1000.0, AccountBalanceCalculator.computeBalance(accChecking, emptyList()), 0.001)
+        assertEquals(2000.0, AccountBalanceCalculator.computeBalance(accSavings, emptyList()), 0.001)
+        assertEquals(0.0, AccountBalanceCalculator.computeBalance(accCreditCard, emptyList()), 0.001)
+        assertEquals(-15000.0, AccountBalanceCalculator.computeBalance(accAutoLoan, emptyList()), 0.001)
+        assertEquals(5000.0, AccountBalanceCalculator.computeBalance(accInvestment, emptyList()), 0.001)
+
+        // 3. Confirm master net worth calculation: $1,000 + $2,000 + $0 - $15,000 + $5,000 = -$7,000.00
+        val totalNetWorth = AccountBalanceCalculator.computeTotalInBaseCurrency(
+            accounts = accounts,
+            allTransactions = emptyList(),
+            baseCurrency = "USD",
+            rates = emptyList()
+        )
+        assertEquals(-7000.0, totalNetWorth, 0.001)
+    }
 }

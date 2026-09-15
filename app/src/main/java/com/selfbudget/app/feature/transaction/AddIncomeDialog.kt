@@ -96,6 +96,7 @@ import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.QuickAmountChips
@@ -311,20 +312,10 @@ fun AddIncomeDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(
+                        CircularBackButton(
                             onClick = onDismiss,
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
-                        }
+                            modifier = Modifier.padding(start = 12.dp, end = 8.dp)
+                        )
                     },
                     // No header Save action (spec §14/§16): the header holds only close + title;
                     // the single primary action lives in the full-width footer button below.

@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SectionHeaderBand
@@ -110,21 +112,16 @@ fun RecurringIncomeModal(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     actions = {
                         NeutralBadge(text = "${activeIncomeStreams.size} active")
                         Spacer(modifier = Modifier.width(16.dp))
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
                 )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
                     modifier = Modifier

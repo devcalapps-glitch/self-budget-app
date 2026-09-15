@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.ui.theme.Ramp
@@ -158,10 +159,7 @@ fun DebtPayoffCalculatorDialog(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -171,9 +169,7 @@ fun DebtPayoffCalculatorDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                            }
+                            CircularBackButton(onClick = onDismiss)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Payoff calculator", style = com.selfbudget.app.ui.theme.SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                         }
@@ -432,7 +428,7 @@ fun DebtPayoffCalculatorDialog(
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         shape = ShapeChip,
-                                        modifier = Modifier.weight(1.1f)
+                                        modifier = Modifier.weight(1f)
                                     )
 
                                     OutlinedTextField(
@@ -451,7 +447,7 @@ fun DebtPayoffCalculatorDialog(
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         shape = ShapeChip,
-                                        modifier = Modifier.weight(0.9f)
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                             }

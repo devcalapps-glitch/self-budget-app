@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.GrayIconTile
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
@@ -128,16 +129,7 @@ fun DataExportModal(
                         }
                     }
 
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    CircularBackButton(onClick = onDismiss)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))

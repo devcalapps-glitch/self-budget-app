@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.GrayIconTile
 import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.data.model.AccountEntity
@@ -93,10 +94,7 @@ fun GoalSelectionModal(
             ) {
                 // Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -104,13 +102,7 @@ fun GoalSelectionModal(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Select savings goal",

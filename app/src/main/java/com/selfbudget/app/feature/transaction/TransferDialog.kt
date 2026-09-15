@@ -55,6 +55,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,6 +86,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.util.toWordTitleCase
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.QuickAmountChips
@@ -210,12 +212,16 @@ fun TransferDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.padding(start = 12.dp, end = 8.dp)
+                        )
                     },
                     // No header Transfer action (spec §14/§16): the header holds only close +
                     // title; the single primary action lives in the footer button below.
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
                 )
 
                 Column(

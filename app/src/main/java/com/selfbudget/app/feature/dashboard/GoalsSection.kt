@@ -86,6 +86,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
@@ -621,10 +622,7 @@ private fun ContributeDialog(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -632,13 +630,7 @@ private fun ContributeDialog(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = goal.name,
@@ -822,24 +814,11 @@ private fun ContributeDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(150.dp))
-                }
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                // Sticky Bottom Action Bar
-                Surface(
-                    shadowElevation = 12.dp,
-                    tonalElevation = 6.dp,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .imePadding()
-                        .navigationBarsPadding()
-                ) {
+                    // Action Buttons (spec §14: Cancel + Save pair in footer)
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         SecondaryPillButton(
@@ -861,6 +840,8 @@ private fun ContributeDialog(
                                 .height(54.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(150.dp))
                 }
             }
         }
@@ -909,13 +890,7 @@ private fun GoalTypeSelectionModal(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    CircularBackButton(onClick = onDismiss)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Select goal type",
@@ -923,7 +898,6 @@ private fun GoalTypeSelectionModal(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
                     modifier = Modifier
@@ -1124,10 +1098,7 @@ internal fun AddGoalDialog(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -1135,13 +1106,7 @@ internal fun AddGoalDialog(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Add Savings Goal",
@@ -1768,10 +1733,7 @@ private fun EditGoalDialog(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -1779,13 +1741,7 @@ private fun EditGoalDialog(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (isEditMode) "Edit Savings Goal" else "Savings Goal Details",

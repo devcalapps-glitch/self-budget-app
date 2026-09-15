@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.data.model.CategoryEntity
@@ -129,13 +130,7 @@ fun CategorySelectionModal(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (effectiveType == TransactionType.INCOME) "Select income type" else "Select expense type",
@@ -152,7 +147,6 @@ fun CategorySelectionModal(
                         }
                     )
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
                     modifier = Modifier

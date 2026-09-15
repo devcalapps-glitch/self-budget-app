@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.GrayIconTile
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SectionRowDivider
@@ -117,20 +118,14 @@ fun NetWorthHistoryModal(
                     .statusBarsPadding()
             ) {
                 // Persistent Top App Bar — ✕ and title only (spec §14).
-                Surface(color = MaterialTheme.colorScheme.surface) {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Net worth details & history",
@@ -138,7 +133,6 @@ fun NetWorthHistoryModal(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // Scrollable Content
@@ -347,20 +341,14 @@ fun AccountBreakdownModal(
                     .statusBarsPadding()
             ) {
                 // Persistent Top App Bar — ✕ and title only (spec §14).
-                Surface(color = MaterialTheme.colorScheme.surface) {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = title,
@@ -368,7 +356,6 @@ fun AccountBreakdownModal(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 Column(

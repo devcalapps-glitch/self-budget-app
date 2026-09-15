@@ -91,27 +91,85 @@ abstract class AppDatabase : RoomDatabase() {
             AccountEntity(id = "acc_savings", userId = "system", name = "Savings Account", type = AccountType.SAVINGS, initialBalance = 0.0, colorHex = "#0F766E", iconName = "Savings", isDefault = false)
         )
 
-        private fun safeAddColumn(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String, columnDef: String) {
-            try {
-                db.execSQL("ALTER TABLE $table ADD COLUMN $columnDef")
-            } catch (_: Exception) {}
+        fun tableExists(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String): Boolean {
+            db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { cursor ->
+                return cursor.moveToFirst()
+            }
         }
 
-        private fun createCatchupMigration(fromVersion: Int, toVersion: Int): androidx.room.migration.Migration {
+        fun hasColumn(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String, column: String): Boolean {
+            if (!tableExists(db, table)) return false
+            db.query("PRAGMA table_info(`$table`)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                if (nameIndex != -1) {
+                    while (cursor.moveToNext()) {
+                        if (cursor.getString(nameIndex).equals(column, ignoreCase = true)) {
+                            return true
+                        }
+                    }
+                }
+            }
+            return false
+        }
+
+        fun safeAddColumn(
+            db: androidx.sqlite.db.SupportSQLiteDatabase,
+            table: String,
+            columnName: String,
+            columnDef: String
+        ) {
+            if (tableExists(db, table) && !hasColumn(db, table, columnName)) {
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN $columnDef")
+            }
+        }
+
+        fun createCatchupMigration(fromVersion: Int, toVersion: Int): androidx.room.migration.Migration {
             return object : androidx.room.migration.Migration(fromVersion, toVersion) {
                 override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                    safeAddColumn(db, "users", "hasCompletedOnboarding INTEGER NOT NULL DEFAULT 0")
-                    safeAddColumn(db, "users", "primaryGoal TEXT DEFAULT NULL")
-                    safeAddColumn(db, "users", "referralSource TEXT DEFAULT NULL")
-                    safeAddColumn(db, "recurring_transactions", "remainingOccurrences INTEGER DEFAULT NULL")
-                    safeAddColumn(db, "recurring_transactions", "transferAccountId TEXT DEFAULT NULL")
-                    safeAddColumn(db, "transactions", "linkedRecurringId TEXT DEFAULT NULL")
-                    safeAddColumn(db, "transactions", "recurringCycleDueDate INTEGER DEFAULT NULL")
-                    safeAddColumn(db, "accounts", "loanTermMonths INTEGER DEFAULT NULL")
-                    safeAddColumn(db, "goals", "savedAmount REAL NOT NULL DEFAULT 0.0")
-                    safeAddColumn(db, "goals", "monthlyTargetAmount REAL DEFAULT NULL")
-                    safeAddColumn(db, "budgets", "isAutoSynced INTEGER NOT NULL DEFAULT 1")
-                    safeAddColumn(db, "categories", "isArchived INTEGER NOT NULL DEFAULT 0")
+                    // 1. Ensure required tables exist across all earlier schema versions
+                    db.execSQL("CREATE TABLE IF NOT EXISTS `net_worth_snapshots` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `monthYear` TEXT NOT NULL, `totalAssets` REAL NOT NULL, `totalLiabilities` REAL NOT NULL, `netWorth` REAL NOT NULL, `capturedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                    db.execSQL("CREATE TABLE IF NOT EXISTS `exchange_rates` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `fromCurrency` TEXT NOT NULL, `toCurrency` TEXT NOT NULL, `rate` REAL NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                    db.execSQL("CREATE TABLE IF NOT EXISTS `goals` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `name` TEXT NOT NULL, `targetAmount` REAL NOT NULL, `targetDate` INTEGER, `colorHex` TEXT NOT NULL, `iconName` TEXT NOT NULL, `linkedAccountId` TEXT, `monthlyTargetAmount` REAL, `savedAmount` REAL NOT NULL DEFAULT 0.0, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+
+                    // 2. Incremental column upgrades with explicit existence checks and safe defaults
+                    safeAddColumn(db, "users", "hasCompletedOnboarding", "hasCompletedOnboarding INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "users", "primaryGoal", "primaryGoal TEXT DEFAULT NULL")
+                    safeAddColumn(db, "users", "referralSource", "referralSource TEXT DEFAULT NULL")
+                    safeAddColumn(db, "users", "preferredCurrency", "preferredCurrency TEXT NOT NULL DEFAULT '$'")
+                    safeAddColumn(db, "users", "themeMode", "themeMode TEXT NOT NULL DEFAULT 'SYSTEM'")
+                    safeAddColumn(db, "users", "isBiometricEnabled", "isBiometricEnabled INTEGER NOT NULL DEFAULT 0")
+
+                    safeAddColumn(db, "recurring_transactions", "remainingOccurrences", "remainingOccurrences INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "recurring_transactions", "transferAccountId", "transferAccountId TEXT DEFAULT NULL")
+                    safeAddColumn(db, "recurring_transactions", "isArchived", "isArchived INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "recurring_transactions", "paymentMethod", "paymentMethod TEXT DEFAULT 'Credit Card'")
+
+                    safeAddColumn(db, "transactions", "linkedRecurringId", "linkedRecurringId TEXT DEFAULT NULL")
+                    safeAddColumn(db, "transactions", "recurringCycleDueDate", "recurringCycleDueDate INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "transactions", "transferAccountId", "transferAccountId TEXT DEFAULT NULL")
+                    safeAddColumn(db, "transactions", "paymentMethod", "paymentMethod TEXT DEFAULT 'Cash'")
+                    safeAddColumn(db, "transactions", "receiptImageUri", "receiptImageUri TEXT DEFAULT NULL")
+
+                    safeAddColumn(db, "accounts", "loanTermMonths", "loanTermMonths INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "accounts", "creditLimit", "creditLimit REAL DEFAULT NULL")
+                    safeAddColumn(db, "accounts", "interestRateApr", "interestRateApr REAL DEFAULT NULL")
+                    safeAddColumn(db, "accounts", "minimumPayment", "minimumPayment REAL DEFAULT NULL")
+                    safeAddColumn(db, "accounts", "currencyCode", "currencyCode TEXT NOT NULL DEFAULT 'USD'")
+
+                    safeAddColumn(db, "goals", "savedAmount", "savedAmount REAL NOT NULL DEFAULT 0.0")
+                    safeAddColumn(db, "goals", "monthlyTargetAmount", "monthlyTargetAmount REAL DEFAULT NULL")
+                    safeAddColumn(db, "goals", "linkedAccountId", "linkedAccountId TEXT DEFAULT NULL")
+
+                    safeAddColumn(db, "budgets", "rolloverEnabled", "rolloverEnabled INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "budgets", "isAutoSynced", "isAutoSynced INTEGER NOT NULL DEFAULT 1")
+
+                    safeAddColumn(db, "categories", "isDefault", "isDefault INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "categories", "isArchived", "isArchived INTEGER NOT NULL DEFAULT 0")
+
+                    // 3. Ensure indices and constraints are preserved
+                    if (tableExists(db, "budgets")) {
+                        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_userId_categoryId_monthYear` ON `budgets` (`userId`, `categoryId`, `monthYear`)")
+                    }
                 }
             }
         }

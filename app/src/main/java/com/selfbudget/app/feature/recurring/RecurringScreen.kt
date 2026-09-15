@@ -126,6 +126,7 @@ import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.AddCustomAccountDialog
 import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.CategorySelectionModal
+import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
@@ -1298,10 +1299,7 @@ fun RecurringScreen(
                     ) {
                         // Persistent Top App Bar
                         Surface(
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 3.dp,
-                            shadowElevation = 2.dp,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            color = MaterialTheme.colorScheme.background
                         ) {
                             // No header Edit/Save action (spec §14/§16): the header holds only
                             // close + title. Edit is triggered from the view-mode footer; Save
@@ -1312,13 +1310,7 @@ fun RecurringScreen(
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { selectedRecurringForDetails = null }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                                CircularBackButton(onClick = { selectedRecurringForDetails = null })
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (isEditMode) "Edit Recurring" else "Recurring Details",
@@ -1970,10 +1962,7 @@ private fun PostRecurringConfirmModal(
             ) {
                 // Persistent Top App Bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     Row(
                         modifier = Modifier
@@ -1981,9 +1970,7 @@ private fun PostRecurringConfirmModal(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                        CircularBackButton(onClick = onDismiss)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Confirm & Post", style = com.selfbudget.app.ui.theme.SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                     }

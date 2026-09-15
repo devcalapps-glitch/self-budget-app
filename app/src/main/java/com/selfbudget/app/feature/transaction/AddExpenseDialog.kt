@@ -117,6 +117,8 @@ import com.selfbudget.app.core.ui.AddCustomCategoryDialog
 import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
 import com.selfbudget.app.core.ui.components.QuickAmountChips
+import com.selfbudget.app.core.ui.components.CircularBackButton
+import com.selfbudget.app.core.ui.components.ReceiptPhotoSourceDialog
 import com.selfbudget.app.core.ui.components.TransactionAmountHero
 import com.selfbudget.app.core.util.ReceiptOcrScanner
 import com.selfbudget.app.core.util.VoiceParser
@@ -348,6 +350,32 @@ fun AddExpenseDialog(
         }
     }
 
+    var showReceiptSourceDialog by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempCameraUri != null) {
+            val uri = tempCameraUri!!
+            receiptImageUri = uri
+            isScanningOcr = true
+            ReceiptOcrScanner.scanReceipt(
+                context,
+                uri,
+                onSuccess = { scanResult ->
+                    isScanningOcr = false
+                    scanResult.merchantName?.let { title = it }
+                    scanResult.totalAmount?.let { amountText = "%.2f".format(it) }
+                    scanResult.timestamp?.let { selectedTimestamp = it }
+                },
+                onError = {
+                    isScanningOcr = false
+                }
+            )
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -422,20 +450,7 @@ fun AddExpenseDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
-                        }
+                        CircularBackButton(onClick = onDismiss, modifier = Modifier.padding(start = 12.dp, end = 8.dp))
                     },
                     // No header Save action (spec §14/§16): the header holds only close + title;
                     // the single primary action lives in the full-width footer button below.
@@ -1258,7 +1273,7 @@ fun AddExpenseDialog(
                                             onClick = {
                                                 focusManager.clearFocus(force = true)
                                                 keyboardController?.hide()
-                                                imagePickerLauncher.launch("image/*")
+                                                showReceiptSourceDialog = true
                                             },
                                             shape = RoundedCornerShape(12.dp),
                                             color = if (receiptImageUri != null) com.selfbudget.app.ui.theme.getIncomeColor().copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -1473,6 +1488,24 @@ fun AddExpenseDialog(
             onAddCustomAccount = {
                 showTargetDebtAccountModal = false
                 showNewAccountDialog = true
+            }
+        )
+    }
+
+    if (showReceiptSourceDialog) {
+        ReceiptPhotoSourceDialog(
+            onDismiss = { showReceiptSourceDialog = false },
+            onTakePhoto = {
+                try {
+                    val uri = ReceiptOcrScanner.createTempReceiptUri(context)
+                    tempCameraUri = uri
+                    takePictureLauncher.launch(uri)
+                } catch (e: Exception) {
+                    imagePickerLauncher.launch("image/*")
+                }
+            },
+            onChooseGallery = {
+                imagePickerLauncher.launch("image/*")
             }
         )
     }
