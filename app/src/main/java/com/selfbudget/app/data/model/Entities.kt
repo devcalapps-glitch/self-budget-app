@@ -3,6 +3,7 @@ package com.selfbudget.app.data.model
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.selfbudget.app.core.util.AppConstants
 import java.util.UUID
 
 enum class TransactionType {
@@ -48,11 +49,11 @@ data class AccountEntity(
     val name: String,
     val type: AccountType = AccountType.CHECKING,
     val initialBalance: Double = 0.0,
-    val colorHex: String = "#2563EB",
+    val colorHex: String = AppConstants.DEFAULT_ACCOUNT_COLOR,
     val iconName: String = "AccountBalance",
     val isDefault: Boolean = false,
     // Real multi-currency: each account is tracked in its own currency.
-    val currencyCode: String = "USD",
+    val currencyCode: String = AppConstants.DEFAULT_CURRENCY_CODE,
     // Debt / liability tracking for CREDIT_CARD and LOAN accounts.
     val creditLimit: Double? = null,
     val interestRateApr: Double? = null,
@@ -69,10 +70,10 @@ data class TransactionEntity(
     val amount: Double,
     val type: TransactionType,
     val categoryId: String,
-    val accountId: String = "acc_checking",
+    val accountId: String = AppConstants.DEFAULT_ACCOUNT_ID,
     val timestamp: Long = System.currentTimeMillis(),
     val note: String? = null,
-    val paymentMethod: String? = "Cash",
+    val paymentMethod: String? = AppConstants.PAYMENT_METHOD_CASH,
     val receiptImageUri: String? = null,
     // Only set when type == TRANSFER: the destination account. `accountId` is the source.
     val transferAccountId: String? = null,
@@ -94,11 +95,11 @@ data class RecurringTransactionEntity(
     val amount: Double,
     val type: TransactionType,
     val categoryId: String,
-    val accountId: String = "acc_checking",
+    val accountId: String = AppConstants.DEFAULT_ACCOUNT_ID,
     val frequency: RecurringFrequency = RecurringFrequency.MONTHLY,
     val nextDueDate: Long = System.currentTimeMillis(),
     val note: String? = null,
-    val paymentMethod: String? = "Credit Card",
+    val paymentMethod: String? = AppConstants.PAYMENT_METHOD_CREDIT_CARD,
     // When true, item is paused/archived (also set automatically once remainingOccurrences hits 0)
     val isArchived: Boolean = false,
     // Optional finite lifespan: e.g. "12 more payments on this loan and I'm done." Null means the
@@ -157,7 +158,7 @@ data class UserEntity(
     // in plaintext in the local Room database despite never being read back or sent to any
     // backend for verification, so it was a pure liability. Sign-in identity is established
     // for the duration of the Credential Manager call only.
-    val preferredCurrency: String = "$",
+    val preferredCurrency: String = AppConstants.DEFAULT_CURRENCY_SYMBOL,
     val themeMode: String = "SYSTEM",
     val isBiometricEnabled: Boolean = false,
     val hasCompletedOnboarding: Boolean = false,
@@ -173,11 +174,14 @@ data class GoalEntity(
     val name: String,
     val targetAmount: Double,
     val targetDate: Long? = null,
-    val colorHex: String = "#059669",
+    val colorHex: String = AppConstants.DEFAULT_GOAL_COLOR,
     val iconName: String = "Savings",
     // Progress is derived from this account's computed balance (see AccountBalanceCalculator),
     // so a goal simply points at the savings account/wallet the user is funding it from.
     val linkedAccountId: String? = null,
+    // Optional monthly contribution pace (e.g. $200/mo) for this goal, distinct from
+    // the total target amount. Used to project timeline and track monthly savings targets.
+    val monthlyTargetAmount: Double? = null,
     // Manual contributions (e.g. a cash envelope with no bank account behind it), added on top of
     // the linked account's balance if any. Adjusted by hand via the "+ Add Contribution" action -
     // this is the only progress source for a goal with no linkedAccountId.

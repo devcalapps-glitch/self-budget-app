@@ -38,7 +38,6 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -142,6 +141,7 @@ import com.selfbudget.app.ui.theme.tintFill
 import com.selfbudget.app.ui.theme.titleText
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.core.ui.ManageCategoriesContent
 import com.selfbudget.app.ui.theme.onSolidFill
 import com.selfbudget.app.ui.theme.containerBorder
 import kotlinx.coroutines.launch
@@ -149,6 +149,7 @@ import kotlinx.coroutines.launch
 private enum class SettingsSubScreen(val title: String) {
     MAIN("Settings"),
     PREFERENCES("General Preferences & Security"),
+    CATEGORIES("Manage Custom Categories"),
     BACKUP("Data & Account Management"),
     LEGAL("Legal & Privacy"),
     PRIVACY("Privacy Policy"),
@@ -192,7 +193,6 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     
     var activeSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
-    var showManageCategoriesModal by remember { mutableStateOf(false) }
     var showDataExportModal by remember { mutableStateOf(false) }
     var pendingImportData by remember { mutableStateOf<ParsedImportData?>(null) }
     var showResetConfirmation by remember { mutableStateOf(false) }
@@ -339,15 +339,19 @@ fun SettingsScreen(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (activeSubScreen != SettingsSubScreen.MAIN) {
+                    if (activeSubScreen != SettingsSubScreen.MAIN || onDismiss != null) {
                         IconButton(
                             onClick = {
-                                activeSubScreen = when (activeSubScreen) {
-                                    SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
-                                    SettingsSubScreen.DELETE_ACCOUNT -> SettingsSubScreen.BACKUP
-                                    else -> SettingsSubScreen.MAIN
+                                if (activeSubScreen != SettingsSubScreen.MAIN) {
+                                    activeSubScreen = when (activeSubScreen) {
+                                        SettingsSubScreen.PRIVACY, SettingsSubScreen.TERMS -> SettingsSubScreen.LEGAL
+                                        SettingsSubScreen.DELETE_ACCOUNT -> SettingsSubScreen.BACKUP
+                                        else -> SettingsSubScreen.MAIN
+                                    }
+                                } else {
+                                    onDismiss?.invoke()
                                 }
                             },
                             modifier = Modifier.size(40.dp)
@@ -355,14 +359,6 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else if (onDismiss != null) {
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close Settings",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -370,21 +366,11 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = activeSubScreen.title,
-                        style = SelfBudgetType.heading,
+                        style = SelfBudgetType.title,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-
-                if (onDismiss != null) {
-                    TextButton(onClick = onDismiss) {
-                        Text(
-                            text = "Done",
-                            style = SelfBudgetType.rowTitle,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
         }
@@ -492,7 +478,7 @@ fun SettingsScreen(
                         icon = Icons.Default.Category,
                         title = "Manage Custom Categories",
                         subtitle = "View, archive, or restore custom categories",
-                        onClick = { showManageCategoriesModal = true }
+                        onClick = { activeSubScreen = SettingsSubScreen.CATEGORIES }
                     )
 
                     SectionRowDivider(modifier = Modifier.padding(start = 68.dp))
@@ -792,6 +778,16 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(150.dp))
+        }
+
+        // --- SUB-SCREEN: MANAGE CUSTOM CATEGORIES ---
+        if (activeSubScreen == SettingsSubScreen.CATEGORIES) {
+            ManageCategoriesContent(
+                categories = categories,
+                onToggleCategoryArchive = { cat -> onToggleCategoryArchive?.invoke(cat) }
+            )
 
             Spacer(modifier = Modifier.height(150.dp))
         }
@@ -1810,14 +1806,6 @@ fun SettingsScreen(
                 }
             }
         }
-    }
-
-    if (showManageCategoriesModal) {
-        com.selfbudget.app.core.ui.ManageCategoriesModal(
-            categories = categories,
-            onDismiss = { showManageCategoriesModal = false },
-            onToggleCategoryArchive = { cat -> onToggleCategoryArchive?.invoke(cat) }
-        )
     }
 
     if (showDataExportModal) {

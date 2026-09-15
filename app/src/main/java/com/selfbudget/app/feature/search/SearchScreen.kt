@@ -77,6 +77,7 @@ import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.sectionRamp
 import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.onSolidFill
 import com.selfbudget.app.ui.theme.tintFill
 import com.selfbudget.app.ui.theme.titleText
 import java.text.SimpleDateFormat
@@ -746,7 +747,7 @@ fun <T> FilterChipGroup(
                         containerColor = Ramp.Gray.tintFill(isDark),
                         labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         selectedContainerColor = Ramp.Teal.solidFill(isDark),
-                        selectedLabelColor = Ramp.Teal.let { if (isDark) it.c900 else it.c50 }
+                        selectedLabelColor = Ramp.Teal.onSolidFill(isDark)
                     )
                 )
             }
@@ -782,7 +783,7 @@ fun TypeFilterChip(
             containerColor = Ramp.Gray.tintFill(isDark),
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedContainerColor = Ramp.Teal.solidFill(isDark),
-            selectedLabelColor = Ramp.Teal.let { if (isDark) it.c900 else it.c50 }
+            selectedLabelColor = Ramp.Teal.onSolidFill(isDark)
         )
     )
 }

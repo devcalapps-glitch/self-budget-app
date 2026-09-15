@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,6 +44,7 @@ import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.titleText
@@ -110,15 +111,15 @@ fun SavingsGoalsAnalyticsModal(
                     ) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Savings goals analytics",
-                            style = SelfBudgetType.heading,
+                            style = SelfBudgetType.title,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -173,7 +174,7 @@ fun SavingsGoalsAnalyticsModal(
                                         .fillMaxWidth()
                                         .height(8.dp)
                                         .clip(ShapeChip),
-                                    color = ramp.c400,
+                                    color = getProgressBarColor(ramp.c400),
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -314,7 +315,7 @@ fun SavingsGoalsAnalyticsModal(
                                                         .fillMaxWidth()
                                                         .height(6.dp)
                                                         .clip(ShapeChip),
-                                                    color = rowRamp.c400,
+                                                    color = getProgressBarColor(rowRamp.c400),
                                                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                                                 )
                                             }

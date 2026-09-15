@@ -18,7 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +58,7 @@ import com.selfbudget.app.ui.theme.ShapePill
 import com.selfbudget.app.ui.theme.budgetStatus
 import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.getWarningColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
@@ -149,9 +150,9 @@ fun BudgetedCategoriesModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -306,7 +307,7 @@ fun BudgetedCategoriesModal(
                                                 .fillMaxWidth()
                                                 .height(6.dp)
                                                 .clip(ShapePill),
-                                            color = statusColor,
+                                            color = getProgressBarColor(statusColor, isOverLimit = item.percent > 1.0f || item.spent > item.limit),
                                             trackColor = if (isDark) ProgressTrackDark else ProgressTrackLight
                                         )
                                     }

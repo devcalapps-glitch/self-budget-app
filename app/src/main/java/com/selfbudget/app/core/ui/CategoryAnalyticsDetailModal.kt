@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +55,7 @@ import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.sectionRamp
@@ -208,8 +209,8 @@ fun CategoryAnalyticsDetailModal(
                     ) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -217,7 +218,7 @@ fun CategoryAnalyticsDetailModal(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = title,
-                                style = SelfBudgetType.heading,
+                                style = SelfBudgetType.title,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -522,7 +523,7 @@ fun CategoryAnalyticsDetailModal(
                                                     .fillMaxWidth()
                                                     .height(6.dp)
                                                     .clip(ShapeChip),
-                                                color = catRamp.c400,
+                                                color = getProgressBarColor(catRamp.c400),
                                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                                             )
                                         }

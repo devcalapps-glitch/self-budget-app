@@ -33,33 +33,56 @@ enum class Ramp(
 // stops between light and dark instead of switching hue.
 // -----------------------------------------------------------------------------
 
-/** Tinted fill for a band/chip/hero. [large] selects the deeper dark stop used for big surfaces (e.g. alert hero). */
+/** Tinted fill for a band/chip/hero. Uses subtle c900 stop in dark mode for comfortable contrast. */
 fun Ramp.tintFill(isDark: Boolean, large: Boolean = false): Color =
-    if (isDark) (if (large) c900 else c800) else (if (large) c100 else c50)
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFF0E2E18) else c900
+    } else (if (large) c100 else c50)
 
-/** Title text/icon on a tint — the darkest/lightest stop for maximum contrast. */
-fun Ramp.titleText(isDark: Boolean): Color = if (isDark) c50 else c900
+/** Title text/icon on a tint — balanced for comfortable contrast in dark mode (white on dark green). */
+fun Ramp.titleText(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color.White else c100
+    } else c900
 
 /** Secondary text/icon on a tint, or a band's icon + meta text. */
-fun Ramp.secondaryText(isDark: Boolean): Color = if (isDark) c200 else c600
+fun Ramp.secondaryText(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFF81C784) else c400
+    } else c600
 
 /** Icon tint on a plain (non-filled) surface — same stops as secondary text. */
 fun Ramp.icon(isDark: Boolean): Color = secondaryText(isDark)
 
-/** Tinted 0.5px border for a sectioned container. */
-fun Ramp.containerBorder(isDark: Boolean): Color = if (isDark) c600 else c100
+/** Tinted 0.5px border for a sectioned container — subtle c800 in dark mode. */
+fun Ramp.containerBorder(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFF1B542C) else c800
+    } else c100
 
 /** Count-pill fill on a header band. */
-fun Ramp.pillFill(isDark: Boolean): Color = if (isDark) c600 else c100
+fun Ramp.pillFill(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFF1B542C) else c800
+    } else c100
 
 /** Count-pill text on a header band. */
-fun Ramp.pillText(isDark: Boolean): Color = if (isDark) c50 else c800
+fun Ramp.pillText(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFFC8E6C9) else c200
+    } else c800
 
 /** Solid-fill selected/active control (active tab, primary pill background). */
-fun Ramp.solidFill(isDark: Boolean): Color = if (isDark) c200 else c800
+fun Ramp.solidFill(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color(0xFF196338) else c200
+    } else c800
 
-/** Text/icon that sits on top of [solidFill]. */
-fun Ramp.onSolidFill(isDark: Boolean): Color = if (isDark) c900 else c50
+/** Text/icon that sits on top of [solidFill] — white on dark green solid backgrounds. */
+fun Ramp.onSolidFill(isDark: Boolean): Color =
+    if (isDark) {
+        if (this == Ramp.Teal) Color.White else c900
+    } else c50
 
 // -----------------------------------------------------------------------------
 // Section identities (design system §"Section identity colors"). Each content
@@ -134,9 +157,9 @@ fun isAppInDarkTheme(): Boolean {
 // Money colors (design system §"Money colors")
 // =============================================================================
 
-/** Income / positive amounts: Teal 600 light, Teal 100 dark. */
+/** Income / positive amounts: Green 600 light, Green 400 dark (#81C784). */
 @Composable
-fun getIncomeColor(): Color = if (isAppInDarkTheme()) Ramp.Teal.c100 else Ramp.Teal.c600
+fun getIncomeColor(): Color = if (isAppInDarkTheme()) Color(0xFF81C784) else Ramp.Teal.c600
 
 /**
  * Red is reserved for over-limit / negative-balance amounts, not ordinary
@@ -156,15 +179,28 @@ fun getWarningColor(): Color = if (isAppInDarkTheme()) Ramp.Amber.c100 else Ramp
 fun getOnWarningColor(): Color = if (isAppInDarkTheme()) Ramp.Amber.c900 else Color.White
 
 /**
- * Brand/interactive color — Teal is the app's only brand color (design system
- * §18): active tab, selected filter, links, and primary actions all read from
- * it. `getAccentColor()` used to mean "blue interactive accent"; it now
- * resolves to the same Teal value as [getBrandColor] so existing call sites
- * (links, active states, selected pickers) fall in line with the one-brand
- * rule without needing to touch every call site individually.
+ * Brand/interactive color — in light mode Teal 600, in dark mode soft dark green (#81C784 / #196338).
  */
 @Composable
 fun getAccentColor(): Color = getBrandColor()
 
 @Composable
-fun getBrandColor(): Color = if (isAppInDarkTheme()) Ramp.Teal.c200 else Ramp.Teal.c600
+fun getBrandColor(): Color = if (isAppInDarkTheme()) Color(0xFF81C784) else Ramp.Teal.c600
+
+/**
+ * Resolves progress bar color.
+ * In dark mode: returns Ramp.Red.c200 (#F09595) when over limit, or muted dark green (#196338) normally.
+ * In light mode: preserves the specified [lightColor].
+ */
+@Composable
+fun getProgressBarColor(
+    lightColor: Color = Ramp.Teal.c400,
+    isOverLimit: Boolean = false
+): Color = if (isAppInDarkTheme()) {
+    if (isOverLimit) Ramp.Red.c200 else Color(0xFF196338)
+} else {
+    lightColor
+}
+
+
+

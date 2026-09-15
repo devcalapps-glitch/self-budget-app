@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -72,9 +73,8 @@ import com.selfbudget.app.feature.search.DateRangeFilter
 import com.selfbudget.app.feature.search.FilterChipGroup
 import com.selfbudget.app.feature.search.SortOption
 import com.selfbudget.app.feature.search.TypeFilterChip
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -157,11 +157,15 @@ import com.selfbudget.app.core.ui.components.StatusBadge
 import com.selfbudget.app.core.ui.components.StatusProgressBar
 import com.selfbudget.app.ui.theme.BudgetStatus
 import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.CardSurfaceDark
+import com.selfbudget.app.ui.theme.DividerDark
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapeHero
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.TextPrimaryDark
+import com.selfbudget.app.ui.theme.TextSecondaryDark
 import com.selfbudget.app.ui.theme.WarningAmberDark
 import com.selfbudget.app.ui.theme.budgetStatus
 import com.selfbudget.app.ui.theme.containerBorder
@@ -209,7 +213,7 @@ fun HomeScreen(
     onDeleteBudget: (categoryId: String) -> Unit = {},
     onAddRecurring: (title: String, amount: Double, type: TransactionType, categoryId: String, frequency: RecurringFrequency, remainingOccurrences: Int?, nextDueDate: Long?, transferAccountId: String?) -> Unit,
     onDeleteRecurring: (RecurringTransactionEntity) -> Unit,
-    onPostRecurring: (RecurringTransactionEntity, Double) -> Unit,
+    onPostRecurring: (RecurringTransactionEntity, Double, String?) -> Unit,
     onUpdateRecurring: (RecurringTransactionEntity) -> Unit = {},
     onAddCustomCategory: (CategoryEntity) -> Unit,
     onToggleCategoryArchive: (CategoryEntity) -> Unit = {},
@@ -217,7 +221,16 @@ fun HomeScreen(
     onUpdateAccount: (AccountEntity) -> Unit,
     onDeleteAccount: (AccountEntity) -> Unit,
     onAddTransfer: (fromAccountId: String, toAccountId: String, amount: Double, note: String?) -> Unit = { _, _, _, _ -> },
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit = { _, _, _, _ -> },
+    onAddGoal: (
+        name: String,
+        targetAmount: Double,
+        linkedAccountId: String?,
+        targetDate: Long?,
+        monthlyTargetAmount: Double?,
+        recurringFromAccountId: String?,
+        recurringFrequency: RecurringFrequency?,
+        recurringAmount: Double?
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onDeleteGoal: (com.selfbudget.app.data.model.GoalEntity) -> Unit = {},
     onContributeToGoal: (com.selfbudget.app.data.model.GoalEntity, Double) -> Unit = { _, _ -> },
     onUpdateGoal: (com.selfbudget.app.data.model.GoalEntity) -> Unit = {},
@@ -460,6 +473,7 @@ fun HomeScreen(
                     currencySymbol = uiState.currencySymbol,
                     accounts = uiState.accounts,
                     accountBalances = uiState.accountBalances,
+                    goals = uiState.goals,
                     onAddRecurring = onAddRecurring,
                     onDeleteRecurring = onDeleteRecurring,
                     onPostTransaction = onPostRecurring,
@@ -624,9 +638,9 @@ fun HomeScreen(
                 accountBalances = uiState.accountBalances,
                 currencySymbol = uiState.currencySymbol,
                 onDismiss = { showAddGoalDialog = false },
-                onConfirm = { name, targetAmount, linkedAccountId, targetDate ->
+                onConfirm = { name, targetAmount, linkedAccountId, targetDate, monthlyTargetAmount, recFromAcc, recFreq, recAmt ->
                     showAddGoalDialog = false
-                    onAddGoal(name, targetAmount, linkedAccountId, targetDate)
+                    onAddGoal(name, targetAmount, linkedAccountId, targetDate, monthlyTargetAmount, recFromAcc, recFreq, recAmt)
                 }
             )
         }
@@ -1118,7 +1132,6 @@ fun DashboardContent(
         categoryMap = categoryMap,
         recentPreview = recentPreview.take(5),
         isBalanceVisible = isBalanceVisible,
-        onToggleBalanceVisibility = { isBalanceVisible = !isBalanceVisible },
         onPreviousMonth = onPreviousMonth,
         onNextMonth = onNextMonth,
         onSelectMonthYear = onSelectMonthYear,
@@ -1232,7 +1245,6 @@ private fun HomeDashboardMockupContent(
     categoryMap: Map<String, CategoryEntity>,
     recentPreview: List<TransactionEntity>,
     isBalanceVisible: Boolean,
-    onToggleBalanceVisibility: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onSelectMonthYear: (String) -> Unit,
@@ -1413,8 +1425,7 @@ private fun HomeDashboardMockupContent(
                     ) {
                         BudgetStatusBars(
                             progress = budgetPct.toFloat(),
-                            barColor = heroHighlightColor,
-                            onClick = onToggleBalanceVisibility
+                            barColor = heroHighlightColor
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -1435,7 +1446,7 @@ private fun HomeDashboardMockupContent(
 
         item {
             Surface(
-                shape = RoundedCornerShape(18.dp),
+                shape = ShapeHero,
                 color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
                 modifier = Modifier.fillMaxWidth()
@@ -1480,31 +1491,37 @@ private fun HomeDashboardMockupContent(
             val isDarkAction = isAppInDarkTheme()
             Surface(
                 shape = ShapeHero,
-                color = Ramp.Coral.tintFill(isDarkAction),
+                color = if (isDarkAction) CardSurfaceDark else Ramp.Coral.tintFill(isDarkAction),
+                border = if (isDarkAction) BorderStroke(0.5.dp, DividerDark) else null,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(shape = CircleShape, color = Ramp.Coral.solidFill(isDarkAction), modifier = Modifier.size(42.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = null,
-                                tint = Ramp.Coral.onSolidFill(isDarkAction)
-                            )
-                        }
-                    }
+                    RampIconTile(
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        ramp = Ramp.Coral,
+                        size = 42.dp,
+                        iconSize = 22.dp
+                    )
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "NEXT BEST ACTION".uppercase(),
                             style = SelfBudgetType.eyebrow,
-                            color = Ramp.Coral.secondaryText(isDarkAction)
+                            color = if (isDarkAction) Ramp.Coral.c200 else Ramp.Coral.secondaryText(isDarkAction)
                         )
-                        Text(actionTitle, style = SelfBudgetType.heading, color = Ramp.Coral.titleText(isDarkAction))
-                        Text(actionSubtitle, style = SelfBudgetType.meta, color = Ramp.Coral.secondaryText(isDarkAction))
+                        Text(
+                            actionTitle,
+                            style = SelfBudgetType.heading,
+                            color = if (isDarkAction) TextPrimaryDark else Ramp.Coral.titleText(isDarkAction)
+                        )
+                        Text(
+                            actionSubtitle,
+                            style = SelfBudgetType.meta,
+                            color = if (isDarkAction) TextSecondaryDark else Ramp.Coral.secondaryText(isDarkAction)
+                        )
                     }
                     PrimaryPillButton(text = "Review plan", onClick = onReviewPlan, ramp = Ramp.Coral)
                 }
@@ -1739,10 +1756,10 @@ private fun UpcomingBillsModal(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Upcoming bills", style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
+                        Text(text = "Upcoming bills", style = SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                     }
                     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
@@ -1836,14 +1853,11 @@ private fun UpcomingBillsModal(
 @Composable
 private fun BudgetStatusBars(
     progress: Float,
-    barColor: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit
+    barColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val activeBars = (progress.coerceIn(0f, 1f) * 4f).toInt().coerceIn(1, 4)
     Row(
-        modifier = Modifier
-            .height(48.dp)
-            .clickable { onClick() },
+        modifier = Modifier.height(48.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.Bottom
     ) {
@@ -2105,7 +2119,7 @@ fun FullTransactionHistoryDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

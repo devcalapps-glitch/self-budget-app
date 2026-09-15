@@ -18,12 +18,13 @@ import com.selfbudget.app.ui.theme.ProgressTrackLight
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.titleText
 import com.selfbudget.app.ui.theme.tintFill
 import kotlin.math.roundToInt
 
-/** Bar fill, % badge, and "safe to spend" text all read from the same [status] (spec §9). */
+/** Bar fill uses unified muted Teal 600 in dark mode; in light mode reads from [status] (spec §9). */
 @Composable
 fun StatusProgressBar(
     progress: Float,
@@ -38,7 +39,7 @@ fun StatusProgressBar(
             .fillMaxWidth()
             .height(height)
             .clip(RoundedCornerShape(height / 2)),
-        color = status.ramp.c400,
+        color = getProgressBarColor(status.ramp.c400, isOverLimit = status == BudgetStatus.Over),
         trackColor = if (isDark) ProgressTrackDark else ProgressTrackLight,
     )
 }

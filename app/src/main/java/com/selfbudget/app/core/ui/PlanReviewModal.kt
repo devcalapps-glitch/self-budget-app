@@ -1,5 +1,6 @@
 package com.selfbudget.app.core.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,8 +23,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -49,16 +52,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.selfbudget.app.core.ui.components.EntryType
 import com.selfbudget.app.core.ui.components.IconTile
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.QuickAmountChips
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.core.ui.components.SectionHeaderBand
 import com.selfbudget.app.core.ui.components.SectionRowDivider
+import com.selfbudget.app.core.ui.components.ToggleRow
+import com.selfbudget.app.core.ui.components.TransactionAmountHero
 import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
@@ -75,6 +85,7 @@ import com.selfbudget.app.ui.theme.budgetStatus
 import com.selfbudget.app.ui.theme.getBrandColor
 import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.getWarningColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
@@ -167,7 +178,12 @@ fun PlanReviewModal(
                 .imePadding(),
             color = MaterialTheme.colorScheme.background
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            val isEditing = editingCategory != null
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .let { if (isEditing) it.blur(20.dp) else it }
+            ) {
                 TopAppBar(
                     title = {
                         Text(
@@ -179,9 +195,9 @@ fun PlanReviewModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -299,62 +315,168 @@ fun PlanReviewModal(
 
     // Quick edit budget dialog
     editingCategory?.let { item ->
-        Dialog(onDismissRequest = { editingCategory = null }) {
-            Surface(
-                shape = ShapeCard,
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth()
+        val catRamp = sectionRamp(item.category.name)
+        val isValid = (editAmountText.toDoubleOrNull() ?: 0.0) >= 0.0
+
+        Dialog(
+            onDismissRequest = { editingCategory = null },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { editingCategory = null }
+                    ),
+                contentAlignment = Alignment.TopCenter
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "Adjust Budget Limit",
-                        style = SelfBudgetType.title,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = item.category.name,
-                        style = SelfBudgetType.heading,
-                        color = getBrandColor()
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    OutlinedTextField(
-                        value = editAmountText,
-                        onValueChange = { editAmountText = it },
-                        label = { Text("Monthly Limit ($currencySymbol)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ShapePill,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = getBrandColor(),
-                            cursorColor = getBrandColor()
+                Surface(
+                    shape = ShapeCard,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 72.dp, start = 20.dp, end = 20.dp)
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = {} // Consume clicks inside the card so it doesn't dismiss
                         )
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
+                ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Title Bar (Header)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        PrimaryPillButton(
+                        IconButton(
+                            onClick = { editingCategory = null },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Adjust Budget Limit",
+                            style = SelfBudgetType.title,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // 1. Transaction Amount Hero
+                    TransactionAmountHero(
+                        type = EntryType.Income,
+                        amountText = editAmountText,
+                        onAmountChange = { editAmountText = it },
+                        currencySymbol = currencySymbol,
+                        badgeText = "MONTHLY BUDGET LIMIT",
+                        ramp = Ramp.Teal,
+                        stepAmount = 25.0
+                    )
+
+                    // Quick Add Chips
+                    QuickAmountChips(
+                        presets = listOf(25, 50, 100, 250),
+                        currencySymbol = currencySymbol,
+                        onPick = { preset ->
+                            val currentVal = editAmountText.toDoubleOrNull() ?: 0.0
+                            editAmountText = "%.2f".format(currentVal + preset)
+                        }
+                    )
+
+                    // 2. Category Identity & Rollover Settings Card
+                    Surface(
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // Category Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RampIconTile(
+                                    icon = getCategoryIcon(item.category.iconName),
+                                    ramp = catRamp,
+                                    size = 36.dp,
+                                    iconSize = 18.dp
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Category",
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = item.category.name,
+                                        style = SelfBudgetType.rowTitle,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                            // Rollover Toggle Row
+                            ToggleRow(
+                                icon = Icons.Default.Autorenew,
+                                title = "Enable rollover balance",
+                                checked = editRollover,
+                                onCheckedChange = { editRollover = it },
+                                description = "Unspent budget rolls over to next month"
+                            )
+                        }
+                    }
+
+                    // 3. Action Buttons (One Secondary Cancel + One Primary Save)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SecondaryPillButton(
                             text = "Cancel",
                             onClick = { editingCategory = null },
-                            ramp = Ramp.Gray
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
                         PrimaryPillButton(
-                            text = "Save Limit",
+                            text = "Save limit",
                             onClick = {
                                 val amount = editAmountText.replace("$", "").replace(",", "").toDoubleOrNull() ?: 0.0
                                 onSetBudget(item.category.id, amount, editRollover)
                                 editingCategory = null
                             },
-                            ramp = Ramp.Teal
+                            enabled = isValid,
+                            ramp = Ramp.Teal,
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(50.dp)
                         )
                     }
+                }
                 }
             }
         }
@@ -417,7 +539,7 @@ private fun PlanCategoryRow(
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(ShapePill),
-                    color = statusColor,
+                    color = getProgressBarColor(statusColor, isOverLimit = item.percent > 1.0 || (item.limit > 0.0 && item.spent > item.limit)),
                     trackColor = if (isDark) Ramp.Gray.c800 else Ramp.Gray.c100
                 )
             }

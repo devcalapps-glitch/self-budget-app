@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -74,22 +75,24 @@ fun CategorySelectionModal(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val filteredCategories = remember(categories, transactionType, searchQuery) {
+    val effectiveType = if (transactionType == TransactionType.TRANSFER) TransactionType.EXPENSE else transactionType
+
+    val filteredCategories = remember(categories, effectiveType, searchQuery) {
         categories
             .filter { !it.isArchived }
-            .filter { it.type == transactionType }
+            .filter { it.type == effectiveType }
             .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
     }
 
-    val groupedCategories = remember(filteredCategories, transactionType) {
-        val groupOrder = if (transactionType == TransactionType.EXPENSE) {
+    val groupedCategories = remember(filteredCategories, effectiveType) {
+        val groupOrder = if (effectiveType == TransactionType.EXPENSE) {
             listOf("Housing & Essentials", "Food & Daily Living", "Lifestyle & Entertainment", "Debt & Financial", "Custom Categories", "Other")
         } else {
             listOf("Earned Income", "Investments & Passive", "Gifts & Other", "Custom Categories", "Other")
         }
 
         val map = filteredCategories.groupBy {
-            if (transactionType == TransactionType.EXPENSE) getExpenseCategoryGroup(it)
+            if (effectiveType == TransactionType.EXPENSE) getExpenseCategoryGroup(it)
             else getIncomeCategoryGroup(it)
         }
 
@@ -128,15 +131,15 @@ fun CategorySelectionModal(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (transactionType == TransactionType.INCOME) "Select income type" else "Select expense type",
-                            style = SelfBudgetType.heading,
+                            text = if (effectiveType == TransactionType.INCOME) "Select income type" else "Select expense type",
+                            style = SelfBudgetType.title,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }

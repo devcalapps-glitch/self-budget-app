@@ -61,22 +61,25 @@ Surface(color = Ramp.Teal.tintFill(isDark), border = BorderStroke(1.dp, Ramp.Tea
 | **Pink** | `#FBEAF0` | `#F4C0D1` | `#ED93B1` | `#D4537E` | `#993556` | `#72243E` | `#4B1528` |
 | **Gray** | `#F1EFE8` | `#D3D1C7` | `#B4B2A9` | `#888780` | `#5F5E5A` | `#444441` | `#2C2C2A` |
 
-**Teal is the app's only brand color** — active tab, selected filter, links,
-and primary actions all read from it (`getBrandColor()`/`getAccentColor()`).
+**Teal / Dark Green is the app's only brand color** — active tab, selected filter,
+links, and primary actions all read from it (`getBrandColor()`/`getAccentColor()`).
+In dark mode, Teal stops dynamically resolve to authentic **Dark Green** tones
+(`solidFill` `#196338`, `onSolidFill` `Color.White`, `tintFill` `#0E2E18`,
+`titleText` `Color.White`, `secondaryText` `#81C784`, `containerBorder` `#1B542C`).
 
 ### Ramp extension functions (pick one, never a raw stop)
 
 | Function | Light | Dark | Use for |
 | :--- | :--- | :--- | :--- |
-| `tintFill(isDark, large=false)` | c50 (c100 if `large`) | c800 (c900 if `large`) | Tinted card/chip/hero background |
-| `titleText(isDark)` | c900 | c50 | Title text/icon on a tint |
-| `secondaryText(isDark)` | c600 | c200 | Secondary text, band icon/meta text |
+| `tintFill(isDark, large=false)` | c50 (c100 if `large`) | c900 (Dark Green `#0E2E18` for Teal) | Tinted card/chip/hero background |
+| `titleText(isDark)` | c900 | c100 (White `#FFFFFF` for Teal) | Title text/icon on a tint |
+| `secondaryText(isDark)` | c600 | c400 (Green `#81C784` for Teal) | Secondary text, band icon/meta text |
 | `icon(isDark)` | = `secondaryText` | = `secondaryText` | Icon on a plain (non-filled) surface |
-| `containerBorder(isDark)` | c100 | c600 | 0.5px border on a sectioned container |
-| `pillFill(isDark)` | c100 | c600 | Count-pill background on a header band |
-| `pillText(isDark)` | c800 | c50 | Count-pill text on a header band |
-| `solidFill(isDark)` | c800 | c200 | Solid selected/active control (active tab, primary pill bg) |
-| `onSolidFill(isDark)` | c50 | c900 | Text/icon on top of `solidFill` |
+| `containerBorder(isDark)` | c100 | c800 (Green `#1B542C` for Teal) | 0.5px border on a sectioned container |
+| `pillFill(isDark)` | c100 | c800 (Green `#1B542C` for Teal) | Count-pill background on a header band |
+| `pillText(isDark)` | c800 | c200 (`#C8E6C9` for Teal) | Count-pill text on a header band |
+| `solidFill(isDark)` | c800 | c200 (Dark Green `#196338` for Teal) | Solid selected/active control (active tab, primary pill bg) |
+| `onSolidFill(isDark)` | c50 | c900 (White `#FFFFFF` for Teal) | Text/icon on top of `solidFill` |
 
 ### Section identity colors
 
@@ -127,10 +130,15 @@ so plain `MaterialTheme.colorScheme.*` calls are fine for neutral text/surfaces
 
 | Function | Meaning | Light | Dark |
 | :--- | :--- | :--- | :--- |
-| `getIncomeColor()` | Income / positive amounts | Teal 600 | Teal 100 |
+| `getIncomeColor()` | Income / positive amounts | Teal 600 | Green 400 (`#81C784`) |
 | `getExpenseColor()` | "This is an expense" semantics — type badges, outflow dots, over-limit/negative-balance text. **Not** for ordinary expense row amounts, which stay neutral `onSurface`. | Red 600 | Red 200 |
 | `getWarningColor()` | Watch-status / 80–100% of budget | Amber 800 | Amber 100 |
-| `getBrandColor()` / `getAccentColor()` | Brand/interactive — active tab, links, primary actions | Teal 600 | Teal 200 |
+| `getBrandColor()` / `getAccentColor()` | Brand/interactive — active tab, links, primary actions | Teal 600 | Green 400 (`#81C784`) |
+| `getProgressBarColor(lightColor, isOverLimit)` | Progress bar fill: uses `lightColor` in light mode; in dark mode uses dark green (`#196338`) normally or Red 200 (`#F09595`) when over limit | `lightColor` | Dark Green (`#196338`) / Red 200 (`#F09595`) |
+
+**Dark Mode Green & Contrast Rules**:
+1. In dark mode, do not use Teal cyan/blue-green tones; use authentic **Dark Green** tokens (`#196338` for solid CTA/active controls, `#0E2E18` for tint background, `#81C784` for soft green text/icons).
+2. If a dark green background exists on CTA buttons (e.g. `PrimaryPillButton`) or Hero cards, the text on top must strictly be **pure white** (`#FFFFFF` / `Color.White`) for high legibility and contrast.
 
 Money-direction color rule (from `TransactionAmountHero`): a **type badge** is
 the only element allowed to carry money-direction color. The amount digits
@@ -251,11 +259,42 @@ these as load-bearing, not optional style preferences:
     with programmatic formatting via `toWordTitleCase()` (`com.selfbudget.app.core.util.toWordTitleCase`)
     so that typing a space automatically capitalizes the first character of the
     next word consistently across all keyboards and paste inputs.
+12. **Dark Mode Muted Icon Style**: In dark mode, all icon tiles (category rows,
+    header bands, list items, and detail modals) must strictly follow the muted
+    icon style established on the Budgeted Categories page: a subtle `c900`
+    dark-tinted background container paired with a softened `c400` (`ramp.icon(isDark)`)
+    glyph tint via `RampIconTile` (or `IconTile`). Never use high-contrast solid
+    white glyphs on stark saturated backgrounds in dark mode.
+13. **Uniform Subpage & Modal Row Amount Typography**: In both light and dark mode,
+    all subpages and modal sheets (Spent & Committed Bills, Unbudgeted Expenses,
+    Committed Recurring Bills, Committed Recurring Income, and Category Analytics)
+    must strictly use uniform typography for row amounts matching the Budgeted
+    Categories page: `SelfBudgetType.body` (13sp / Normal with `tnum`), while
+    top hero summary amounts use `SelfBudgetType.display` (32sp / Medium with `tnum`).
+    Never use oversized `heading` or ad-hoc weights for line-item row amounts.
+14. **Uniform Page & Modal Header Typography**: All subpages, subcategory pages,
+    modal sheets, and full-screen dialogs must strictly use `SelfBudgetType.title`
+    (20sp / Medium, `color = MaterialTheme.colorScheme.onSurface`) for their top
+    app bar / header title matching `BudgetedCategoriesModal`. Section titles
+    within page content use `SelfBudgetType.heading` (16sp / Medium).
+15. **Uniform Read-Only Modal Edit Action Color (`Ramp.Teal`)**: On all read-only
+    detail summary sheets and modals (Transaction Details, Recurring Details,
+    Savings Goal Details, Category Budget Details, and Account Details), the primary
+    action button that unlocks the form to edit (`Edit transaction`, `Edit recurring`,
+    `Edit goal`, `Edit budget`, `Edit account`) must strictly use `PrimaryPillButton(..., ramp = Ramp.Teal)`.
+    This provides uniform brand consistency across both light mode (Brand Teal 400 `#1D9E75`)
+    and dark mode (Dark Green `#196338` with pure white text), paired alongside
+    a neutral `SecondaryPillButton(text = "Close")`.
+16. **Subpage Navigation with Back Arrow (`Icons.AutoMirrored.Filled.ArrowBack`)**:
+    - **All Subpages, Detail Views, Entry-Point Flows, Action Pages & Settings**: On all subpages, sub-screens, Settings, Settings sub-pages, read-only detail sheets, edit modals, history views, confirmation/action pages, and all creation subpages opened from "What do you want to add?" (including **Add Expense**, **Add Income**, **Add Transfer**, **Set / Edit Budget**, **Add / Edit Recurring**, **Add / Edit Account or Asset**, **Add / Edit Goal**, **Add Custom Category**, **Transaction Details**, **Confirm & Post**, **Category Budget Details**, **Account & Asset Details**, **Savings Goal Details**, **Adjust Budget Limit**, Settings, Settings sub-pages, Spent & Bills breakdown, Committed Bills, Committed Paychecks, Unbudgeted Spending, Budgeted Categories, Category Analytics, Savings Goal Analytics, Debt Payoff Analytics, Net Worth History, All Transactions, Data Export, and All Accounts), the top navigation bar must strictly use the Back arrow (`Icons.AutoMirrored.Filled.ArrowBack`, `contentDescription = "Back"` with `tint = MaterialTheme.colorScheme.onSurface`). Never use an `✕` (Close) icon on subpages, detail screens, creation flow subpages, action pages, or Settings.
+    - **Root Menu Hubs**: Only the root entry picker modal ("What do you want to add?") uses `✕` / Close. Once a subpage/flow is selected, that subpage uses the Back arrow.
 
 ## 9. File index
 
 ```text
 app/src/main/java/com/selfbudget/app/
+├── core/util/
+│   └── AppConstants.kt # App-wide defaults (account IDs, category IDs, payment methods, colors)
 ├── ui/theme/
 │   ├── Color.kt      # Ramp enum, ramp extension fns, section/status/money colors
 │   ├── Type.kt        # SelfBudgetType scale + Material3 Typography mapping

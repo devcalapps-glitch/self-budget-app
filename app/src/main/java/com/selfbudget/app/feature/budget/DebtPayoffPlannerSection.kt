@@ -1,5 +1,6 @@
 package com.selfbudget.app.feature.budget
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,13 @@ import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.core.ui.getAccountIcon
 import com.selfbudget.app.core.util.AccountBalanceCalculator
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.ui.theme.CardSurfaceDark
+import com.selfbudget.app.ui.theme.DividerDark
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeHero
+import com.selfbudget.app.ui.theme.TextPrimaryDark
+import com.selfbudget.app.ui.theme.TextSecondaryDark
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.tintFill
@@ -60,12 +65,13 @@ fun DebtPayoffPlannerSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = "Payoff calculator", style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
 
-        // Explainer card (spec §21): icon tile + headline + body + one secondary CTA.
+        // Explainer card: icon tile + headline + body + one secondary CTA.
         val isDark = isAppInDarkTheme()
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = ShapeHero,
-            color = Ramp.Coral.tintFill(isDark)
+            color = if (isDark) CardSurfaceDark else Ramp.Coral.tintFill(isDark),
+            border = if (isDark) BorderStroke(0.5.dp, DividerDark) else null
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -74,14 +80,14 @@ fun DebtPayoffPlannerSection(
                     Text(
                         text = "See exactly how long payoff takes",
                         style = SelfBudgetType.heading,
-                        color = Ramp.Coral.titleText(isDark)
+                        color = if (isDark) TextPrimaryDark else Ramp.Coral.titleText(isDark)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Pick a Credit Card or Loan from your wallet - or enter numbers by hand - then set any payment amount to see months to debt-free, total interest, and payoff date.",
                     style = SelfBudgetType.body,
-                    color = Ramp.Coral.secondaryText(isDark)
+                    color = if (isDark) TextSecondaryDark else Ramp.Coral.secondaryText(isDark)
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 SecondaryPillButton(

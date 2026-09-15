@@ -20,8 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -159,9 +160,9 @@ fun UnbudgetedTransactionsModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -210,12 +211,12 @@ fun UnbudgetedTransactionsModal(
                                 Text(
                                     text = "UNBUDGETED EXPENSES".uppercase(),
                                     style = SelfBudgetType.eyebrow,
-                                    color = Ramp.Amber.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Amber.c200 else Ramp.Amber.secondaryText(isDark)
                                 )
                                 Text(
                                     text = "$currencySymbol%,.2f".format(totalUnbudgeted),
                                     style = SelfBudgetType.display,
-                                    color = Ramp.Amber.titleText(isDark)
+                                    color = if (isDark) Color.White else Ramp.Amber.titleText(isDark)
                                 )
                                 Text(
                                     text = if (unbudgetedGroups.isEmpty()) {
@@ -224,7 +225,7 @@ fun UnbudgetedTransactionsModal(
                                         "Across ${unbudgetedGroups.size} categor${if (unbudgetedGroups.size == 1) "y" else "ies"} with no monthly limits"
                                     },
                                     style = SelfBudgetType.meta,
-                                    color = Ramp.Amber.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Amber.c100 else Ramp.Amber.secondaryText(isDark)
                                 )
                             }
                         }
@@ -302,7 +303,7 @@ fun UnbudgetedTransactionsModal(
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
                                             text = "-$currencySymbol%.2f".format(tx.amount),
-                                            style = SelfBudgetType.heading,
+                                            style = SelfBudgetType.body,
                                             color = getExpenseColor()
                                         )
                                     }

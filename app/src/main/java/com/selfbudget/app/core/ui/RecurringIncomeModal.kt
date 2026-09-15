@@ -18,8 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -112,9 +112,9 @@ fun RecurringIncomeModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -259,7 +259,7 @@ fun RecurringIncomeModal(
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = "+$currencySymbol%.2f".format(item.amount),
-                                            style = SelfBudgetType.heading,
+                                            style = SelfBudgetType.body,
                                             color = getIncomeColor()
                                         )
                                         if (item.frequency != RecurringFrequency.MONTHLY) {

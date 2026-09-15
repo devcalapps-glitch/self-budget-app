@@ -43,13 +43,17 @@ fun PrimaryPillButton(
     icon: ImageVector? = null,
 ) {
     val isDark = isAppInDarkTheme()
+    val containerColor = if (isDark && ramp == Ramp.Teal) Color(0xFF196338) else ramp.c400
+    val contentColor = if (isDark) {
+        if (ramp == Ramp.Teal) Color.White else ramp.c50
+    } else Color.White
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = ShapePill,
         colors = ButtonDefaults.buttonColors(
-            containerColor = ramp.c400,
-            contentColor = if (isDark) ramp.c50 else Color.White,
+            containerColor = containerColor,
+            contentColor = contentColor,
         ),
         modifier = modifier,
     ) {

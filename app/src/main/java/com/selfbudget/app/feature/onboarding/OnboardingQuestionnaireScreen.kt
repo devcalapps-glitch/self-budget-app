@@ -50,6 +50,7 @@ import com.selfbudget.app.ui.theme.ProgressTrackLight
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
 import com.selfbudget.app.ui.theme.solidFill
@@ -140,7 +141,7 @@ fun OnboardingQuestionnaireScreen(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(ShapeChip),
-                color = Ramp.Teal.c400,
+                color = getProgressBarColor(),
                 trackColor = if (isDark) ProgressTrackDark else ProgressTrackLight
             )
 

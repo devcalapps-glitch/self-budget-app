@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.selfbudget.app.core.auth.AuthManager
 import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.AppConstants
 import com.selfbudget.app.core.util.BudgetCalculator
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.core.util.Money
@@ -289,9 +290,9 @@ class MainViewModel @Inject constructor(
         amount: Double,
         type: TransactionType,
         categoryId: String,
-        accountId: String = "acc_checking",
+        accountId: String = AppConstants.DEFAULT_ACCOUNT_ID,
         note: String? = null,
-        paymentMethod: String? = "Cash",
+        paymentMethod: String? = AppConstants.PAYMENT_METHOD_CASH,
         receiptUri: String? = null,
         timestamp: Long = System.currentTimeMillis(),
         isRecurring: Boolean = false,
@@ -420,7 +421,7 @@ class MainViewModel @Inject constructor(
                 title = "Account Transfer",
                 amount = Money.round(amount),
                 type = TransactionType.TRANSFER,
-                categoryId = "cat_transfer",
+                categoryId = AppConstants.TRANSFER_CATEGORY_ID,
                 accountId = fromAccountId,
                 transferAccountId = toAccountId,
                 timestamp = timestamp,
@@ -553,7 +554,7 @@ class MainViewModel @Inject constructor(
                 amount = amount,
                 type = type,
                 categoryId = categoryId,
-                accountId = "acc_checking",
+                accountId = AppConstants.DEFAULT_ACCOUNT_ID,
                 frequency = frequency,
                 remainingOccurrences = remainingOccurrences,
                 nextDueDate = nextDueDate,
@@ -574,20 +575,42 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun postRecurringTransaction(recurring: RecurringTransactionEntity, postAmount: Double = recurring.amount) {
+    fun postRecurringTransaction(
+        recurring: RecurringTransactionEntity,
+        postAmount: Double = recurring.amount,
+        targetGoalId: String? = null
+    ) {
         viewModelScope.launch {
+            val user = currentUser.value ?: return@launch
+            val matchingGoal = targetGoalId?.let { gid ->
+                repository.getAllGoalsSync(user.id).firstOrNull { it.id == gid }
+            }
+
+            val note = if (matchingGoal != null) {
+                "Recurring (${recurring.frequency.name.lowercase().replace('_', '-')}) · Goal: ${matchingGoal.name}"
+            } else {
+                "Recurring (${recurring.frequency.name.lowercase().replace('_', '-')})"
+            }
+
+            val effectiveTransferAccountId = matchingGoal?.linkedAccountId ?: recurring.transferAccountId
+
             addTransaction(
                 title = recurring.title,
                 amount = postAmount,
                 type = recurring.type,
                 categoryId = recurring.categoryId,
                 accountId = recurring.accountId,
-                note = "Recurring (${recurring.frequency.name.lowercase().replace('_', '-')})",
+                note = note,
                 paymentMethod = recurring.paymentMethod,
-                transferAccountId = recurring.transferAccountId,
+                transferAccountId = effectiveTransferAccountId,
                 linkedRecurringId = recurring.id,
                 recurringCycleDueDate = recurring.nextDueDate
             )
+
+            // If the goal does not have a linked account (direct cash/envelope savings), credit its savedAmount directly.
+            if (matchingGoal != null && matchingGoal.linkedAccountId == null) {
+                contributeToGoal(matchingGoal, postAmount)
+            }
 
             // If this is a full (or greater) payment of the recurring amount, advance to next cycle.
             // If it is a partial payment, retain the current due date so the user can post the remainder.
@@ -681,8 +704,12 @@ class MainViewModel @Inject constructor(
         name: String,
         targetAmount: Double,
         targetDate: Long? = null,
-        colorHex: String = "#059669",
-        linkedAccountId: String? = null
+        colorHex: String = AppConstants.DEFAULT_GOAL_COLOR,
+        linkedAccountId: String? = null,
+        monthlyTargetAmount: Double? = null,
+        recurringFromAccountId: String? = null,
+        recurringFrequency: RecurringFrequency? = null,
+        recurringAmount: Double? = null
     ) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
@@ -693,15 +720,35 @@ class MainViewModel @Inject constructor(
                     targetAmount = Money.round(targetAmount),
                     targetDate = targetDate,
                     colorHex = colorHex,
-                    linkedAccountId = linkedAccountId
+                    linkedAccountId = linkedAccountId,
+                    monthlyTargetAmount = monthlyTargetAmount?.let { Money.round(it) }
                 )
             )
+
+            // If a recurring transfer was requested, schedule it now.
+            if (recurringFromAccountId != null && linkedAccountId != null && recurringFrequency != null && recurringAmount != null && recurringAmount > 0.0) {
+                upsertRecurring(
+                    userId = user.id,
+                    title = "Goal: $name",
+                    amount = recurringAmount,
+                    type = TransactionType.TRANSFER,
+                    categoryId = AppConstants.TRANSFER_CATEGORY_ID,
+                    accountId = recurringFromAccountId,
+                    frequency = recurringFrequency,
+                    transferAccountId = linkedAccountId
+                )
+            }
         }
     }
 
     fun updateGoal(goal: GoalEntity) {
         viewModelScope.launch {
-            repository.updateGoal(goal.copy(targetAmount = Money.round(goal.targetAmount)))
+            repository.updateGoal(
+                goal.copy(
+                    targetAmount = Money.round(goal.targetAmount),
+                    monthlyTargetAmount = goal.monthlyTargetAmount?.let { Money.round(it) }
+                )
+            )
         }
     }
 

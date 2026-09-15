@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
@@ -37,10 +38,6 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +55,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -165,10 +172,10 @@ fun DebtPayoffCalculatorDialog(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = onDismiss) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Payoff calculator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                            Text("Payoff calculator", style = com.selfbudget.app.ui.theme.SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                         }
                         // Done lives in the footer only — never duplicated in the header (spec §14/§19).
                     }
@@ -209,53 +216,36 @@ fun DebtPayoffCalculatorDialog(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (selectedAccount != null) {
-                                                getExpenseColor().copy(alpha = 0.15f)
-                                            } else {
-                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                            },
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = if (selectedAccount != null) {
-                                                        getAccountIcon(selectedAccount!!.type)
-                                                    } else {
-                                                        Icons.Default.EditNote
-                                                    },
-                                                    contentDescription = null,
-                                                    tint = if (selectedAccount != null) getExpenseColor() else MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
+                                        RampIconTile(
+                                            icon = if (selectedAccount != null) getAccountIcon(selectedAccount!!.type) else Icons.Default.EditNote,
+                                            ramp = if (selectedAccount != null) Ramp.Coral else Ramp.Teal,
+                                            size = 38.dp,
+                                            iconSize = 20.dp
+                                        )
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column {
                                             Text(
-                                                text = if (selectedAccount != null) "Linked Debt Account" else "Calculation Mode",
-                                                style = MaterialTheme.typography.labelSmall,
+                                                text = if (selectedAccount != null) "Linked debt account" else "Calculation mode",
+                                                style = SelfBudgetType.meta,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             Text(
                                                 text = selectedAccount?.name ?: "Manual Entry",
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Medium,
+                                                style = SelfBudgetType.rowTitle,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (selectedAccount != null) {
                                                 val owed = kotlin.math.abs(accountBalances[selectedAccount!!.id] ?: selectedAccount!!.initialBalance)
                                                 Text(
                                                     text = "Owed: $currencySymbol%.2f".format(owed) + (selectedAccount!!.interestRateApr?.let { " • %.2f%% APR".format(it) } ?: ""),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             } else {
                                                 Text(
                                                     text = "Custom balance, APR & payment",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
@@ -339,30 +329,22 @@ fun DebtPayoffCalculatorDialog(
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         modifier = Modifier.fillMaxWidth()
                                                     ) {
-                                                        Surface(
-                                                            shape = CircleShape,
-                                                            color = getExpenseColor().copy(alpha = 0.15f),
-                                                            modifier = Modifier.size(34.dp)
-                                                        ) {
-                                                            Box(contentAlignment = Alignment.Center) {
-                                                                Icon(
-                                                                    imageVector = getAccountIcon(acc.type),
-                                                                    contentDescription = null,
-                                                                    tint = getExpenseColor(),
-                                                                    modifier = Modifier.size(18.dp)
-                                                                )
-                                                            }
-                                                        }
+                                                        RampIconTile(
+                                                            icon = getAccountIcon(acc.type),
+                                                            ramp = Ramp.Coral,
+                                                            size = 34.dp,
+                                                            iconSize = 18.dp
+                                                        )
                                                         Spacer(modifier = Modifier.width(12.dp))
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
                                                                 text = acc.name,
-                                                                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Medium,
+                                                                style = SelfBudgetType.rowTitle,
                                                                 color = MaterialTheme.colorScheme.onSurface
                                                             )
                                                             Text(
                                                                 text = "Owed: $currencySymbol%.2f".format(owed) + (acc.interestRateApr?.let { " • %.2f%% APR".format(it) } ?: ""),
-                                                                style = MaterialTheme.typography.bodySmall,
+                                                                style = SelfBudgetType.meta,
                                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             )
                                                         }
@@ -536,25 +518,22 @@ fun DebtPayoffCalculatorDialog(
                                 ) {
                                     Column(modifier = Modifier.padding(18.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = getIncomeColor().copy(alpha = 0.15f),
-                                                modifier = Modifier.size(38.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(Icons.Default.Calculate, contentDescription = null, tint = getIncomeColor(), modifier = Modifier.size(20.dp))
-                                                }
-                                            }
+                                            RampIconTile(
+                                                icon = Icons.Default.Calculate,
+                                                ramp = Ramp.Teal,
+                                                size = 38.dp,
+                                                iconSize = 20.dp
+                                            )
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Column {
                                                 Text(
                                                     text = "Debt-free in ${result.monthsToPayoff} month" + if (result.monthsToPayoff == 1) "" else "s",
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Medium
+                                                    style = SelfBudgetType.heading,
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
                                                     text = (if (years > 0) "$years yr${if (years != 1) "s" else ""} $remMonths mo • " else "$remMonths mo • ") + "Paid off by $payoffDateLabel",
-                                                    style = MaterialTheme.typography.bodySmall,
+                                                    style = SelfBudgetType.meta,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
@@ -566,23 +545,21 @@ fun DebtPayoffCalculatorDialog(
 
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             // Total interest is information, not an alarm — neutral, not red (spec §19).
-                                            Text("Total interest paid", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("Total interest paid", style = SelfBudgetType.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text(
-                                                "$currencySymbol%.2f".format(result.totalInterestPaid),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
+                                                 "$currencySymbol%.2f".format(result.totalInterestPaid),
+                                                 style = SelfBudgetType.rowTitle,
+                                                 color = MaterialTheme.colorScheme.onSurface
+                                             )
                                         }
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("Total Paid (Balance + Interest)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                            Text("Total Paid (Balance + Interest)", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                                             Text(
-                                                "$currencySymbol%.2f".format(balance + result.totalInterestPaid),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
+                                                 "$currencySymbol%.2f".format(balance + result.totalInterestPaid),
+                                                 style = SelfBudgetType.heading,
+                                                 color = MaterialTheme.colorScheme.onSurface
+                                             )
                                         }
                                     }
                                 }
@@ -593,21 +570,16 @@ fun DebtPayoffCalculatorDialog(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // Bottom Action Button
-                    Button(
+                    PrimaryPillButton(
+                        text = "Done",
                         onClick = onDismiss,
-                        shape = ShapePill,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
+                        ramp = Ramp.Teal,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
-                    ) {
-                        Text("Done", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                    }
+                    )
 
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(120.dp))
                 }
             }
         }

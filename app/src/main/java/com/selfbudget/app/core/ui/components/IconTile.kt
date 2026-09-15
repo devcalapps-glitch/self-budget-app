@@ -41,7 +41,7 @@ fun IconTile(
     }
 }
 
-/** An [IconTile] tinted from a single ramp per the one-ramp-rule (fill + icon share a ramp). */
+/** An [IconTile] tinted from a single ramp. In dark mode, uses the unified muted Gray style (spec §12). */
 @Composable
 fun RampIconTile(
     icon: ImageVector,
@@ -51,10 +51,11 @@ fun RampIconTile(
     iconSize: Dp = 20.dp,
 ) {
     val isDark = isAppInDarkTheme()
+    val effectiveRamp = if (isDark) Ramp.Gray else ramp
     IconTile(
         icon = icon,
-        tint = ramp.icon(isDark),
-        background = ramp.tintFill(isDark),
+        tint = effectiveRamp.icon(isDark),
+        background = effectiveRamp.tintFill(isDark),
         modifier = modifier,
         size = size,
         iconSize = iconSize,

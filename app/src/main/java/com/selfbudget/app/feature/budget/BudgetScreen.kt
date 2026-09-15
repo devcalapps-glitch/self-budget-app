@@ -63,11 +63,16 @@ import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.GoalEntity
+import com.selfbudget.app.data.model.RecurringFrequency
 import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.feature.dashboard.GoalsSection
 import com.selfbudget.app.ui.theme.BudgetStatus
+import com.selfbudget.app.ui.theme.CardSurfaceDark
+import com.selfbudget.app.ui.theme.DividerDark
+import com.selfbudget.app.ui.theme.getProgressBarColor
+import com.selfbudget.app.ui.theme.PageBackgroundDark
 import com.selfbudget.app.ui.theme.ProgressTrackDark
 import com.selfbudget.app.ui.theme.ProgressTrackLight
 import com.selfbudget.app.ui.theme.Ramp
@@ -76,6 +81,8 @@ import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeHero
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.TextPrimaryDark
+import com.selfbudget.app.ui.theme.TextSecondaryDark
 import com.selfbudget.app.ui.theme.budgetStatus
 import com.selfbudget.app.ui.theme.containerBorder
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
@@ -126,7 +133,16 @@ fun BudgetScreen(
     goals: List<GoalEntity> = emptyList(),
     accounts: List<AccountEntity> = emptyList(),
     accountBalances: Map<String, Double> = emptyMap(),
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit = { _, _, _, _ -> },
+    onAddGoal: (
+        name: String,
+        targetAmount: Double,
+        linkedAccountId: String?,
+        targetDate: Long?,
+        monthlyTargetAmount: Double?,
+        recurringFromAccountId: String?,
+        recurringFrequency: RecurringFrequency?,
+        recurringAmount: Double?
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onDeleteGoal: (GoalEntity) -> Unit = {},
     onContributeToGoal: (GoalEntity, Double) -> Unit = { _, _ -> },
     onUpdateGoal: (GoalEntity) -> Unit = {},
@@ -414,12 +430,13 @@ fun BudgetScreen(
                 val overallPercent = if (totalBudget > 0.0) ((totalClaimedInBudgets / totalBudget) * 100).toInt() else 0
                 val cleanRemainingBudget = totalBudget - totalClaimedInBudgets
 
-                // Spending Plan hero card (spec §4 hero: no border, the tint is the boundary)
+                // Spending Plan hero card
                 val isDarkHero = isAppInDarkTheme()
-                val heroFill = heroRamp.tintFill(isDark = isDarkHero, large = heroRamp == Ramp.Red)
+                val heroFill = if (isDarkHero) CardSurfaceDark else heroRamp.tintFill(isDark = false, large = heroRamp == Ramp.Red)
                 Surface(
                     shape = ShapeHero,
                     color = heroFill,
+                    border = if (isDarkHero) BorderStroke(0.5.dp, DividerDark) else null,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -436,16 +453,14 @@ fun BudgetScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                IconTile(
+                                RampIconTile(
                                     icon = when {
                                         overBudgetCount > 0 -> Icons.Default.Warning
                                         warningCount > 0 -> Icons.Default.Info
                                         budgetModels.isEmpty() -> Icons.Default.AutoAwesome
                                         else -> Icons.Default.Check
                                     },
-                                    tint = heroRamp.secondaryText(isDarkHero),
-                                    background = Color.Transparent,
-                                    shape = CircleShape,
+                                    ramp = heroRamp,
                                     size = 40.dp,
                                     iconSize = 22.dp
                                 )
@@ -454,12 +469,12 @@ fun BudgetScreen(
                                     Text(
                                         text = "SPENDING PLAN",
                                         style = SelfBudgetType.eyebrow,
-                                        color = heroRamp.secondaryText(isDarkHero)
+                                        color = if (isDarkHero) heroRamp.c400 else heroRamp.secondaryText(isDarkHero)
                                     )
                                     Text(
                                         text = heroTitle,
                                         style = SelfBudgetType.title,
-                                        color = heroRamp.titleText(isDarkHero)
+                                        color = if (isDarkHero) TextPrimaryDark else heroRamp.titleText(isDarkHero)
                                     )
                                 }
                             }
@@ -482,13 +497,17 @@ fun BudgetScreen(
                             Text(
                                 text = "$currencySymbol%,.2f".format(displayRemaining),
                                 style = SelfBudgetType.display,
-                                color = if (cleanRemainingBudget < -0.005) Ramp.Red.secondaryText(isDarkHero) else heroRamp.titleText(isDarkHero)
+                                color = if (cleanRemainingBudget < -0.005) {
+                                    if (isDarkHero) Ramp.Red.c200 else Ramp.Red.c600
+                                } else {
+                                    if (isDarkHero) TextPrimaryDark else heroRamp.titleText(isDarkHero)
+                                }
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (cleanRemainingBudget >= 0.0) "remaining safe-to-spend this month" else "over total budgeted limit",
                                 style = SelfBudgetType.meta,
-                                color = heroRamp.secondaryText(isDarkHero)
+                                color = if (isDarkHero) TextSecondaryDark else heroRamp.secondaryText(isDarkHero)
                             )
                         }
 
@@ -501,8 +520,8 @@ fun BudgetScreen(
                                         .fillMaxWidth()
                                         .height(6.dp)
                                         .clip(ShapeChip),
-                                    color = heroRamp.c400,
-                                    trackColor = if (isDarkHero) ProgressTrackDark else ProgressTrackLight
+                                    color = getProgressBarColor(heroRamp.c400, isOverLimit = heroRamp == Ramp.Red || isOverTotal),
+                                    trackColor = if (isDarkHero) DividerDark else ProgressTrackLight
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -511,12 +530,12 @@ fun BudgetScreen(
                                     Text(
                                         text = "$currencySymbol%,.0f spent & committed".format(totalClaimedInBudgets),
                                         style = SelfBudgetType.meta,
-                                        color = heroRamp.secondaryText(isDarkHero)
+                                        color = if (isDarkHero) TextSecondaryDark else heroRamp.secondaryText(isDarkHero)
                                     )
                                     Text(
                                         text = "$currencySymbol%,.0f total budget".format(totalBudget),
                                         style = SelfBudgetType.meta,
-                                        color = heroRamp.titleText(isDarkHero)
+                                        color = if (isDarkHero) TextPrimaryDark else heroRamp.titleText(isDarkHero)
                                     )
                                 }
                             }
@@ -919,15 +938,32 @@ private fun HeroMetricTile(
     Surface(
         modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
         shape = ShapeChip,
-        color = ramp.tintFill(isDark)
+        color = if (isDark) PageBackgroundDark else ramp.tintFill(isDark),
+        border = if (isDark) BorderStroke(0.5.dp, DividerDark) else null
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = label, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
-            Text(text = value, style = SelfBudgetType.heading, color = ramp.titleText(isDark))
-            Text(text = caption, style = SelfBudgetType.meta, color = ramp.secondaryText(isDark))
+            Text(
+                text = label,
+                style = SelfBudgetType.meta,
+                color = if (isDark) TextSecondaryDark else ramp.secondaryText(isDark)
+            )
+            Text(
+                text = value,
+                style = SelfBudgetType.heading,
+                color = if (isDark) {
+                    if (ramp == Ramp.Red) Ramp.Red.c200
+                    else if (ramp == Ramp.Amber) Ramp.Amber.c200
+                    else TextPrimaryDark
+                } else ramp.titleText(isDark)
+            )
+            Text(
+                text = caption,
+                style = SelfBudgetType.meta,
+                color = if (isDark) TextSecondaryDark else ramp.secondaryText(isDark)
+            )
         }
     }
 }

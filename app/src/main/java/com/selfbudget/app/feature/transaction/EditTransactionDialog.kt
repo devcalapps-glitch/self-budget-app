@@ -39,6 +39,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import com.selfbudget.app.core.ui.AccountSelectionModal
 import com.selfbudget.app.core.ui.CategorySelectionModal
@@ -230,16 +231,19 @@ fun EditTransactionDialog(
         val dbCategories = if (categories.isNotEmpty()) categories else AppDatabase.DEFAULT_CATEGORIES
         (dbCategories + AppDatabase.DEFAULT_CATEGORIES).distinctBy { it.id }
     }
-    val filteredCategories = remember(availableCategories, selectedType) {
-        availableCategories.filter { it.type == selectedType }
+    val effectiveCategoryType = remember(selectedType) {
+        if (selectedType == TransactionType.TRANSFER) TransactionType.EXPENSE else selectedType
+    }
+    val filteredCategories = remember(availableCategories, effectiveCategoryType) {
+        availableCategories.filter { it.type == effectiveCategoryType }
     }
 
     var selectedCategory by remember(filteredCategories, transaction) {
         mutableStateOf(filteredCategories.firstOrNull { it.id == transaction.categoryId } ?: filteredCategories.firstOrNull())
     }
 
-    LaunchedEffect(selectedType, filteredCategories) {
-        if (selectedCategory == null || selectedCategory?.type != selectedType) {
+    LaunchedEffect(effectiveCategoryType, filteredCategories) {
+        if (selectedCategory == null || selectedCategory?.type != effectiveCategoryType) {
             selectedCategory = filteredCategories.firstOrNull()
         }
     }
@@ -403,13 +407,13 @@ fun EditTransactionDialog(
                     title = {
                         Text(
                             text = if (isEditMode) "Edit Transaction" else "Transaction Details",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     // No header Edit/Save action (spec §14/§16): the header holds only close +
@@ -1361,13 +1365,18 @@ private fun TransactionViewModeSummary(
     canDelete: Boolean
 ) {
     val isIncome = transaction.type == TransactionType.INCOME
+    val isTransfer = transaction.type == TransactionType.TRANSFER
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Hero Amount Card — neutral display number, the type badge is the only colored element (spec §14)
-        val heroRamp = if (isIncome) Ramp.Teal else Ramp.Red
+        val heroRamp = when (transaction.type) {
+            TransactionType.INCOME -> Ramp.Teal
+            TransactionType.EXPENSE -> Ramp.Red
+            TransactionType.TRANSFER -> Ramp.Gray
+        }
         val isDarkHero = isAppInDarkTheme()
         Surface(
             shape = ShapeHero,
@@ -1380,15 +1389,24 @@ private fun TransactionViewModeSummary(
             ) {
                 Surface(color = heroRamp.tintFill(isDarkHero), shape = ShapePill) {
                     Text(
-                        text = if (isIncome) "INCOME" else "EXPENSE",
+                        text = when (transaction.type) {
+                            TransactionType.INCOME -> "INCOME"
+                            TransactionType.EXPENSE -> "EXPENSE"
+                            TransactionType.TRANSFER -> "TRANSFER"
+                        },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         style = SelfBudgetType.eyebrow,
                         color = heroRamp.titleText(isDarkHero)
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
+                val amountPrefix = when (transaction.type) {
+                    TransactionType.INCOME -> "+"
+                    TransactionType.EXPENSE -> "-"
+                    TransactionType.TRANSFER -> "⇄ "
+                }
                 Text(
-                    text = "${if (isIncome) "+" else "-"}$currencySymbol${"%.2f".format(transaction.amount)}",
+                    text = "$amountPrefix$currencySymbol${"%.2f".format(transaction.amount)}",
                     style = SelfBudgetType.display,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1412,8 +1430,12 @@ private fun TransactionViewModeSummary(
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     ViewModeInfoItem(
                         icon = Icons.Default.Info,
-                        label = if (isIncome) "Title / Payer" else "Title / Merchant",
-                        value = transaction.title
+                        label = when (transaction.type) {
+                            TransactionType.INCOME -> "Title / Payer"
+                            TransactionType.EXPENSE -> "Title / Merchant"
+                            TransactionType.TRANSFER -> "Description / Note"
+                        },
+                        value = transaction.title.ifBlank { "Transfer" }
                     )
                     SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
                     ViewModeInfoItem(
@@ -1424,21 +1446,21 @@ private fun TransactionViewModeSummary(
                     SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
                     ViewModeInfoItem(
                         icon = Icons.Default.AccountBalance,
-                        label = if (isIncome) "Deposit Account" else "Payment Account",
+                        label = if (isTransfer) "From Account" else if (isIncome) "Deposit Account" else "Payment Account",
                         value = accountName ?: "—"
                     )
                     SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
                     ViewModeInfoItem(
                         icon = Icons.Default.Category,
                         label = "Category",
-                        value = categoryName ?: "—"
+                        value = categoryName ?: (if (isTransfer) "Account Transfer" else "—")
                     )
 
                     if (debtAccountName != null) {
                         SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
                         ViewModeInfoItem(
                             icon = Icons.Default.CreditCard,
-                            label = "Applied Toward Debt",
+                            label = if (isTransfer) "To Account" else "Applied Toward Debt",
                             value = debtAccountName
                         )
                     }

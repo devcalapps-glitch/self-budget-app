@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,11 +31,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Remove
@@ -83,6 +89,11 @@ import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
 import com.selfbudget.app.data.model.GoalEntity
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.SyncAlt
+import com.selfbudget.app.data.model.RecurringFrequency
+import com.selfbudget.app.core.ui.components.FrequencySegmentedControl
+import com.selfbudget.app.core.ui.components.ToggleRow
 import com.selfbudget.app.core.ui.components.DestructivePillButton
 import com.selfbudget.app.core.ui.components.DoneChip
 import com.selfbudget.app.core.ui.components.EntryType
@@ -106,8 +117,11 @@ import com.selfbudget.app.ui.theme.ShapeTile
 import com.selfbudget.app.ui.theme.getAccentColor
 import com.selfbudget.app.ui.theme.getExpenseColor
 import com.selfbudget.app.ui.theme.getIncomeColor
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.containerBorder
 import com.selfbudget.app.ui.theme.tintFill
 import com.selfbudget.app.ui.theme.titleText
 
@@ -123,7 +137,16 @@ fun GoalsSection(
     accounts: List<AccountEntity>,
     accountBalances: Map<String, Double>,
     currencySymbol: String,
-    onAddGoal: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit,
+    onAddGoal: (
+        name: String,
+        targetAmount: Double,
+        linkedAccountId: String?,
+        targetDate: Long?,
+        monthlyTargetAmount: Double?,
+        recurringFromAccountId: String?,
+        recurringFrequency: RecurringFrequency?,
+        recurringAmount: Double?
+    ) -> Unit,
     onDeleteGoal: (GoalEntity) -> Unit,
     onContributeToGoal: (GoalEntity, Double) -> Unit = { _, _ -> },
     onUpdateGoal: (GoalEntity) -> Unit = {},
@@ -372,20 +395,12 @@ fun GoalsSection(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = getIncomeColor().copy(alpha = 0.15f),
-                                                modifier = Modifier.size(36.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Savings,
-                                                        contentDescription = null,
-                                                        tint = getIncomeColor(),
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                            }
+                                            RampIconTile(
+                                                icon = Icons.Default.Savings,
+                                                ramp = Ramp.Teal,
+                                                size = 36.dp,
+                                                iconSize = 18.dp
+                                            )
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column {
                                                 Text(goal.name, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
@@ -422,7 +437,7 @@ fun GoalsSection(
                                             .fillMaxWidth()
                                             .height(8.dp)
                                             .clip(RoundedCornerShape(4.dp)),
-                                        color = getIncomeColor(),
+                                        color = getProgressBarColor(getIncomeColor()),
                                         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                     )
 
@@ -440,6 +455,26 @@ fun GoalsSection(
                                     if (currentAmount >= goal.targetAmount && goal.targetAmount > 0.0) {
                                         Spacer(modifier = Modifier.height(6.dp))
                                         DoneChip(text = "Goal met")
+                                    } else if (goal.monthlyTargetAmount != null && goal.monthlyTargetAmount > 0.0) {
+                                        val remaining = (goal.targetAmount - currentAmount).coerceAtLeast(0.0)
+                                        val monthsEst = kotlin.math.ceil(remaining / goal.monthlyTargetAmount).toInt()
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            shape = ShapeTile,
+                                            color = getIncomeColor().copy(alpha = 0.12f)
+                                        ) {
+                                            val paceText = if (monthsEst > 0) {
+                                                "Planned: $currencySymbol%.2f/mo · ~%d mos to goal".format(goal.monthlyTargetAmount, monthsEst)
+                                            } else {
+                                                "Planned: $currencySymbol%.2f/mo".format(goal.monthlyTargetAmount)
+                                            }
+                                            Text(
+                                                text = paceText,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                style = SelfBudgetType.badge,
+                                                color = getIncomeColor()
+                                            )
+                                        }
                                     } else if (goal.targetDate != null && goal.targetDate > System.currentTimeMillis()) {
                                         val calNow = java.util.Calendar.getInstance()
                                         val calTarget = java.util.Calendar.getInstance().apply { timeInMillis = goal.targetDate }
@@ -483,8 +518,8 @@ fun GoalsSection(
             accountBalances = accountBalances,
             currencySymbol = currencySymbol,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, target, accountId, targetDate ->
-                onAddGoal(name, target, accountId, targetDate)
+            onConfirm = { name, target, accountId, targetDate, monthlyTarget, recFromAcc, recFreq, recAmt ->
+                onAddGoal(name, target, accountId, targetDate, monthlyTarget, recFromAcc, recFreq, recAmt)
                 showAddDialog = false
             },
             onAddCustomAccount = onAddCustomAccount
@@ -511,8 +546,10 @@ fun GoalsSection(
     }
 
     contributingGoal?.let { goal ->
+        val linkedAccount = goal.linkedAccountId?.let { id -> accounts.find { it.id == id } }
         ContributeDialog(
             goal = goal,
+            linkedAccount = linkedAccount,
             currencySymbol = currencySymbol,
             onDismiss = { contributingGoal = null },
             onConfirm = { delta ->
@@ -529,6 +566,7 @@ fun GoalsSection(
 @Composable
 private fun ContributeDialog(
     goal: GoalEntity,
+    linkedAccount: AccountEntity? = null,
     currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (delta: Double) -> Unit
@@ -576,16 +614,16 @@ private fun ContributeDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = onDismiss) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = goal.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium
+                                style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -616,6 +654,35 @@ private fun ContributeDialog(
                         currencySymbol = currencySymbol,
                         badgeText = if (isAdding) "CONTRIBUTION AMOUNT" else "WITHDRAWAL AMOUNT"
                     )
+
+                    if (linkedAccount != null) {
+                        val isDark = isAppInDarkTheme()
+                        Surface(
+                            shape = ShapeCard,
+                            color = Ramp.Teal.tintFill(isDark),
+                            border = BorderStroke(1.dp, Ramp.Teal.containerBorder(isDark)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = Ramp.Teal.secondaryText(isDark),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "This goal is linked to ${linkedAccount.name}. Any bank transfer or recurring transfer into ${linkedAccount.name} automatically counts toward your goal balance.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Ramp.Teal.titleText(isDark),
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -800,13 +867,158 @@ private fun ContributeDialog(
 // Same full-screen modal pattern as AddCustomAccountDialog: persistent top bar (Close + Save),
 // scrollable form with a live preview card, and a sticky bottom action bar - kept consistent so
 // every "add X" flow in the app looks and behaves the same way.
+enum class GoalType(val label: String, val description: String) {
+    TARGET_TOTAL("Target Total Goal", "Set a total dollar amount to save towards (e.g. $5,000 for Vacation)."),
+    MONTHLY_SAVINGS("Monthly Savings Goal", "Commit to saving a fixed amount each month (e.g. $200/month).")
+}
+
+@Composable
+private fun GoalTypeSelectionModal(
+    selectedType: GoalType,
+    onSelect: (GoalType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isDark = isAppInDarkTheme()
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = true
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .navigationBarsPadding(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+            ) {
+                // Persistent Top App Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Select goal type",
+                        style = SelfBudgetType.title,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                ) {
+                    Text(
+                        text = "SAVINGS STRATEGY",
+                        style = SelfBudgetType.eyebrow,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp, start = 2.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ShapeCard)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(BorderStroke(0.5.dp, Ramp.Teal.containerBorder(isDark)), ShapeCard)
+                    ) {
+                        GoalType.entries.forEachIndexed { index, type ->
+                            val isSelected = type == selectedType
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
+                                    .clickable {
+                                        onSelect(type)
+                                        onDismiss()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RampIconTile(
+                                    icon = if (type == GoalType.MONTHLY_SAVINGS) Icons.Default.Payments else Icons.Default.Savings,
+                                    ramp = if (isSelected) Ramp.Teal else Ramp.Gray,
+                                    size = 36.dp,
+                                    iconSize = 18.dp
+                                )
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = type.label,
+                                        style = SelfBudgetType.rowTitle,
+                                        color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = type.description,
+                                        style = SelfBudgetType.body,
+                                        color = if (isSelected) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Ramp.Teal.secondaryText(isDark),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(150.dp))
+                }
+            }
+        }
+    }
+}
+
+// Same full-screen modal pattern as AddCustomAccountDialog: persistent top bar (Close + Save),
+// scrollable form with a live preview card, and a sticky bottom action bar.
 @Composable
 internal fun AddGoalDialog(
     accounts: List<AccountEntity>,
     accountBalances: Map<String, Double>,
     currencySymbol: String = "$",
     onDismiss: () -> Unit,
-    onConfirm: (name: String, targetAmount: Double, linkedAccountId: String?, targetDate: Long?) -> Unit,
+    onConfirm: (
+        name: String,
+        targetAmount: Double,
+        linkedAccountId: String?,
+        targetDate: Long?,
+        monthlyTargetAmount: Double?,
+        recurringFromAccountId: String?,
+        recurringFrequency: RecurringFrequency?,
+        recurringAmount: Double?
+    ) -> Unit,
     onAddCustomAccount: (AccountEntity) -> Unit = {}
 ) {
     val assetAccounts = remember(accounts) {
@@ -816,47 +1028,79 @@ internal fun AddGoalDialog(
             it.type == AccountType.CASH
         }
     }
+    var goalType by remember { mutableStateOf(GoalType.TARGET_TOTAL) }
+    var pickingGoalType by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var targetText by remember { mutableStateOf("") }
+    var monthlyTargetText by remember { mutableStateOf("") }
     var linkedAccount by remember(assetAccounts) { mutableStateOf<AccountEntity?>(assetAccounts.firstOrNull()) }
     var selectedMonths by remember { mutableStateOf<Int?>(null) }
     var targetDate by remember { mutableStateOf<Long?>(null) }
     var pickingAccount by remember { mutableStateOf(false) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
 
-    val voiceLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spokenMatches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val spokenText = spokenMatches?.firstOrNull()
-            if (spokenText != null && spokenText.isNotBlank()) {
-                val parsed = VoiceParser.parseSpokenText(spokenText)
-                if (parsed != null) {
-                    name = parsed.title
-                    targetText = "%.2f".format(parsed.amount)
-                } else {
-                    val numberMatch = Regex("""\d+(\.\d+)?""").find(spokenText)?.value
-                    if (numberMatch != null) {
-                        targetText = numberMatch
-                        name = spokenText.replace(numberMatch, "").replace("dollars", "").trim()
-                    } else {
-                        name = spokenText
-                    }
-                }
-            }
-        }
+    // Recurring Transfer Schedule State
+    var scheduleRecurring by remember { mutableStateOf(false) }
+    var recurringFrequency by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
+    var fromAccount by remember(assetAccounts, linkedAccount) {
+        mutableStateOf<AccountEntity?>(
+            assetAccounts.firstOrNull { it.type == AccountType.CHECKING && it.id != linkedAccount?.id }
+                ?: assetAccounts.firstOrNull { it.id != linkedAccount?.id }
+        )
+    }
+    var pickingFromAccount by remember { mutableStateOf(false) }
+
+    val isMonthlyGoal = goalType == GoalType.MONTHLY_SAVINGS
+
+    val monthlyTarget = if (isMonthlyGoal) {
+        monthlyTargetText.toDoubleOrNull()?.takeIf { it > 0.0 }
+    } else {
+        monthlyTargetText.toDoubleOrNull()?.takeIf { it > 0.0 }
     }
 
-    val target = targetText.toDoubleOrNull() ?: 0.0
-    val isValid = name.isNotBlank() && target > 0.0
+    val effectiveTarget = if (isMonthlyGoal) {
+        val customTarget = targetText.toDoubleOrNull()
+        if (customTarget != null && customTarget > 0.0) {
+            customTarget
+        } else if (monthlyTarget != null && monthlyTarget > 0.0) {
+            monthlyTarget * 12.0
+        } else {
+            0.0
+        }
+    } else {
+        targetText.toDoubleOrNull() ?: 0.0
+    }
+
+    val recurringTransferAmount = (if (isMonthlyGoal) monthlyTarget else effectiveTarget) ?: 0.0
+    val isRecurringConfigValid = !scheduleRecurring || (
+        linkedAccount != null &&
+        fromAccount != null &&
+        fromAccount?.id != linkedAccount?.id &&
+        recurringTransferAmount > 0.0
+    )
+
+    val isValid = name.isNotBlank() &&
+            (if (isMonthlyGoal) (monthlyTarget ?: 0.0) > 0.0 else effectiveTarget > 0.0) &&
+            isRecurringConfigValid
     val currentAmount = linkedAccount?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0
-    val progress = if (target > 0.0) (currentAmount / target).toFloat().coerceIn(0f, 1f) else 0f
+    val progress = if (effectiveTarget > 0.0) (currentAmount / effectiveTarget).toFloat().coerceIn(0f, 1f) else 0f
 
     fun save() {
-        if (isValid) onConfirm(name.trim(), target, linkedAccount?.id, targetDate)
+        if (isValid) {
+            val fromAccId = if (scheduleRecurring) fromAccount?.id else null
+            val recFreq = if (scheduleRecurring) recurringFrequency else null
+            val recAmt = if (scheduleRecurring) recurringTransferAmount else null
+            onConfirm(
+                name.trim(),
+                effectiveTarget,
+                linkedAccount?.id,
+                targetDate,
+                monthlyTarget,
+                fromAccId,
+                recFreq,
+                recAmt
+            )
+        }
     }
 
     Dialog(
@@ -875,8 +1119,7 @@ internal fun AddGoalDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // No header Save action (spec §14/§16): the header holds only close +
-                // title. Save is triggered from the footer button below.
+                // Persistent Top App Bar
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 3.dp,
@@ -891,16 +1134,16 @@ internal fun AddGoalDialog(
                     ) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Add Savings Goal",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -915,29 +1158,91 @@ internal fun AddGoalDialog(
                 ) {
                     val isDark = isAppInDarkTheme()
 
-                    // 1. Target Amount Entry Hero — shared component (spec §16): every
-                    // amount-entry card in the app uses this one implementation.
+                    // 1. Amount Entry Hero — shared component
                     TransactionAmountHero(
                         type = EntryType.Income,
-                        amountText = targetText,
-                        onAmountChange = { targetText = it },
+                        amountText = if (isMonthlyGoal) monthlyTargetText else targetText,
+                        onAmountChange = {
+                            if (isMonthlyGoal) monthlyTargetText = it else targetText = it
+                        },
                         currencySymbol = currencySymbol,
-                        badgeText = "TARGET SAVINGS AMOUNT",
-                        stepAmount = 50.0
+                        badgeText = if (isMonthlyGoal) "MONTHLY SAVINGS TARGET" else "TARGET SAVINGS AMOUNT",
+                        stepAmount = if (isMonthlyGoal) 25.0 else 50.0
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     QuickAmountChips(
-                        presets = listOf(100, 500, 1000, 5000),
+                        presets = if (isMonthlyGoal) listOf(50, 100, 200, 500) else listOf(100, 500, 1000, 5000),
                         currencySymbol = currencySymbol,
                         onPick = { preset ->
-                            val currentVal = targetText.toDoubleOrNull() ?: 0.0
-                            targetText = "%.2f".format(currentVal + preset)
+                            if (isMonthlyGoal) {
+                                val currentVal = monthlyTargetText.toDoubleOrNull() ?: 0.0
+                                monthlyTargetText = "%.2f".format(currentVal + preset)
+                            } else {
+                                val currentVal = targetText.toDoubleOrNull() ?: 0.0
+                                targetText = "%.2f".format(currentVal + preset)
+                            }
                         }
                     )
 
-                    // 2. Goal Details Card
+                    // Monthly Goal Savings Accumulation Milestone Pills
+                    if (isMonthlyGoal && (monthlyTarget ?: 0.0) > 0.0) {
+                        val mAmount = monthlyTarget ?: 0.0
+                        Surface(
+                            shape = ShapeCard,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(
+                                    text = "PROJECTED ACCUMULATION",
+                                    style = SelfBudgetType.eyebrow,
+                                    color = Ramp.Teal.titleText(isDark)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val milestones = listOf(
+                                        "6 mos" to (mAmount * 6),
+                                        "1 yr" to (mAmount * 12),
+                                        "2 yrs" to (mAmount * 24),
+                                        "5 yrs" to (mAmount * 60)
+                                    )
+                                    milestones.forEach { (period, projected) ->
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = ShapeTile,
+                                            color = Ramp.Teal.tintFill(isDark),
+                                            border = BorderStroke(1.dp, Ramp.Teal.solidFill(isDark).copy(alpha = 0.25f))
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = period,
+                                                    style = SelfBudgetType.badge,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "$currencySymbol%.0f".format(projected),
+                                                    style = SelfBudgetType.rowTitle.copy(fontSize = 13.sp),
+                                                    color = Ramp.Teal.titleText(isDark)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Goal Details Card (Holds Goal Type picklist, Name, Account, etc.)
                     Surface(
                         shape = ShapeCard,
                         color = MaterialTheme.colorScheme.surface,
@@ -945,6 +1250,18 @@ internal fun AddGoalDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            // Goal Type Picklist FieldRow (Placed first so strategy is clear)
+                            FieldRow(
+                                icon = if (isMonthlyGoal) Icons.Default.Payments else Icons.Default.Flag,
+                                label = "Goal type",
+                                value = goalType.label,
+                                showChevron = true,
+                                onClick = { pickingGoalType = true }
+                            )
+
+                            SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                            // Goal Name Input Row
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -976,6 +1293,92 @@ internal fun AddGoalDialog(
                                 )
                             }
 
+                            if (isMonthlyGoal) {
+                                SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    GrayIconTile(icon = Icons.Default.Flag, size = 36.dp, iconSize = 18.dp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    OutlinedTextField(
+                                        value = targetText,
+                                        onValueChange = { targetText = it },
+                                        placeholder = {
+                                            Text(
+                                                "Target total amount (optional)",
+                                                style = SelfBudgetType.body,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        },
+                                        prefix = {
+                                            if (targetText.isNotBlank()) {
+                                                Text(
+                                                    currencySymbol,
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        textStyle = SelfBudgetType.rowTitle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color.Transparent,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            } else {
+                                SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    GrayIconTile(icon = Icons.Default.Payments, size = 36.dp, iconSize = 18.dp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    OutlinedTextField(
+                                        value = monthlyTargetText,
+                                        onValueChange = { monthlyTargetText = it },
+                                        placeholder = {
+                                            Text(
+                                                "Monthly savings target (optional)",
+                                                style = SelfBudgetType.body,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        },
+                                        prefix = {
+                                            if (monthlyTargetText.isNotBlank()) {
+                                                Text(
+                                                    currencySymbol,
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        textStyle = SelfBudgetType.rowTitle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color.Transparent,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+
                             SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
 
                             FieldRow(
@@ -989,7 +1392,88 @@ internal fun AddGoalDialog(
                         }
                     }
 
-                    // 3. Target Timeline (Optional Pacing)
+                    // 3. Optional Recurring Transfer Card
+                    Surface(
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ToggleRow(
+                                icon = Icons.Default.Autorenew,
+                                title = "Schedule recurring transfer",
+                                checked = scheduleRecurring,
+                                onCheckedChange = { scheduleRecurring = it },
+                                description = "Auto-transfer into goal account"
+                            )
+
+                            if (scheduleRecurring) {
+                                SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                FieldRow(
+                                    icon = Icons.Default.SyncAlt,
+                                    label = "From account",
+                                    value = fromAccount?.name ?: "Select funding account",
+                                    isPlaceholder = fromAccount == null,
+                                    showChevron = true,
+                                    onClick = { pickingFromAccount = true }
+                                )
+
+                                SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        text = "Frequency",
+                                        style = SelfBudgetType.meta,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    FrequencySegmentedControl(
+                                        selected = recurringFrequency,
+                                        onSelect = { recurringFrequency = it },
+                                        ramp = Ramp.Teal
+                                    )
+                                }
+
+                                if (linkedAccount == null) {
+                                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Please select a goal account above to schedule transfers.",
+                                            style = SelfBudgetType.meta,
+                                            color = Ramp.Amber.titleText(isDark)
+                                        )
+                                    }
+                                } else if (fromAccount?.id == linkedAccount?.id) {
+                                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Source account and goal account must be different.",
+                                            style = SelfBudgetType.meta,
+                                            color = Ramp.Red.titleText(isDark)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Target Timeline (Optional Pacing)
                     FilterChipGroup(
                         title = "Target timeline (optional)",
                         options = listOf<Int?>(null, 3, 6, 12, 24),
@@ -1017,7 +1501,7 @@ internal fun AddGoalDialog(
                         }
                     )
 
-                    // 4. Live Goal Preview
+                    // 5. Live Goal Preview & Pacing Projection
                     Surface(
                         shape = ShapeCard,
                         color = MaterialTheme.colorScheme.surface,
@@ -1037,28 +1521,50 @@ internal fun AddGoalDialog(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Before a target is entered, show an empty track and placeholder
-                            // text — never live numbers against a $0.00 target (spec §22).
                             LinearProgressIndicator(
-                                progress = { if (target > 0.0) progress else 0f },
+                                progress = { if (effectiveTarget > 0.0) progress else 0f },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = Ramp.Teal.c400
+                                color = getProgressBarColor()
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = if (target > 0.0) {
-                                    "$currencySymbol%.2f of $currencySymbol%.2f".format(currentAmount, target)
+                                text = if (effectiveTarget > 0.0) {
+                                    "$currencySymbol%.2f of $currencySymbol%.2f".format(currentAmount, effectiveTarget)
                                 } else {
-                                    "Enter a target amount to preview"
+                                    "Enter an amount to preview"
                                 },
                                 style = SelfBudgetType.body,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+
+                            if (monthlyTarget != null && monthlyTarget > 0.0) {
+                                val remaining = (effectiveTarget - currentAmount).coerceAtLeast(0.0)
+                                val monthsToGoal = if (effectiveTarget > 0.0) kotlin.math.ceil(remaining / monthlyTarget).toInt() else 0
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    shape = ShapeTile,
+                                    color = Ramp.Teal.tintFill(isDark)
+                                ) {
+                                    val projectionText = if (isMonthlyGoal && targetText.isBlank()) {
+                                        "Saving $currencySymbol%.2f/mo = $currencySymbol%.2f in 1 year".format(monthlyTarget, monthlyTarget * 12)
+                                    } else if (monthsToGoal > 0) {
+                                        "At $currencySymbol%.2f/mo, you'll reach your goal in ~%d months".format(monthlyTarget, monthsToGoal)
+                                    } else {
+                                        "Goal target already reached!"
+                                    }
+                                    Text(
+                                        text = projectionText,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = SelfBudgetType.badge,
+                                        color = Ramp.Teal.titleText(isDark)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1094,6 +1600,19 @@ internal fun AddGoalDialog(
         }
     }
 
+    if (pickingGoalType) {
+        GoalTypeSelectionModal(
+            selectedType = goalType,
+            onSelect = { type ->
+                goalType = type
+                if (type == GoalType.MONTHLY_SAVINGS && monthlyTargetText.isBlank() && targetText.isNotBlank()) {
+                    monthlyTargetText = targetText
+                }
+            },
+            onDismiss = { pickingGoalType = false }
+        )
+    }
+
     if (pickingAccount) {
         AccountSelectionModal(
             accounts = assetAccounts,
@@ -1102,6 +1621,17 @@ internal fun AddGoalDialog(
             onDismiss = { pickingAccount = false },
             onSelectAccount = { acc -> linkedAccount = acc; pickingAccount = false },
             onAddCustomAccount = { pickingAccount = false; showAddAccountDialog = true }
+        )
+    }
+
+    if (pickingFromAccount) {
+        AccountSelectionModal(
+            accounts = assetAccounts.filter { it.id != linkedAccount?.id },
+            selectedAccount = fromAccount,
+            accountBalances = accountBalances,
+            onDismiss = { pickingFromAccount = false },
+            onSelectAccount = { acc -> fromAccount = acc; pickingFromAccount = false },
+            onAddCustomAccount = { pickingFromAccount = false; showAddAccountDialog = true }
         )
     }
 
@@ -1120,6 +1650,7 @@ internal fun AddGoalDialog(
 private data class GoalEditSnapshot(
     val name: String,
     val targetText: String,
+    val monthlyTargetText: String,
     val linkedAccountId: String?
 )
 
@@ -1141,8 +1672,18 @@ private fun EditGoalDialog(
             it.type == AccountType.CASH
         }
     }
+    var goalType by remember(goal.id) {
+        mutableStateOf(
+            if (goal.monthlyTargetAmount != null && goal.monthlyTargetAmount > 0.0) GoalType.MONTHLY_SAVINGS
+            else GoalType.TARGET_TOTAL
+        )
+    }
+    var pickingGoalType by remember { mutableStateOf(false) }
     var name by remember(goal.id) { mutableStateOf(goal.name) }
     var targetText by remember(goal.id) { mutableStateOf("%.2f".format(goal.targetAmount)) }
+    var monthlyTargetText by remember(goal.id) {
+        mutableStateOf(goal.monthlyTargetAmount?.let { "%.2f".format(it) } ?: "")
+    }
     var linkedAccount by remember(goal.id, assetAccounts) {
         mutableStateOf(assetAccounts.firstOrNull { it.id == goal.linkedAccountId })
     }
@@ -1150,10 +1691,30 @@ private fun EditGoalDialog(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmationModal by remember { mutableStateOf(false) }
 
-    val target = targetText.toDoubleOrNull() ?: 0.0
-    val isValid = name.isNotBlank() && target > 0.0
+    val isMonthlyGoal = goalType == GoalType.MONTHLY_SAVINGS
+
+    val monthlyTarget = if (isMonthlyGoal) {
+        monthlyTargetText.toDoubleOrNull()?.takeIf { it > 0.0 }
+    } else {
+        monthlyTargetText.toDoubleOrNull()?.takeIf { it > 0.0 }
+    }
+
+    val effectiveTarget = if (isMonthlyGoal) {
+        val customTarget = targetText.toDoubleOrNull()
+        if (customTarget != null && customTarget > 0.0) {
+            customTarget
+        } else if (monthlyTarget != null && monthlyTarget > 0.0) {
+            monthlyTarget * 12.0
+        } else {
+            0.0
+        }
+    } else {
+        targetText.toDoubleOrNull() ?: 0.0
+    }
+
+    val isValid = name.isNotBlank() && (if (isMonthlyGoal) (monthlyTarget ?: 0.0) > 0.0 else effectiveTarget > 0.0)
     val currentAmount = (linkedAccount?.let { accountBalances[it.id] ?: it.initialBalance } ?: 0.0) + goal.savedAmount
-    val progress = if (target > 0.0) (currentAmount / target).toFloat().coerceIn(0f, 1f) else 0f
+    val progress = if (effectiveTarget > 0.0) (currentAmount / effectiveTarget).toFloat().coerceIn(0f, 1f) else 0f
 
     // Dialog opens read-only; tapping "Edit" is the deliberate action that unlocks the form.
     var isEditMode by remember { mutableStateOf(false) }
@@ -1162,6 +1723,7 @@ private fun EditGoalDialog(
     fun captureEditSnapshot() = GoalEditSnapshot(
         name = name,
         targetText = targetText,
+        monthlyTargetText = monthlyTargetText,
         linkedAccountId = linkedAccount?.id
     )
 
@@ -1177,7 +1739,8 @@ private fun EditGoalDialog(
             onSave(
                 goal.copy(
                     name = name.trim(),
-                    targetAmount = target,
+                    targetAmount = effectiveTarget,
+                    monthlyTargetAmount = monthlyTarget,
                     linkedAccountId = linkedAccount?.id
                 )
             )
@@ -1200,8 +1763,7 @@ private fun EditGoalDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
             ) {
-                // No header Edit/Save action (spec §14/§16): the header holds only close +
-                // title. Edit/Save is triggered from the footer button below.
+                // Persistent Top App Bar
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 3.dp,
@@ -1216,16 +1778,16 @@ private fun EditGoalDialog(
                     ) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (isEditMode) "Edit Savings Goal" else "Savings Goal Details",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -1243,10 +1805,12 @@ private fun EditGoalDialog(
                             name = name,
                             targetText = targetText,
                             currentAmount = currentAmount,
-                            target = target,
+                            target = effectiveTarget,
                             progress = progress,
                             currencySymbol = currencySymbol,
                             linkedAccountName = linkedAccount?.name,
+                            monthlyTargetAmount = goal.monthlyTargetAmount,
+                            targetDate = goal.targetDate,
                             onEditClick = { enterEditMode() },
                             onDeleteClick = { showDeleteConfirmationModal = true },
                             onClose = onDismiss
@@ -1254,27 +1818,89 @@ private fun EditGoalDialog(
                     } else {
                         val isDark = isAppInDarkTheme()
 
-                        // 1. Target Amount Entry Hero — shared component (spec §16): every
-                        // amount-entry card in the app uses this one implementation.
+                        // 1. Target Amount Entry Hero — shared component
                         TransactionAmountHero(
                             type = EntryType.Income,
-                            amountText = targetText,
-                            onAmountChange = { targetText = it },
+                            amountText = if (isMonthlyGoal) monthlyTargetText else targetText,
+                            onAmountChange = {
+                                if (isMonthlyGoal) monthlyTargetText = it else targetText = it
+                            },
                             currencySymbol = currencySymbol,
-                            badgeText = "TARGET AMOUNT",
-                            stepAmount = 50.0
+                            badgeText = if (isMonthlyGoal) "MONTHLY SAVINGS TARGET" else "TARGET AMOUNT",
+                            stepAmount = if (isMonthlyGoal) 25.0 else 50.0
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
                         QuickAmountChips(
-                            presets = listOf(100, 500, 1000, 5000),
+                            presets = if (isMonthlyGoal) listOf(50, 100, 200, 500) else listOf(100, 500, 1000, 5000),
                             currencySymbol = currencySymbol,
                             onPick = { preset ->
-                                val currentVal = targetText.toDoubleOrNull() ?: 0.0
-                                targetText = "%.2f".format(currentVal + preset)
+                                if (isMonthlyGoal) {
+                                    val currentVal = monthlyTargetText.toDoubleOrNull() ?: 0.0
+                                    monthlyTargetText = "%.2f".format(currentVal + preset)
+                                } else {
+                                    val currentVal = targetText.toDoubleOrNull() ?: 0.0
+                                    targetText = "%.2f".format(currentVal + preset)
+                                }
                             }
                         )
+
+                        // Monthly Goal Savings Accumulation Milestone Pills
+                        if (isMonthlyGoal && (monthlyTarget ?: 0.0) > 0.0) {
+                            val mAmount = monthlyTarget ?: 0.0
+                            Surface(
+                                shape = ShapeCard,
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = "PROJECTED ACCUMULATION",
+                                        style = SelfBudgetType.eyebrow,
+                                        color = Ramp.Teal.titleText(isDark)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        val milestones = listOf(
+                                            "6 mos" to (mAmount * 6),
+                                            "1 yr" to (mAmount * 12),
+                                            "2 yrs" to (mAmount * 24),
+                                            "5 yrs" to (mAmount * 60)
+                                        )
+                                        milestones.forEach { (period, projected) ->
+                                            Surface(
+                                                modifier = Modifier.weight(1f),
+                                                shape = ShapeTile,
+                                                color = Ramp.Teal.tintFill(isDark),
+                                                border = BorderStroke(1.dp, Ramp.Teal.solidFill(isDark).copy(alpha = 0.25f))
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        text = period,
+                                                        style = SelfBudgetType.badge,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "$currencySymbol%.0f".format(projected),
+                                                        style = SelfBudgetType.rowTitle.copy(fontSize = 13.sp),
+                                                        color = Ramp.Teal.titleText(isDark)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         // 2. Goal Details Card
                         Surface(
@@ -1284,6 +1910,17 @@ private fun EditGoalDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
+                                // Goal Type Picklist FieldRow (Placed first)
+                                FieldRow(
+                                    icon = if (isMonthlyGoal) Icons.Default.Payments else Icons.Default.Flag,
+                                    label = "Goal type",
+                                    value = goalType.label,
+                                    showChevron = true,
+                                    onClick = { pickingGoalType = true }
+                                )
+
+                                SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1315,6 +1952,92 @@ private fun EditGoalDialog(
                                     )
                                 }
 
+                                if (isMonthlyGoal) {
+                                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        GrayIconTile(icon = Icons.Default.Flag, size = 36.dp, iconSize = 18.dp)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        OutlinedTextField(
+                                            value = targetText,
+                                            onValueChange = { targetText = it },
+                                            placeholder = {
+                                                Text(
+                                                    "Target total amount (optional)",
+                                                    style = SelfBudgetType.body,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                )
+                                            },
+                                            prefix = {
+                                                if (targetText.isNotBlank()) {
+                                                    Text(
+                                                        currencySymbol,
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            textStyle = SelfBudgetType.rowTitle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Color.Transparent,
+                                                unfocusedBorderColor = Color.Transparent,
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                } else {
+                                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        GrayIconTile(icon = Icons.Default.Payments, size = 36.dp, iconSize = 18.dp)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        OutlinedTextField(
+                                            value = monthlyTargetText,
+                                            onValueChange = { monthlyTargetText = it },
+                                            placeholder = {
+                                                Text(
+                                                    "Monthly savings target (optional)",
+                                                    style = SelfBudgetType.body,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                )
+                                            },
+                                            prefix = {
+                                                if (monthlyTargetText.isNotBlank()) {
+                                                    Text(
+                                                        currencySymbol,
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            textStyle = SelfBudgetType.rowTitle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Color.Transparent,
+                                                unfocusedBorderColor = Color.Transparent,
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+
                                 SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
 
                                 FieldRow(
@@ -1328,7 +2051,7 @@ private fun EditGoalDialog(
                             }
                         }
 
-                        // 3. Live Goal Preview
+                        // 3. Live Goal Preview & Pacing Projection
                         Surface(
                             shape = ShapeCard,
                             color = MaterialTheme.colorScheme.surface,
@@ -1348,28 +2071,50 @@ private fun EditGoalDialog(
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                // Before a target is entered, show an empty track and placeholder
-                                // text — never live numbers against a $0.00 target (spec §22).
                                 LinearProgressIndicator(
-                                    progress = { if (target > 0.0) progress else 0f },
+                                    progress = { if (effectiveTarget > 0.0) progress else 0f },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(8.dp)
                                         .clip(RoundedCornerShape(4.dp)),
-                                    color = Ramp.Teal.c400
+                                    color = getProgressBarColor()
                                 )
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                    text = if (target > 0.0) {
-                                        "$currencySymbol%.2f of $currencySymbol%.2f".format(currentAmount, target)
+                                    text = if (effectiveTarget > 0.0) {
+                                        "$currencySymbol%.2f of $currencySymbol%.2f".format(currentAmount, effectiveTarget)
                                     } else {
-                                        "Enter a target amount to preview"
+                                        "Enter an amount to preview"
                                     },
                                     style = SelfBudgetType.body,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+
+                                if (monthlyTarget != null && monthlyTarget > 0.0) {
+                                    val remaining = (effectiveTarget - currentAmount).coerceAtLeast(0.0)
+                                    val monthsToGoal = if (effectiveTarget > 0.0) kotlin.math.ceil(remaining / monthlyTarget).toInt() else 0
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Surface(
+                                        shape = ShapeTile,
+                                        color = Ramp.Teal.tintFill(isDark)
+                                    ) {
+                                        val projectionText = if (isMonthlyGoal && targetText.isBlank()) {
+                                            "Saving $currencySymbol%.2f/mo = $currencySymbol%.2f in 1 year".format(monthlyTarget, monthlyTarget * 12)
+                                        } else if (monthsToGoal > 0) {
+                                            "At $currencySymbol%.2f/mo, you'll reach your goal in ~%d months".format(monthlyTarget, monthsToGoal)
+                                        } else {
+                                            "Goal target already reached!"
+                                        }
+                                        Text(
+                                            text = projectionText,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            style = SelfBudgetType.badge,
+                                            color = Ramp.Teal.titleText(isDark)
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -1390,6 +2135,7 @@ private fun EditGoalDialog(
                                         editBaseline?.let { baseline ->
                                             name = baseline.name
                                             targetText = baseline.targetText
+                                            monthlyTargetText = baseline.monthlyTargetText
                                             linkedAccount = assetAccounts.firstOrNull { it.id == baseline.linkedAccountId }
                                         }
                                         isEditMode = false
@@ -1422,6 +2168,19 @@ private fun EditGoalDialog(
                 }
             }
         }
+    }
+
+    if (pickingGoalType) {
+        GoalTypeSelectionModal(
+            selectedType = goalType,
+            onSelect = { type ->
+                goalType = type
+                if (type == GoalType.MONTHLY_SAVINGS && monthlyTargetText.isBlank() && targetText.isNotBlank()) {
+                    monthlyTargetText = targetText
+                }
+            },
+            onDismiss = { pickingGoalType = false }
+        )
     }
 
     if (pickingAccount) {
@@ -1523,6 +2282,8 @@ private fun GoalViewModeSummary(
     progress: Float,
     currencySymbol: String,
     linkedAccountName: String?,
+    monthlyTargetAmount: Double? = null,
+    targetDate: Long? = null,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onClose: () -> Unit
@@ -1588,7 +2349,7 @@ private fun GoalViewModeSummary(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp)),
-                    color = Ramp.Teal.c400
+                    color = getProgressBarColor()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1602,6 +2363,28 @@ private fun GoalViewModeSummary(
                     style = SelfBudgetType.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                if (target > 0.0 && monthlyTargetAmount != null && monthlyTargetAmount > 0.0) {
+                    val remaining = (target - currentAmount).coerceAtLeast(0.0)
+                    val monthsToGoal = kotlin.math.ceil(remaining / monthlyTargetAmount).toInt()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = ShapeTile,
+                        color = Ramp.Teal.tintFill(isDark)
+                    ) {
+                        val projectionText = if (monthsToGoal > 0) {
+                            "At $currencySymbol%.2f/mo, you'll reach your goal in ~%d months".format(monthlyTargetAmount, monthsToGoal)
+                        } else {
+                            "Goal target already reached!"
+                        }
+                        Text(
+                            text = projectionText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = SelfBudgetType.badge,
+                            color = Ramp.Teal.titleText(isDark)
+                        )
+                    }
+                }
             }
         }
 
@@ -1617,6 +2400,23 @@ private fun GoalViewModeSummary(
                     label = "Goal name",
                     value = name
                 )
+                if (monthlyTargetAmount != null && monthlyTargetAmount > 0.0) {
+                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    GoalInfoItem(
+                        icon = Icons.Default.Payments,
+                        label = "Monthly target",
+                        value = "$currencySymbol%.2f / mo".format(monthlyTargetAmount)
+                    )
+                }
+                if (targetDate != null) {
+                    SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
+                    val dateFormatted = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(java.util.Date(targetDate))
+                    GoalInfoItem(
+                        icon = Icons.Default.CalendarToday,
+                        label = "Target timeline",
+                        value = dateFormatted
+                    )
+                }
                 SectionRowDivider(modifier = Modifier.padding(start = 62.dp))
                 GoalInfoItem(
                     icon = Icons.Default.AccountBalance,

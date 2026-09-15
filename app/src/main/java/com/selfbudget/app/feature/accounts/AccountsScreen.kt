@@ -385,11 +385,10 @@ fun AccountsScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        IconTile(
+                                        val accRamp = if (isLiability) Ramp.Coral else Ramp.Teal
+                                        com.selfbudget.app.core.ui.components.RampIconTile(
                                             icon = icon,
-                                            tint = accColor,
-                                            background = accColor.copy(alpha = 0.15f),
-                                            shape = CircleShape,
+                                            ramp = accRamp,
                                             size = 36.dp,
                                             iconSize = 18.dp
                                         )

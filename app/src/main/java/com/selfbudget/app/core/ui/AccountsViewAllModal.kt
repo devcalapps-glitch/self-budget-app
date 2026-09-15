@@ -21,8 +21,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,6 +53,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.selfbudget.app.core.ui.components.IconTile
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SectionHeaderBand
 import com.selfbudget.app.core.ui.components.SectionRowDivider
 import com.selfbudget.app.ui.theme.Ramp
@@ -134,7 +135,7 @@ fun AccountsViewAllModal(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "Accounts & wallets",
-                                style = SelfBudgetType.heading,
+                                style = SelfBudgetType.title,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -144,8 +145,9 @@ fun AccountsViewAllModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close"
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -259,11 +261,10 @@ fun AccountsViewAllModal(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.weight(1f)
                                                 ) {
-                                                    IconTile(
+                                                    val accRamp = if (isLiability) Ramp.Coral else Ramp.Teal
+                                                    RampIconTile(
                                                         icon = icon,
-                                                        tint = accColor,
-                                                        background = accColor.copy(alpha = 0.15f),
-                                                        shape = CircleShape,
+                                                        ramp = accRamp,
                                                         size = 36.dp,
                                                         iconSize = 18.dp
                                                     )

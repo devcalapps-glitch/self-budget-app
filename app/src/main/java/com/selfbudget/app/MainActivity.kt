@@ -210,8 +210,8 @@ class MainActivity : FragmentActivity() {
                             onDeleteRecurring = { recurring ->
                                 viewModel.deleteRecurringTransaction(recurring)
                             },
-                            onPostRecurring = { recurring, amount ->
-                                viewModel.postRecurringTransaction(recurring, amount)
+                            onPostRecurring = { recurring, amount, goalId ->
+                                viewModel.postRecurringTransaction(recurring, amount, goalId)
                             },
                             onUpdateRecurring = { recurring ->
                                 viewModel.updateRecurringTransaction(recurring)
@@ -234,8 +234,17 @@ class MainActivity : FragmentActivity() {
                             onAddTransfer = { fromId, toId, amount, note ->
                                 viewModel.addTransfer(fromId, toId, amount, note)
                             },
-                            onAddGoal = { name, target, accountId, targetDate ->
-                                viewModel.addGoal(name, target, targetDate = targetDate, linkedAccountId = accountId)
+                            onAddGoal = { name, target, accountId, targetDate, monthlyTarget, recFromAcc, recFreq, recAmt ->
+                                viewModel.addGoal(
+                                    name = name,
+                                    targetAmount = target,
+                                    targetDate = targetDate,
+                                    linkedAccountId = accountId,
+                                    monthlyTargetAmount = monthlyTarget,
+                                    recurringFromAccountId = recFromAcc,
+                                    recurringFrequency = recFreq,
+                                    recurringAmount = recAmt
+                                )
                             },
                             onDeleteGoal = { goal ->
                                 viewModel.deleteGoal(goal)

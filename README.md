@@ -123,10 +123,22 @@ keep every screen consistent.
 
 ### Prerequisites
 * **Android Studio** Ladybug (2024.2.1+) or newer
-* **JDK**: Java 17 or Java 21
+* **JDK**: Java 17 or Java 21 (Bundled Android Studio JBR supported)
 * **Android SDK**: API 35 (Android 15) compile SDK, Minimum SDK API 26 (Android 8.0)
 
+### macOS CLI Java Setup
+When running Gradle commands directly from terminal on macOS, set `JAVA_HOME` to Android Studio's bundled JBR:
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+```
+
 ### Build Commands
+
+* **Run Unit Tests**:
+  ```bash
+  export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  ./gradlew test
+  ```
 
 * **Build Debug APK**:
   ```bash

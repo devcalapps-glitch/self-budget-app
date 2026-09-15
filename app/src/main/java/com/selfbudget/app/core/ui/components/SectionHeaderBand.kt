@@ -21,12 +21,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.selfbudget.app.ui.theme.CardSurfaceDark
+import com.selfbudget.app.ui.theme.DividerDark
 import com.selfbudget.app.ui.theme.PageBackgroundDark
 import com.selfbudget.app.ui.theme.PageBackgroundLight
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.TextPrimaryDark
+import com.selfbudget.app.ui.theme.TextSecondaryDark
 import com.selfbudget.app.ui.theme.containerBorder
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.pillFill
@@ -57,13 +61,13 @@ fun SectionHeaderBand(
         modifier = modifier.fillMaxWidth(),
         shape = ShapeCard,
         color = if (isDark) PageBackgroundDark else PageBackgroundLight,
-        border = BorderStroke(0.5.dp, ramp.containerBorder(isDark)),
+        border = BorderStroke(0.5.dp, if (isDark) DividerDark else ramp.containerBorder(isDark)),
     ) {
         Column(modifier = Modifier.clip(ShapeCard)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ramp.tintFill(isDark))
+                    .background(if (isDark) CardSurfaceDark else ramp.tintFill(isDark))
                     .padding(horizontal = 14.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -72,22 +76,25 @@ fun SectionHeaderBand(
                     Icon(
                         icon,
                         contentDescription = null,
-                        tint = ramp.secondaryText(isDark),
+                        tint = if (isDark) Ramp.Gray.c400 else ramp.secondaryText(isDark),
                         modifier = Modifier.size(18.dp),
                     )
                 }
                 Text(
                     title,
                     style = SelfBudgetType.section,
-                    color = ramp.titleText(isDark),
+                    color = if (isDark) TextPrimaryDark else ramp.titleText(isDark),
                     modifier = Modifier.weight(1f),
                 )
                 if (countPill != null) {
-                    Surface(shape = ShapePill, color = ramp.pillFill(isDark)) {
+                    Surface(
+                        shape = ShapePill,
+                        color = if (isDark) DividerDark else ramp.pillFill(isDark),
+                    ) {
                         Text(
                             countPill,
                             style = SelfBudgetType.badge,
-                            color = ramp.pillText(isDark),
+                            color = if (isDark) TextSecondaryDark else ramp.pillText(isDark),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         )
                     }
@@ -99,10 +106,13 @@ fun SectionHeaderBand(
                     Text(
                         trailingText,
                         style = SelfBudgetType.meta,
-                        color = ramp.secondaryText(isDark),
+                        color = if (isDark) TextSecondaryDark else ramp.secondaryText(isDark),
                         modifier = textModifier,
                     )
                 }
+            }
+            if (isDark) {
+                HorizontalDivider(thickness = 0.5.dp, color = DividerDark)
             }
             Column {
                 content()

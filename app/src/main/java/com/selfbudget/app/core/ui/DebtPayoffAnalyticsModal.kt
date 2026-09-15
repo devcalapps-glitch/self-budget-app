@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material3.HorizontalDivider
@@ -54,6 +54,7 @@ import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.titleText
@@ -179,8 +180,8 @@ fun DebtPayoffAnalyticsModal(
                     ) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -188,7 +189,7 @@ fun DebtPayoffAnalyticsModal(
                         Column {
                             Text(
                                 text = title,
-                                style = SelfBudgetType.heading,
+                                style = SelfBudgetType.title,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -430,15 +431,15 @@ fun DebtPayoffAnalyticsModal(
 
                                             Spacer(modifier = Modifier.height(10.dp))
 
-                                            LinearProgressIndicator(
-                                                progress = { detail.percentageOfTotal.coerceIn(0f, 1f) },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(6.dp)
-                                                    .clip(ShapeChip),
-                                                color = ramp.c400,
-                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
+                                             LinearProgressIndicator(
+                                                 progress = { detail.percentageOfTotal.coerceIn(0f, 1f) },
+                                                 modifier = Modifier
+                                                     .fillMaxWidth()
+                                                     .height(6.dp)
+                                                     .clip(ShapeChip),
+                                                 color = getProgressBarColor(ramp.c400),
+                                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                             )
                                         }
 
                                         if (index < debtAccountDetails.size - 1) {

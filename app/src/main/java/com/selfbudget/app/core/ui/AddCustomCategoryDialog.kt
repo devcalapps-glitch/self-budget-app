@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -172,13 +173,13 @@ fun AddCustomCategoryDialog(
                 // title. Save is triggered from the footer button below.
                 TopAppBar(
                     title = {
-                        Text(text = "Create category", style = SelfBudgetType.heading, color = MaterialTheme.colorScheme.onSurface)
+                        Text(text = "Create category", style = SelfBudgetType.title, color = MaterialTheme.colorScheme.onSurface)
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }

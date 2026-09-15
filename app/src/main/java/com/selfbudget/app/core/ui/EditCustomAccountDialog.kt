@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -238,7 +239,7 @@ fun EditCustomAccountDialog(
                             } else {
                                 if (isAsset) "Asset details" else "Account details"
                             },
-                            style = SelfBudgetType.heading,
+                            style = SelfBudgetType.title,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -246,7 +247,7 @@ fun EditCustomAccountDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -1046,7 +1047,7 @@ private fun AccountViewModeSummary(
                 PrimaryPillButton(
                     text = "Edit account",
                     onClick = onEditClick,
-                    ramp = accRamp,
+                    ramp = Ramp.Teal,
                     modifier = Modifier.weight(1.3f).height(54.dp)
                 )
             }

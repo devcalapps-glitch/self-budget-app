@@ -147,6 +147,9 @@ class ExpenseRepository @Inject constructor(
         goalDao.deleteGoal(goal)
     }
 
+    suspend fun getAllGoalsSync(userId: String): List<GoalEntity> =
+        goalDao.getAllGoalsSync(userId)
+
     // --- Net worth history ---
 
     fun getNetWorthSnapshots(userId: String): Flow<List<NetWorthSnapshotEntity>> =

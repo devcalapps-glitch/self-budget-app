@@ -65,6 +65,7 @@ import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
 import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
 import com.selfbudget.app.ui.theme.sectionRamp
@@ -498,7 +499,7 @@ fun AnalyticsScreen(
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(ShapeChip),
-                            color = Ramp.Teal.c400,
+                            color = getProgressBarColor(Ramp.Teal.c400),
                         )
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -892,7 +893,7 @@ private fun BreakdownRow(
                 .fillMaxWidth()
                 .height(4.dp)
                 .clip(ShapeChip),
-            color = ramp.c400,
+            color = getProgressBarColor(ramp.c400),
             trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
     }

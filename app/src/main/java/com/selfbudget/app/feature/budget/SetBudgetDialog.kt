@@ -36,8 +36,16 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import com.selfbudget.app.ui.theme.Ramp
+import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.containerBorder
+import com.selfbudget.app.ui.theme.isAppInDarkTheme
+import com.selfbudget.app.ui.theme.secondaryText
+import com.selfbudget.app.ui.theme.tintFill
+import com.selfbudget.app.ui.theme.titleText
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
@@ -255,16 +263,16 @@ fun SetBudgetDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = onDismiss) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (!isEditing) "Set category budget" else if (isEditMode) "Edit category budget" else "Category budget details",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium
+                                style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         // Save/Edit lives in the footer only — never duplicated in the header (spec §14/§19).
@@ -365,13 +373,12 @@ fun SetBudgetDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
                                 text = "BUDGET DETAILS",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
+                                style = SelfBudgetType.eyebrow,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.sp,
                                 modifier = Modifier.padding(start = 4.dp)
                             )
 
+                            val formRamp = selectedCategory?.let { com.selfbudget.app.ui.theme.sectionRamp(it.name) } ?: Ramp.Teal
                             Surface(
                                 shape = com.selfbudget.app.ui.theme.ShapeCard,
                                 color = MaterialTheme.colorScheme.surface,
@@ -393,31 +400,22 @@ fun SetBudgetDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(38.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = getCategoryIcon(selectedCategory),
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
+                                            com.selfbudget.app.core.ui.components.RampIconTile(
+                                                icon = getCategoryIcon(selectedCategory),
+                                                ramp = formRamp,
+                                                size = 38.dp,
+                                                iconSize = 20.dp
+                                            )
                                             Spacer(modifier = Modifier.width(14.dp))
                                             Column {
                                                 Text(
-                                                    text = "Expense Category",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                                    text = "Expense category",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                                 Text(
                                                     text = selectedCategory?.name ?: "Select Expense Category",
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    fontWeight = if (selectedCategory != null) FontWeight.Medium else FontWeight.Normal,
+                                                    style = SelfBudgetType.rowTitle,
                                                     color = if (selectedCategory != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                 )
                                             }
@@ -443,27 +441,18 @@ fun SetBudgetDialog(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(38.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Autorenew,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.secondary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
+                                            com.selfbudget.app.core.ui.components.GrayIconTile(
+                                                icon = Icons.Default.Autorenew,
+                                                size = 38.dp,
+                                                iconSize = 20.dp
+                                            )
                                             Spacer(modifier = Modifier.width(14.dp))
                                             Column {
-                                                Text("Roll Over Unused Budget", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                                                Text("Roll over unused budget", style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                                                 Text(
                                                     text = "Carries forward previous month's balance.",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
@@ -497,39 +486,30 @@ fun SetBudgetDialog(
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(38.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.AutoAwesome,
-                                                            contentDescription = null,
-                                                            tint = MaterialTheme.colorScheme.tertiary,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
-                                                    }
-                                                }
+                                                com.selfbudget.app.core.ui.components.RampIconTile(
+                                                    icon = Icons.Default.AutoAwesome,
+                                                    ramp = Ramp.Purple,
+                                                    size = 38.dp,
+                                                    iconSize = 20.dp
+                                                )
                                                 Spacer(modifier = Modifier.width(14.dp))
                                                 Column {
                                                     Text(
-                                                        text = "Recurring Bills Floor",
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        text = "Recurring bills floor",
+                                                        style = SelfBudgetType.meta,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                     Text(
                                                         text = "Set to $currencySymbol%.2f/mo".format(categoryRecurringMonthly),
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.primary
+                                                        style = SelfBudgetType.rowTitle,
+                                                        color = Ramp.Purple.secondaryText(isAppInDarkTheme())
                                                     )
                                                 }
                                             }
                                             Icon(
                                                 imageVector = Icons.Default.AutoAwesome,
                                                 contentDescription = "Apply Floor",
-                                                tint = MaterialTheme.colorScheme.primary
+                                                tint = Ramp.Purple.secondaryText(isAppInDarkTheme())
                                             )
                                         }
                                     }
@@ -539,37 +519,26 @@ fun SetBudgetDialog(
 
                         // 3. Category Budget Scope Information Banner
                         Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            color = Ramp.Teal.tintFill(isAppInDarkTheme()),
                             shape = com.selfbudget.app.ui.theme.ShapeCard,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                            border = BorderStroke(1.dp, Ramp.Teal.containerBorder(isAppInDarkTheme())),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
+                                com.selfbudget.app.core.ui.components.RampIconTile(
+                                    icon = Icons.Default.Info,
+                                    ramp = Ramp.Teal,
+                                    size = 36.dp,
+                                    iconSize = 18.dp
+                                )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "Note: This monthly limit applies to all bills and expenses logged under this category.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp,
-                                    fontWeight = FontWeight.Medium
+                                    style = SelfBudgetType.meta,
+                                    color = Ramp.Teal.titleText(isAppInDarkTheme())
                                 )
                             }
                         }
@@ -774,8 +743,10 @@ private fun BudgetViewModeSummary(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Hero Card: Category & Status Banner
+        val catRamp = category?.let { com.selfbudget.app.ui.theme.sectionRamp(it.name) } ?: Ramp.Teal
+        val isDark = isAppInDarkTheme()
         Surface(
-            shape = com.selfbudget.app.ui.theme.ShapeHero,
+            shape = com.selfbudget.app.ui.theme.ShapeCard,
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
             modifier = Modifier.fillMaxWidth()
@@ -784,27 +755,18 @@ private fun BudgetViewModeSummary(
                 modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = statusColor.copy(alpha = 0.15f),
-                    modifier = Modifier.size(54.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = getCategoryIcon(category),
-                            contentDescription = null,
-                            tint = statusColor,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
+                com.selfbudget.app.core.ui.components.RampIconTile(
+                    icon = getCategoryIcon(category),
+                    ramp = catRamp,
+                    size = 52.dp,
+                    iconSize = 26.dp
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = category?.name ?: "Category Budget",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = SelfBudgetType.title,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
@@ -834,14 +796,12 @@ private fun BudgetViewModeSummary(
                 ) {
                     Text(
                         text = "$currencySymbol%.2f allocated".format(spentAmount + pendingBills),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
+                        style = SelfBudgetType.meta,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "of $currencySymbol%.2f limit".format(effectiveLimit),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
+                        style = SelfBudgetType.meta,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -1043,45 +1003,32 @@ private fun BudgetViewModeSummary(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                com.selfbudget.app.core.ui.components.SecondaryPillButton(
+                    text = "Close",
                     onClick = onClose,
                     modifier = Modifier
                         .weight(1f)
-                        .height(54.dp),
-                    shape = com.selfbudget.app.ui.theme.ShapePill,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-                ) {
-                    Text("Close", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
 
-                Button(
+                com.selfbudget.app.core.ui.components.PrimaryPillButton(
+                    text = "Edit budget",
                     onClick = onEditClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+                    ramp = Ramp.Teal,
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(54.dp),
-                    shape = com.selfbudget.app.ui.theme.ShapePill
-                ) {
-                    Text("Edit Budget", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
             }
 
             if (onDeleteClick != null) {
-                OutlinedButton(
+                com.selfbudget.app.core.ui.components.DestructivePillButton(
+                    text = "Delete category budget",
                     onClick = onDeleteClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
-                    shape = com.selfbudget.app.ui.theme.ShapePill,
-                    border = BorderStroke(1.5.dp, getExpenseColor().copy(alpha = 0.6f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = getExpenseColor())
-                ) {
-                    Text("Delete Category Budget", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                }
+                        .height(54.dp)
+                )
             }
         }
     }
@@ -1106,33 +1053,22 @@ private fun BudgetViewModeInfoItem(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f, fill = false)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = iconTint.copy(alpha = 0.12f),
-                modifier = Modifier.size(38.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            com.selfbudget.app.core.ui.components.GrayIconTile(
+                icon = icon,
+                size = 36.dp,
+                iconSize = 18.dp
+            )
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
+                style = SelfBudgetType.rowTitle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            style = SelfBudgetType.rowTitle,
             color = valueColor,
             textAlign = TextAlign.End
         )

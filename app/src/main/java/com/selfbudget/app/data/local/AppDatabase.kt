@@ -43,7 +43,8 @@ import com.selfbudget.app.data.model.UserEntity
     // mistakenly-posted recurring transaction rolls the recurring item's due date back instead of
     // leaving it advanced to the following cycle - see MainViewModel.deleteTransaction.
     // v16: AccountEntity gained loanTermMonths for fixed-term amortized mortgages and loans.
-    version = 16,
+    // v17: GoalEntity gained monthlyTargetAmount for monthly savings target pacing.
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -103,11 +104,12 @@ abstract class AppDatabase : RoomDatabase() {
                     safeAddColumn(db, "transactions", "linkedRecurringId TEXT DEFAULT NULL")
                     safeAddColumn(db, "transactions", "recurringCycleDueDate INTEGER DEFAULT NULL")
                     safeAddColumn(db, "accounts", "loanTermMonths INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "goals", "monthlyTargetAmount REAL DEFAULT NULL")
                 }
             }
         }
 
-        val MIGRATIONS_ALL = (1 until 16).map { createCatchupMigration(it, 16) }.toTypedArray()
+        val MIGRATIONS_ALL = (1 until 17).map { createCatchupMigration(it, 17) }.toTypedArray()
 
         @Volatile
         private var INSTANCE: AppDatabase? = null

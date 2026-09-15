@@ -18,7 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -153,9 +154,9 @@ fun SpentAndBillsModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -204,17 +205,17 @@ fun SpentAndBillsModal(
                                 Text(
                                     text = "SPENT & COMMITTED BILLS".uppercase(),
                                     style = SelfBudgetType.eyebrow,
-                                    color = Ramp.Coral.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Coral.c200 else Ramp.Coral.secondaryText(isDark)
                                 )
                                 Text(
                                     text = "$currencySymbol%,.2f".format(totalClaimed),
                                     style = SelfBudgetType.display,
-                                    color = Ramp.Coral.titleText(isDark)
+                                    color = if (isDark) Color.White else Ramp.Coral.titleText(isDark)
                                 )
                                 Text(
                                     text = "$currencySymbol%,.0f actual spent + $currencySymbol%,.0f recurring bills".format(totalActualSpent, totalRecurringCommitted),
                                     style = SelfBudgetType.meta,
-                                    color = Ramp.Coral.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Coral.c100 else Ramp.Coral.secondaryText(isDark)
                                 )
                             }
                         }
@@ -270,7 +271,7 @@ fun SpentAndBillsModal(
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = "$currencySymbol%.2f".format(bill.amount),
-                                            style = SelfBudgetType.heading,
+                                            style = SelfBudgetType.body,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         if (bill.frequency != com.selfbudget.app.data.model.RecurringFrequency.MONTHLY) {
@@ -356,7 +357,7 @@ fun SpentAndBillsModal(
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
                                             text = "-$currencySymbol%.2f".format(tx.amount),
-                                            style = SelfBudgetType.heading,
+                                            style = SelfBudgetType.body,
                                             color = getExpenseColor()
                                         )
                                     }

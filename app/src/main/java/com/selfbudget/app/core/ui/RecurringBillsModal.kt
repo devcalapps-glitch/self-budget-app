@@ -18,8 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -112,9 +113,9 @@ fun RecurringBillsModal(
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -161,17 +162,17 @@ fun RecurringBillsModal(
                                 Text(
                                     text = "COMMITTED RECURRING BILLS".uppercase(),
                                     style = SelfBudgetType.eyebrow,
-                                    color = Ramp.Coral.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Coral.c200 else Ramp.Coral.secondaryText(isDark)
                                 )
                                 Text(
                                     text = "$currencySymbol%,.2f/mo".format(totalMonthlyExpense),
                                     style = SelfBudgetType.display,
-                                    color = Ramp.Coral.titleText(isDark)
+                                    color = if (isDark) Color.White else Ramp.Coral.titleText(isDark)
                                 )
                                 Text(
                                     text = "${activeBills.size} active bill${if (activeBills.size == 1) "" else "s"} & regular subscription${if (activeBills.size == 1) "" else "s"}",
                                     style = SelfBudgetType.meta,
-                                    color = Ramp.Coral.secondaryText(isDark)
+                                    color = if (isDark) Ramp.Coral.c100 else Ramp.Coral.secondaryText(isDark)
                                 )
                             }
                         }
@@ -259,7 +260,7 @@ fun RecurringBillsModal(
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = "-$currencySymbol%.2f".format(item.amount),
-                                            style = SelfBudgetType.heading,
+                                            style = SelfBudgetType.body,
                                             color = getExpenseColor()
                                         )
                                         if (item.frequency != RecurringFrequency.MONTHLY) {
