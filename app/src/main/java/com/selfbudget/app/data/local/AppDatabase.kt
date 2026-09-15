@@ -100,11 +100,18 @@ abstract class AppDatabase : RoomDatabase() {
         private fun createCatchupMigration(fromVersion: Int, toVersion: Int): androidx.room.migration.Migration {
             return object : androidx.room.migration.Migration(fromVersion, toVersion) {
                 override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    safeAddColumn(db, "users", "hasCompletedOnboarding INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "users", "primaryGoal TEXT DEFAULT NULL")
+                    safeAddColumn(db, "users", "referralSource TEXT DEFAULT NULL")
+                    safeAddColumn(db, "recurring_transactions", "remainingOccurrences INTEGER DEFAULT NULL")
                     safeAddColumn(db, "recurring_transactions", "transferAccountId TEXT DEFAULT NULL")
                     safeAddColumn(db, "transactions", "linkedRecurringId TEXT DEFAULT NULL")
                     safeAddColumn(db, "transactions", "recurringCycleDueDate INTEGER DEFAULT NULL")
                     safeAddColumn(db, "accounts", "loanTermMonths INTEGER DEFAULT NULL")
+                    safeAddColumn(db, "goals", "savedAmount REAL NOT NULL DEFAULT 0.0")
                     safeAddColumn(db, "goals", "monthlyTargetAmount REAL DEFAULT NULL")
+                    safeAddColumn(db, "budgets", "isAutoSynced INTEGER NOT NULL DEFAULT 1")
+                    safeAddColumn(db, "categories", "isArchived INTEGER NOT NULL DEFAULT 0")
                 }
             }
         }
@@ -122,7 +129,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "self_budget.db"
                 )
                 .addMigrations(*MIGRATIONS_ALL)
-                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

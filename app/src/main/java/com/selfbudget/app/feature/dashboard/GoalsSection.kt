@@ -79,6 +79,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -394,7 +395,10 @@ fun GoalsSection(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             RampIconTile(
                                                 icon = Icons.Default.Savings,
                                                 ramp = Ramp.Teal,
@@ -402,28 +406,46 @@ fun GoalsSection(
                                                 iconSize = 18.dp
                                             )
                                             Spacer(modifier = Modifier.width(10.dp))
-                                            Column {
-                                                Text(goal.name, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                                            Column(modifier = Modifier.padding(end = 8.dp)) {
+                                                Text(
+                                                    text = goal.name,
+                                                    fontWeight = FontWeight.Medium,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
                                                 Text(
                                                     text = "$currencySymbol%.2f of $currencySymbol%.2f".format(currentAmount, goal.targetAmount) +
                                                             (linkedAccount?.let { " • ${it.name}" } ?: " • Manual goal"),
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
+                                        val isDarkShell = isAppInDarkTheme()
                                         Surface(
                                             onClick = { contributingGoal = goal },
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(34.dp)
+                                            shape = ShapePill,
+                                            color = Ramp.Teal.tintFill(isDarkShell),
+                                            border = BorderStroke(1.dp, Ramp.Teal.containerBorder(isDarkShell))
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Payments,
-                                                    contentDescription = "Add or Withdraw Contribution",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(17.dp)
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "Contribute to Goal",
+                                                    tint = Ramp.Teal.secondaryText(isDarkShell),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Contribute",
+                                                    style = SelfBudgetType.badge,
+                                                    color = Ramp.Teal.secondaryText(isDarkShell)
                                                 )
                                             }
                                         }
@@ -608,32 +630,21 @@ private fun ContributeDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = goal.name,
-                                style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
-                                color = MaterialTheme.colorScheme.onSurface
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-
-                        Button(
-                            onClick = { save() },
-                            enabled = isValid,
-                            shape = ShapeTile
-                        ) {
-                            Text("Save", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = goal.name,
+                            style = com.selfbudget.app.ui.theme.SelfBudgetType.title,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
 
@@ -831,32 +842,24 @@ private fun ContributeDialog(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedButton(
+                        SecondaryPillButton(
+                            text = "Cancel",
                             onClick = onDismiss,
-                            shape = ShapeCard,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                            ramp = Ramp.Gray,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(54.dp)
-                        ) {
-                            Text("Cancel", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                        }
+                        )
 
-                        Button(
+                        PrimaryPillButton(
+                            text = if (isAdding) "Save contribution" else "Confirm withdrawal",
                             onClick = { save() },
                             enabled = isValid,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isAdding) getIncomeColor() else MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
-                            ),
-                            shape = ShapeCard,
+                            ramp = Ramp.Teal,
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(54.dp)
-                        ) {
-                            Text(if (isAdding) "Add Contribution" else "Withdraw", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                        }
+                        )
                     }
                 }
             }
