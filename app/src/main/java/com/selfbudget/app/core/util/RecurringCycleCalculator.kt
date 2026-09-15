@@ -75,8 +75,7 @@ object RecurringCycleCalculator {
 
             (isLinkedMatch || isHeuristicMatch) &&
                 when (item.frequency) {
-                    RecurringFrequency.WEEKLY -> tx.timestamp >= nowForWeekly - (7 * 24 * 60 * 60 * 1000L) && tx.timestamp <= nowForWeekly
-                    RecurringFrequency.BI_WEEKLY, RecurringFrequency.SEMI_MONTHLY, RecurringFrequency.MONTHLY -> {
+                    RecurringFrequency.WEEKLY, RecurringFrequency.BI_WEEKLY, RecurringFrequency.SEMI_MONTHLY, RecurringFrequency.MONTHLY -> {
                         val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
                         txCal.get(Calendar.YEAR) == currentYear && txCal.get(Calendar.MONTH) == currentMonth
                     }
