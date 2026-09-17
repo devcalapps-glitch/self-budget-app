@@ -41,6 +41,22 @@ enum class AccountType {
     VEHICLE
 }
 
+enum class ActivityEntityType {
+    TRANSACTION,
+    GOAL,
+    RECURRING,
+    ACCOUNT,
+    CATEGORY
+}
+
+enum class ActivityAction {
+    EDITED,
+    DELETED,
+    ARCHIVED,
+    RESTORED,
+    CONTRIBUTED
+}
+
 @Entity(tableName = "accounts")
 data class AccountEntity(
     @PrimaryKey
@@ -58,7 +74,12 @@ data class AccountEntity(
     val creditLimit: Double? = null,
     val interestRateApr: Double? = null,
     val minimumPayment: Double? = null,
-    val loanTermMonths: Int? = null
+    val loanTermMonths: Int? = null,
+    // When this account came into existence. Existing rows migrated to 0 (epoch) so they keep
+    // contributing to every historical net-worth month as before; only accounts created after
+    // this field existed are excluded from months that predate them - see
+    // AccountBalanceCalculator.computeHistoricalSnapshots.
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "transactions")
@@ -111,7 +132,8 @@ data class RecurringTransactionEntity(
     // Card / Loan account's balance, the same way a one-off transfer/debt payment already does
     // (see AccountBalanceCalculator.computeBalance). Lets a recurring item represent an actual
     // planned monthly debt payment rather than just a generic expense.
-    val transferAccountId: String? = null
+    val transferAccountId: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "categories")
@@ -123,7 +145,8 @@ data class CategoryEntity(
     val colorHex: String,
     val type: TransactionType,
     val isDefault: Boolean = false,
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Entity(
@@ -212,4 +235,22 @@ data class ExchangeRateEntity(
     // app is offline-first and does not call out to a live FX rate service.
     val rate: Double,
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Records an edit/delete/archive/contribution against an already-existing transaction, goal,
+// recurring item, account, or category — creation events are derived live from each entity's own
+// createdAt instead (see SearchScreen's Activity feed), since those don't need a durable log.
+// title/amount are a snapshot taken at the time of the action, since a delete removes the row
+// the event refers to and an edit overwrites it in place.
+@Entity(tableName = "activity_log")
+data class ActivityLogEntity(
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(),
+    val userId: String,
+    val entityType: ActivityEntityType,
+    val action: ActivityAction,
+    val entityId: String,
+    val title: String,
+    val amount: Double? = null,
+    val timestamp: Long = System.currentTimeMillis()
 )

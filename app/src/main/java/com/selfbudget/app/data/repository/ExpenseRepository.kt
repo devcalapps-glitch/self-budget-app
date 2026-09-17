@@ -1,6 +1,7 @@
 package com.selfbudget.app.data.repository
 
 import com.selfbudget.app.data.local.AccountDao
+import com.selfbudget.app.data.local.ActivityLogDao
 import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.local.BudgetDao
 import com.selfbudget.app.data.local.CategoryDao
@@ -11,6 +12,7 @@ import com.selfbudget.app.data.local.RecurringDao
 import com.selfbudget.app.data.local.TransactionDao
 import com.selfbudget.app.data.local.UserDao
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.ActivityLogEntity
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.ExchangeRateEntity
@@ -34,7 +36,8 @@ class ExpenseRepository @Inject constructor(
     private val accountDao: AccountDao,
     private val goalDao: GoalDao,
     private val netWorthDao: NetWorthDao,
-    private val exchangeRateDao: ExchangeRateDao
+    private val exchangeRateDao: ExchangeRateDao,
+    private val activityLogDao: ActivityLogDao
 ) {
     fun getTransactions(userId: String): Flow<List<TransactionEntity>> =
         transactionDao.getTransactionsByUser(userId)
@@ -184,5 +187,15 @@ class ExpenseRepository @Inject constructor(
         goalDao.deleteAllGoals(userId)
         netWorthDao.deleteAllSnapshots(userId)
         exchangeRateDao.deleteAllRates(userId)
+        activityLogDao.deleteAllActivityLog(userId)
+    }
+
+    // --- Activity log (edit/delete/archive/contribution events; creations are derived live) ---
+
+    fun getActivityLog(userId: String): Flow<List<ActivityLogEntity>> =
+        activityLogDao.getActivityLogByUser(userId)
+
+    suspend fun logActivity(entry: ActivityLogEntity) {
+        activityLogDao.insertActivityLog(entry)
     }
 }

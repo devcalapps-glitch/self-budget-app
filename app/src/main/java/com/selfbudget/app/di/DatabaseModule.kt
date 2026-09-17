@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.selfbudget.app.data.local.AccountDao
+import com.selfbudget.app.data.local.ActivityLogDao
 import com.selfbudget.app.data.local.AppDatabase
 import com.selfbudget.app.data.local.BudgetDao
 import com.selfbudget.app.data.local.CategoryDao
@@ -42,6 +43,10 @@ object DatabaseModule {
             AppDatabase::class.java,
             "self_budget.db"
         )
+        // Real migrations must run first so a version bump upgrades the schema in place instead
+        // of wiping local data — fallbackToDestructiveMigration is only a last resort for a
+        // version this app has never shipped a migration path for.
+        .addMigrations(*AppDatabase.MIGRATIONS_ALL)
         .fallbackToDestructiveMigration()
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -87,4 +92,7 @@ object DatabaseModule {
 
     @Provides
     fun provideExchangeRateDao(database: AppDatabase): ExchangeRateDao = database.exchangeRateDao()
+
+    @Provides
+    fun provideActivityLogDao(database: AppDatabase): ActivityLogDao = database.activityLogDao()
 }

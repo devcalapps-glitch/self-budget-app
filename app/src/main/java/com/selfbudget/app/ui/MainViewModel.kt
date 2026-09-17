@@ -12,6 +12,9 @@ import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.core.util.RecurringFrequencyNormalizer
 import com.selfbudget.app.core.util.RecurringScheduler
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.ActivityAction
+import com.selfbudget.app.data.model.ActivityEntityType
+import com.selfbudget.app.data.model.ActivityLogEntity
 import com.selfbudget.app.data.model.AppThemeMode
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
@@ -69,6 +72,7 @@ data class HomeUiState(
     val goals: List<GoalEntity> = emptyList(),
     val exchangeRates: List<ExchangeRateEntity> = emptyList(),
     val netWorthHistory: List<NetWorthSnapshotEntity> = emptyList(),
+    val activityLog: List<ActivityLogEntity> = emptyList(),
     // Needed for budget-rollover math on BudgetScreen.
     val previousMonthBudgets: List<BudgetEntity> = emptyList(),
     val previousMonthSpentByCategory: Map<String, Double> = emptyMap()
@@ -85,7 +89,8 @@ private data class BaseCombined(
 private data class ExtraCombined(
     val goals: List<GoalEntity>,
     val rates: List<ExchangeRateEntity>,
-    val netWorthHistory: List<NetWorthSnapshotEntity>
+    val netWorthHistory: List<NetWorthSnapshotEntity>,
+    val activityLog: List<ActivityLogEntity>
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -138,9 +143,10 @@ class MainViewModel @Inject constructor(
                     combine(
                         repository.getGoals(user.id),
                         repository.getExchangeRates(user.id),
-                        repository.getNetWorthSnapshots(user.id)
-                    ) { goals, rates, netWorthHistory ->
-                        ExtraCombined(goals, rates, netWorthHistory)
+                        repository.getNetWorthSnapshots(user.id),
+                        repository.getActivityLog(user.id)
+                    ) { goals, rates, netWorthHistory, activityLog ->
+                        ExtraCombined(goals, rates, netWorthHistory, activityLog)
                     }.map { extra -> Triple(base, extra, selectedMonth) }
                 }
             }.map { (base, extra, selectedMonth) ->
@@ -216,6 +222,7 @@ class MainViewModel @Inject constructor(
                     goals = extra.goals,
                     exchangeRates = extra.rates,
                     netWorthHistory = netWorthHistory,
+                    activityLog = extra.activityLog,
                     previousMonthBudgets = previousMonthBudgets,
                     previousMonthSpentByCategory = previousMonthSpentByCategory
                 )
@@ -459,15 +466,40 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // Records an edit/delete/archive/contribution against an entity for the Activity feed.
+    // Creations aren't logged here - they're derived live from each entity's own createdAt instead.
+    private suspend fun logActivity(
+        userId: String,
+        entityType: ActivityEntityType,
+        action: ActivityAction,
+        entityId: String,
+        title: String,
+        amount: Double? = null
+    ) {
+        repository.logActivity(
+            ActivityLogEntity(
+                userId = userId,
+                entityType = entityType,
+                action = action,
+                entityId = entityId,
+                title = title,
+                amount = amount
+            )
+        )
+    }
+
     fun updateTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
-            repository.updateTransaction(transaction.copy(amount = Money.round(transaction.amount)))
+            val rounded = transaction.copy(amount = Money.round(transaction.amount))
+            repository.updateTransaction(rounded)
+            logActivity(rounded.userId, ActivityEntityType.TRANSACTION, ActivityAction.EDITED, rounded.id, rounded.title, rounded.amount)
         }
     }
 
     fun deleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+            logActivity(transaction.userId, ActivityEntityType.TRANSACTION, ActivityAction.DELETED, transaction.id, transaction.title, transaction.amount)
             revertRecurringCycleIfStillCurrent(transaction)
         }
     }
@@ -566,12 +598,14 @@ class MainViewModel @Inject constructor(
     fun updateRecurringTransaction(recurring: RecurringTransactionEntity) {
         viewModelScope.launch {
             repository.updateRecurringTransaction(recurring)
+            logActivity(recurring.userId, ActivityEntityType.RECURRING, ActivityAction.EDITED, recurring.id, recurring.title, recurring.amount)
         }
     }
 
     fun deleteRecurringTransaction(recurring: RecurringTransactionEntity) {
         viewModelScope.launch {
             repository.deleteRecurringTransaction(recurring)
+            logActivity(recurring.userId, ActivityEntityType.RECURRING, ActivityAction.DELETED, recurring.id, recurring.title, recurring.amount)
         }
     }
 
@@ -644,12 +678,14 @@ class MainViewModel @Inject constructor(
     fun updateAccount(account: AccountEntity) {
         viewModelScope.launch {
             repository.updateAccount(account)
+            logActivity(account.userId, ActivityEntityType.ACCOUNT, ActivityAction.EDITED, account.id, account.name, account.initialBalance)
         }
     }
 
     fun deleteAccount(account: AccountEntity) {
         viewModelScope.launch {
             repository.deleteAccount(account)
+            logActivity(account.userId, ActivityEntityType.ACCOUNT, ActivityAction.DELETED, account.id, account.name, account.initialBalance)
         }
     }
 
@@ -660,8 +696,11 @@ class MainViewModel @Inject constructor(
     }
 
     fun toggleCategoryArchive(category: CategoryEntity) {
+        val userId = currentUser.value?.id ?: return
         viewModelScope.launch {
-            repository.addCategory(category.copy(isArchived = !category.isArchived))
+            val archived = !category.isArchived
+            repository.addCategory(category.copy(isArchived = archived))
+            logActivity(userId, ActivityEntityType.CATEGORY, if (archived) ActivityAction.ARCHIVED else ActivityAction.RESTORED, category.id, category.name)
         }
     }
 
@@ -743,12 +782,12 @@ class MainViewModel @Inject constructor(
 
     fun updateGoal(goal: GoalEntity) {
         viewModelScope.launch {
-            repository.updateGoal(
-                goal.copy(
-                    targetAmount = Money.round(goal.targetAmount),
-                    monthlyTargetAmount = goal.monthlyTargetAmount?.let { Money.round(it) }
-                )
+            val updated = goal.copy(
+                targetAmount = Money.round(goal.targetAmount),
+                monthlyTargetAmount = goal.monthlyTargetAmount?.let { Money.round(it) }
             )
+            repository.updateGoal(updated)
+            logActivity(updated.userId, ActivityEntityType.GOAL, ActivityAction.EDITED, updated.id, updated.name, updated.targetAmount)
         }
     }
 
@@ -761,12 +800,14 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val updated = Money.add(goal.savedAmount, amount).coerceAtLeast(0.0)
             repository.updateGoal(goal.copy(savedAmount = Money.round(updated)))
+            logActivity(goal.userId, ActivityEntityType.GOAL, ActivityAction.CONTRIBUTED, goal.id, goal.name, amount)
         }
     }
 
     fun deleteGoal(goal: GoalEntity) {
         viewModelScope.launch {
             repository.deleteGoal(goal)
+            logActivity(goal.userId, ActivityEntityType.GOAL, ActivityAction.DELETED, goal.id, goal.name, goal.targetAmount)
         }
     }
 

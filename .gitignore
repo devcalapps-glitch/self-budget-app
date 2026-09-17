@@ -18,4 +18,5 @@ keystore.properties
 
 # Temporary scratch & cache directories
 .scratch/
+.kotlin/
 **/__pycache__/

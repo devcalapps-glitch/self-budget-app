@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
@@ -72,10 +71,12 @@ class MainActivity : FragmentActivity() {
                 // Permission response registered
             }
 
+            // "System" is treated as light regardless of the OS setting — users
+            // opt into dark mode explicitly via the Dark option in Settings.
             val isDarkTheme = when (uiState.themeMode) {
                 AppThemeMode.LIGHT -> false
                 AppThemeMode.DARK -> true
-                AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+                AppThemeMode.SYSTEM -> false
             }
 
             // Notification Permission Request for Android 13+

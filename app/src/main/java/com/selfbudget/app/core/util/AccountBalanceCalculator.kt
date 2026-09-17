@@ -153,21 +153,26 @@ object AccountBalanceCalculator {
             cutoffCal.set(java.util.Calendar.MILLISECOND, 999)
 
             val txsUpToMonth = allTransactions.filter { it.timestamp <= cutoffCal.timeInMillis }
+
+            // Only accounts that existed by this month should contribute - otherwise a newly
+            // added account's initialBalance would retroactively inflate every past month.
+            val accountsAsOfMonth = accounts.filter { it.createdAt <= cutoffCal.timeInMillis }
+
             val netWorthAtMonth = computeTotalInBaseCurrency(
-                accounts = accounts,
+                accounts = accountsAsOfMonth,
                 allTransactions = txsUpToMonth,
                 baseCurrency = baseCurrency,
                 rates = rates
             )
 
-            val monthBalances = accounts.associate { acc ->
+            val monthBalances = accountsAsOfMonth.associate { acc ->
                 acc.id to computeBalance(acc, txsUpToMonth)
             }
-            val assets = accounts.sumOf { acc ->
+            val assets = accountsAsOfMonth.sumOf { acc ->
                 val b = monthBalances[acc.id] ?: 0.0
                 if (!isLiability(acc.type)) b else 0.0
             }
-            val liabilities = accounts.sumOf { acc ->
+            val liabilities = accountsAsOfMonth.sumOf { acc ->
                 val b = monthBalances[acc.id] ?: 0.0
                 if (isLiability(acc.type)) kotlin.math.abs(b) else 0.0
             }

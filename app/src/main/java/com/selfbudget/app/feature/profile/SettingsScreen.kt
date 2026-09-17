@@ -59,7 +59,6 @@ import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Verified
@@ -551,20 +550,6 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = themeMode == AppThemeMode.SYSTEM,
-                            onClick = { onSetThemeMode(AppThemeMode.SYSTEM) },
-                            shape = ShapePill,
-                            colors = chipColors,
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.SettingsSuggest, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("System", style = SelfBudgetType.badge)
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
                         FilterChip(
                             selected = themeMode == AppThemeMode.LIGHT,
                             onClick = { onSetThemeMode(AppThemeMode.LIGHT) },

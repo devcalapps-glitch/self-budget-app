@@ -115,7 +115,7 @@ class RealDatabaseMigrationTest {
     }
 
     @Test
-    fun testRealDatabaseMigration_fromVersion1To17() {
+    fun testRealDatabaseMigration_fromVersion1To18() {
         val dbFile = File.createTempFile("test_real_db_v1_", ".db")
         dbFile.deleteOnExit()
 
@@ -142,9 +142,9 @@ class RealDatabaseMigrationTest {
 
             val supportDb = createJdbcSupportDatabase(conn)
 
-            // Run migration from v1 to v17
-            val migration1To17 = AppDatabase.createCatchupMigration(1, 17)
-            migration1To17.migrate(supportDb)
+            // Run migration from v1 to v18
+            val migration1To18 = AppDatabase.createCatchupMigration(1, 18)
+            migration1To18.migrate(supportDb)
 
             // Verify table and column additions
             assertTrue(AppDatabase.tableExists(supportDb, "net_worth_snapshots"))
@@ -162,6 +162,7 @@ class RealDatabaseMigrationTest {
             assertTrue(AppDatabase.hasColumn(supportDb, "transactions", "recurringCycleDueDate"))
             assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "loanTermMonths"))
             assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "currencyCode"))
+            assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "createdAt"))
             assertTrue(AppDatabase.hasColumn(supportDb, "budgets", "isAutoSynced"))
             assertTrue(AppDatabase.hasColumn(supportDb, "budgets", "rolloverEnabled"))
             assertTrue(AppDatabase.hasColumn(supportDb, "categories", "isArchived"))
@@ -203,18 +204,18 @@ class RealDatabaseMigrationTest {
 
             // Test IDEMPOTENCY: Run migration again on the migrated database.
             // Confirm it does NOT fail because columns/tables/indices already exist.
-            migration1To17.migrate(supportDb)
+            migration1To18.migrate(supportDb)
         }
     }
 
     @Test
-    fun testRealDatabaseMigration_fromVersion12To17() {
+    fun testRealDatabaseMigration_fromVersion12To18() {
         val dbFile = File.createTempFile("test_real_db_v12_", ".db")
         dbFile.deleteOnExit()
 
         DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { conn ->
             conn.createStatement().use { stmt ->
-                // Schema v12 has isAutoSynced, unique index on budgets, goals, snapshots, exchange_rates, but lacks v13 (categories.isArchived), v14 (recurring.transferAccountId), v15 (tx.linkedRecurringId), v16 (accounts.loanTermMonths), v17 (goals.monthlyTargetAmount)
+                // Schema v12 has isAutoSynced, unique index on budgets, goals, snapshots, exchange_rates, but lacks v13 (categories.isArchived), v14 (recurring.transferAccountId), v15 (tx.linkedRecurringId), v16 (accounts.loanTermMonths), v17 (goals.monthlyTargetAmount), v18 (accounts.createdAt)
                 stmt.execute("CREATE TABLE `users` (`id` TEXT NOT NULL PRIMARY KEY, `email` TEXT NOT NULL, `displayName` TEXT, `photoUrl` TEXT, `preferredCurrency` TEXT NOT NULL, `themeMode` TEXT NOT NULL, `isBiometricEnabled` INTEGER NOT NULL, `hasCompletedOnboarding` INTEGER NOT NULL, `primaryGoal` TEXT, `referralSource` TEXT)")
                 stmt.execute("CREATE TABLE `accounts` (`id` TEXT NOT NULL PRIMARY KEY, `userId` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `initialBalance` REAL NOT NULL, `colorHex` TEXT NOT NULL, `iconName` TEXT NOT NULL, `isDefault` INTEGER NOT NULL, `currencyCode` TEXT NOT NULL, `creditLimit` REAL, `interestRateApr` REAL, `minimumPayment` REAL)")
                 stmt.execute("CREATE TABLE `categories` (`id` TEXT NOT NULL PRIMARY KEY, `name` TEXT NOT NULL, `iconName` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `type` TEXT NOT NULL, `isDefault` INTEGER NOT NULL)")
@@ -233,13 +234,14 @@ class RealDatabaseMigrationTest {
 
             val supportDb = createJdbcSupportDatabase(conn)
 
-            // Run migration from v12 to v17
-            val migration12To17 = AppDatabase.createCatchupMigration(12, 17)
-            migration12To17.migrate(supportDb)
+            // Run migration from v12 to v18
+            val migration12To18 = AppDatabase.createCatchupMigration(12, 18)
+            migration12To18.migrate(supportDb)
 
             // Verify newly added columns
             assertTrue(AppDatabase.hasColumn(supportDb, "goals", "monthlyTargetAmount"))
             assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "loanTermMonths"))
+            assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "createdAt"))
             assertTrue(AppDatabase.hasColumn(supportDb, "categories", "isArchived"))
             assertTrue(AppDatabase.hasColumn(supportDb, "recurring_transactions", "transferAccountId"))
             assertTrue(AppDatabase.hasColumn(supportDb, "transactions", "linkedRecurringId"))
@@ -261,7 +263,7 @@ class RealDatabaseMigrationTest {
     }
 
     @Test
-    fun testRealDatabaseMigration_fromVersion16To17() {
+    fun testRealDatabaseMigration_fromVersion16To18() {
         val dbFile = File.createTempFile("test_real_db_v16_", ".db")
         dbFile.deleteOnExit()
 
@@ -273,9 +275,9 @@ class RealDatabaseMigrationTest {
 
             val supportDb = createJdbcSupportDatabase(conn)
 
-            // Run migration 16 to 17
-            val migration16To17 = AppDatabase.createCatchupMigration(16, 17)
-            migration16To17.migrate(supportDb)
+            // Run migration 16 to 18
+            val migration16To18 = AppDatabase.createCatchupMigration(16, 18)
+            migration16To18.migrate(supportDb)
 
             assertTrue(AppDatabase.hasColumn(supportDb, "goals", "monthlyTargetAmount"))
 
@@ -291,9 +293,9 @@ class RealDatabaseMigrationTest {
     }
 
     @Test
-    fun testAllSupportedMigrationVersions_fromEachVersionTo17() {
-        // Iterate through all supported versions (1..16) and verify migration to 17 on real SQLite databases
-        for (v in 1..16) {
+    fun testAllSupportedMigrationVersions_fromEachVersionTo18() {
+        // Iterate through all supported versions (1..17) and verify migration to 18 on real SQLite databases
+        for (v in 1..17) {
             val dbFile = File.createTempFile("test_real_db_v${v}_", ".db")
             dbFile.deleteOnExit()
 
@@ -306,9 +308,9 @@ class RealDatabaseMigrationTest {
                 }
 
                 val supportDb = createJdbcSupportDatabase(conn)
-                val migration = AppDatabase.createCatchupMigration(v, 17)
+                val migration = AppDatabase.createCatchupMigration(v, 18)
                 assertEquals(v, migration.startVersion)
-                assertEquals(17, migration.endVersion)
+                assertEquals(18, migration.endVersion)
 
                 // Execute migration
                 migration.migrate(supportDb)
@@ -316,6 +318,7 @@ class RealDatabaseMigrationTest {
                 // Assert migration outcome
                 assertTrue(AppDatabase.hasColumn(supportDb, "users", "hasCompletedOnboarding"))
                 assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "currencyCode"))
+                assertTrue(AppDatabase.hasColumn(supportDb, "accounts", "createdAt"))
                 assertTrue(AppDatabase.tableExists(supportDb, "goals"))
                 assertTrue(AppDatabase.tableExists(supportDb, "net_worth_snapshots"))
                 assertTrue(AppDatabase.tableExists(supportDb, "exchange_rates"))
@@ -349,7 +352,7 @@ class RealDatabaseMigrationTest {
             }
 
             val supportDb = createJdbcSupportDatabase(conn)
-            AppDatabase.createCatchupMigration(1, 17).migrate(supportDb)
+            AppDatabase.createCatchupMigration(1, 18).migrate(supportDb)
 
             // Read accounts back from the migrated real SQLite database
             val accountsList = mutableListOf<com.selfbudget.app.data.model.AccountEntity>()

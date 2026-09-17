@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
+import com.selfbudget.app.data.model.ActivityLogEntity
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.ExchangeRateEntity
@@ -24,7 +25,8 @@ import com.selfbudget.app.data.model.UserEntity
         AccountEntity::class,
         GoalEntity::class,
         NetWorthSnapshotEntity::class,
-        ExchangeRateEntity::class
+        ExchangeRateEntity::class,
+        ActivityLogEntity::class
     ],
     // v8: RecurringTransactionEntity dropped autoPostEnabled/lastPostedDate (auto-post feature
     // removed - see BillReminderWorker) and gained remainingOccurrences (finite recurring items).
@@ -44,7 +46,16 @@ import com.selfbudget.app.data.model.UserEntity
     // leaving it advanced to the following cycle - see MainViewModel.deleteTransaction.
     // v16: AccountEntity gained loanTermMonths for fixed-term amortized mortgages and loans.
     // v17: GoalEntity gained monthlyTargetAmount for monthly savings target pacing.
-    version = 17,
+    // v18: AccountEntity gained createdAt, so the net worth history graph stops retroactively
+    // applying a newly-added account's initialBalance to months before the account existed.
+    // v19: RecurringTransactionEntity gained createdAt, so the Activity feed can show a
+    // "recurring added" event without confusing it with nextDueDate (which advances every cycle).
+    // v20: CategoryEntity gained createdAt, so a user-created custom category can show up as a
+    // "category added" event in the Activity feed too.
+    // v21: New activity_log table records edit/delete/archive/contribution events against
+    // transactions, goals, recurring items, accounts, and categories — creation events don't need
+    // it since they're derived live from each entity's own createdAt.
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,6 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun goalDao(): GoalDao
     abstract fun netWorthDao(): NetWorthDao
     abstract fun exchangeRateDao(): ExchangeRateDao
+    abstract fun activityLogDao(): ActivityLogDao
 
     companion object {
         val DEFAULT_CATEGORIES = listOf(
@@ -130,6 +142,7 @@ abstract class AppDatabase : RoomDatabase() {
                     db.execSQL("CREATE TABLE IF NOT EXISTS `net_worth_snapshots` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `monthYear` TEXT NOT NULL, `totalAssets` REAL NOT NULL, `totalLiabilities` REAL NOT NULL, `netWorth` REAL NOT NULL, `capturedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
                     db.execSQL("CREATE TABLE IF NOT EXISTS `exchange_rates` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `fromCurrency` TEXT NOT NULL, `toCurrency` TEXT NOT NULL, `rate` REAL NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
                     db.execSQL("CREATE TABLE IF NOT EXISTS `goals` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `name` TEXT NOT NULL, `targetAmount` REAL NOT NULL, `targetDate` INTEGER, `colorHex` TEXT NOT NULL, `iconName` TEXT NOT NULL, `linkedAccountId` TEXT, `monthlyTargetAmount` REAL, `savedAmount` REAL NOT NULL DEFAULT 0.0, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                    db.execSQL("CREATE TABLE IF NOT EXISTS `activity_log` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `entityType` TEXT NOT NULL, `action` TEXT NOT NULL, `entityId` TEXT NOT NULL, `title` TEXT NOT NULL, `amount` REAL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`id`))")
 
                     // 2. Incremental column upgrades with explicit existence checks and safe defaults
                     safeAddColumn(db, "users", "hasCompletedOnboarding", "hasCompletedOnboarding INTEGER NOT NULL DEFAULT 0")
@@ -143,6 +156,7 @@ abstract class AppDatabase : RoomDatabase() {
                     safeAddColumn(db, "recurring_transactions", "transferAccountId", "transferAccountId TEXT DEFAULT NULL")
                     safeAddColumn(db, "recurring_transactions", "isArchived", "isArchived INTEGER NOT NULL DEFAULT 0")
                     safeAddColumn(db, "recurring_transactions", "paymentMethod", "paymentMethod TEXT DEFAULT 'Credit Card'")
+                    safeAddColumn(db, "recurring_transactions", "createdAt", "createdAt INTEGER NOT NULL DEFAULT 0")
 
                     safeAddColumn(db, "transactions", "linkedRecurringId", "linkedRecurringId TEXT DEFAULT NULL")
                     safeAddColumn(db, "transactions", "recurringCycleDueDate", "recurringCycleDueDate INTEGER DEFAULT NULL")
@@ -155,6 +169,7 @@ abstract class AppDatabase : RoomDatabase() {
                     safeAddColumn(db, "accounts", "interestRateApr", "interestRateApr REAL DEFAULT NULL")
                     safeAddColumn(db, "accounts", "minimumPayment", "minimumPayment REAL DEFAULT NULL")
                     safeAddColumn(db, "accounts", "currencyCode", "currencyCode TEXT NOT NULL DEFAULT 'USD'")
+                    safeAddColumn(db, "accounts", "createdAt", "createdAt INTEGER NOT NULL DEFAULT 0")
 
                     safeAddColumn(db, "goals", "savedAmount", "savedAmount REAL NOT NULL DEFAULT 0.0")
                     safeAddColumn(db, "goals", "monthlyTargetAmount", "monthlyTargetAmount REAL DEFAULT NULL")
@@ -165,6 +180,7 @@ abstract class AppDatabase : RoomDatabase() {
 
                     safeAddColumn(db, "categories", "isDefault", "isDefault INTEGER NOT NULL DEFAULT 0")
                     safeAddColumn(db, "categories", "isArchived", "isArchived INTEGER NOT NULL DEFAULT 0")
+                    safeAddColumn(db, "categories", "createdAt", "createdAt INTEGER NOT NULL DEFAULT 0")
 
                     // 3. Ensure indices and constraints are preserved
                     if (tableExists(db, "budgets")) {
@@ -174,7 +190,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS_ALL = (1 until 17).map { createCatchupMigration(it, 17) }.toTypedArray()
+        val MIGRATIONS_ALL = (1 until 21).map { createCatchupMigration(it, 21) }.toTypedArray()
 
         @Volatile
         private var INSTANCE: AppDatabase? = null

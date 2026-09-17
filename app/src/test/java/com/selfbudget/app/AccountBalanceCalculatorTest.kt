@@ -310,5 +310,64 @@ class AccountBalanceCalculatorTest {
         assertEquals(0.0, ccBalance, 0.001)       // -100.0 + 100.0 = 0.0
         assertEquals(400.0, checkingBalance, 0.001) // 500.0 - 100.0 = 400.0
     }
+
+    @Test
+    fun testHistoricalSnapshots_newAccountDoesNotInflatePastMonths() {
+        // Given: an old checking account that has existed (and been transacted on) for 3 months,
+        // dated using real historical timestamps rather than "now".
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.MONTH, -2)
+        val twoMonthsAgo = cal.timeInMillis
+
+        val oldAccount = AccountEntity(
+            id = "acc_old",
+            userId = "u1",
+            name = "Old Checking",
+            type = AccountType.CHECKING,
+            initialBalance = 1000.0,
+            createdAt = 0L // existed long before any month in this test
+        )
+        val oldTx = TransactionEntity(
+            userId = "u1",
+            title = "Paycheck",
+            amount = 200.0,
+            type = TransactionType.INCOME,
+            categoryId = "cat_salary",
+            accountId = "acc_old",
+            timestamp = twoMonthsAgo
+        )
+
+        // When: a brand new account with a large initial balance is added just now.
+        val newAccount = AccountEntity(
+            id = "acc_new",
+            userId = "u1",
+            name = "New Windfall Account",
+            type = AccountType.CHECKING,
+            initialBalance = 50000.0
+            // createdAt defaults to System.currentTimeMillis() - created "now"
+        )
+
+        val history = AccountBalanceCalculator.computeHistoricalSnapshots(
+            userId = "u1",
+            accounts = listOf(oldAccount, newAccount),
+            allTransactions = listOf(oldTx),
+            baseCurrency = "USD",
+            rates = emptyList()
+        )
+
+        val sdf = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault())
+        val twoMonthsAgoKey = sdf.format(java.util.Date(twoMonthsAgo))
+        val currentMonthKey = sdf.format(java.util.Date())
+
+        val pastSnapshot = history.first { it.monthYear == twoMonthsAgoKey }
+        val currentSnapshot = history.first { it.monthYear == currentMonthKey }
+
+        // Then: the new account's $50,000 initial balance must NOT be counted two months ago,
+        // since it didn't exist yet - only the old account's activity should show up.
+        assertEquals(1200.0, pastSnapshot.netWorth, 0.001) // 1000 + 200 paycheck
+
+        // But it must be counted in the current month, now that it exists.
+        assertEquals(51200.0, currentSnapshot.netWorth, 0.001) // 1200 + 50000
+    }
 }
 

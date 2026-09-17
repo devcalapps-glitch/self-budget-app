@@ -31,9 +31,16 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -66,7 +73,12 @@ import com.selfbudget.app.core.ui.components.SectionHeaderBand
 import com.selfbudget.app.core.ui.getExpenseCategoryGroup
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.ActivityAction
+import com.selfbudget.app.data.model.ActivityEntityType
+import com.selfbudget.app.data.model.ActivityLogEntity
 import com.selfbudget.app.data.model.CategoryEntity
+import com.selfbudget.app.data.model.GoalEntity
+import com.selfbudget.app.data.model.RecurringTransactionEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
 import com.selfbudget.app.ui.theme.Ramp
@@ -100,12 +112,99 @@ enum class SortOption(val label: String) {
     LOWEST_AMOUNT("Lowest amount")
 }
 
+private fun matchesDateRange(timestamp: Long, filter: DateRangeFilter): Boolean {
+    if (filter == DateRangeFilter.ALL) return true
+    val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val now = Calendar.getInstance()
+    return when (filter) {
+        DateRangeFilter.ALL -> true
+        DateRangeFilter.THIS_MONTH -> cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) && cal.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+        DateRangeFilter.LAST_MONTH -> {
+            val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+            cal.get(Calendar.YEAR) == lastMonthCal.get(Calendar.YEAR) && cal.get(Calendar.MONTH) == lastMonthCal.get(Calendar.MONTH)
+        }
+        DateRangeFilter.LAST_30_DAYS -> timestamp >= System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+        DateRangeFilter.THIS_YEAR -> cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)
+    }
+}
+
+private fun activityLogLabel(entry: ActivityLogEntity): String {
+    val subject = when (entry.entityType) {
+        ActivityEntityType.TRANSACTION -> "Transaction"
+        ActivityEntityType.GOAL -> "Goal"
+        ActivityEntityType.RECURRING -> "Recurring"
+        ActivityEntityType.ACCOUNT -> "Account"
+        ActivityEntityType.CATEGORY -> "Category"
+    }
+    return when (entry.action) {
+        ActivityAction.EDITED -> "$subject edited"
+        ActivityAction.DELETED -> "$subject deleted"
+        ActivityAction.ARCHIVED -> "$subject archived"
+        ActivityAction.RESTORED -> "$subject restored"
+        ActivityAction.CONTRIBUTED -> "Contributed to goal"
+    }
+}
+
+private fun activityLogIcon(action: ActivityAction): ImageVector = when (action) {
+    ActivityAction.DELETED -> Icons.Default.Delete
+    ActivityAction.EDITED -> Icons.Default.Edit
+    ActivityAction.ARCHIVED -> Icons.Default.Archive
+    ActivityAction.RESTORED -> Icons.Default.Unarchive
+    ActivityAction.CONTRIBUTED -> Icons.Default.Savings
+}
+
+private fun activityLogRamp(action: ActivityAction): Ramp = when (action) {
+    ActivityAction.DELETED -> Ramp.Red
+    ActivityAction.CONTRIBUTED, ActivityAction.RESTORED -> Ramp.Teal
+    ActivityAction.EDITED, ActivityAction.ARCHIVED -> Ramp.Gray
+}
+
+/** A row in the activity feed: a transaction, a goal/recurring/account/category creation event,
+ *  or a logged edit/delete/archive/contribution against one of those entities. */
+private sealed class ActivityEntry {
+    abstract val timestamp: Long
+    abstract val sortAmount: Double
+
+    data class Tx(val transaction: TransactionEntity) : ActivityEntry() {
+        override val timestamp get() = transaction.timestamp
+        override val sortAmount get() = transaction.amount
+    }
+
+    data class GoalCreated(val goal: GoalEntity) : ActivityEntry() {
+        override val timestamp get() = goal.createdAt
+        override val sortAmount get() = goal.targetAmount
+    }
+
+    data class RecurringAdded(val recurring: RecurringTransactionEntity) : ActivityEntry() {
+        override val timestamp get() = recurring.createdAt
+        override val sortAmount get() = recurring.amount
+    }
+
+    data class AccountAdded(val account: AccountEntity) : ActivityEntry() {
+        override val timestamp get() = account.createdAt
+        override val sortAmount get() = account.initialBalance
+    }
+
+    data class CategoryAdded(val category: CategoryEntity) : ActivityEntry() {
+        override val timestamp get() = category.createdAt
+        override val sortAmount get() = 0.0
+    }
+
+    data class LogEvent(val entry: ActivityLogEntity) : ActivityEntry() {
+        override val timestamp get() = entry.timestamp
+        override val sortAmount get() = entry.amount ?: 0.0
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     transactions: List<TransactionEntity>,
     categories: List<CategoryEntity>,
     accounts: List<AccountEntity> = emptyList(),
+    goals: List<GoalEntity> = emptyList(),
+    recurringTransactions: List<RecurringTransactionEntity> = emptyList(),
+    activityLog: List<ActivityLogEntity> = emptyList(),
     currencySymbol: String = "$",
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onEditTransaction: ((TransactionEntity) -> Unit)? = null,
@@ -149,16 +248,6 @@ fun SearchScreen(
         selectedAccountId,
         selectedDateRange
     ) {
-        val now = Calendar.getInstance()
-        val currentYear = now.get(Calendar.YEAR)
-        val currentMonth = now.get(Calendar.MONTH)
-
-        val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
-        val lastMonthYear = lastMonthCal.get(Calendar.YEAR)
-        val lastMonthMonth = lastMonthCal.get(Calendar.MONTH)
-
-        val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
-
         transactions.filter { tx ->
             val matchesQuery = searchQuery.isBlank() ||
                     tx.title.contains(searchQuery, ignoreCase = true) ||
@@ -168,26 +257,96 @@ fun SearchScreen(
             val matchesType = selectedTypeFilter == null || tx.type == selectedTypeFilter
             val matchesCategory = selectedCategoryId == null || tx.categoryId == selectedCategoryId
             val matchesAccount = selectedAccountId == null || tx.accountId == selectedAccountId || tx.transferAccountId == selectedAccountId
-
-            val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
-            val matchesDate = when (selectedDateRange) {
-                DateRangeFilter.ALL -> true
-                DateRangeFilter.THIS_MONTH -> txCal.get(Calendar.YEAR) == currentYear && txCal.get(Calendar.MONTH) == currentMonth
-                DateRangeFilter.LAST_MONTH -> txCal.get(Calendar.YEAR) == lastMonthYear && txCal.get(Calendar.MONTH) == lastMonthMonth
-                DateRangeFilter.LAST_30_DAYS -> tx.timestamp >= thirtyDaysAgo
-                DateRangeFilter.THIS_YEAR -> txCal.get(Calendar.YEAR) == currentYear
-            }
+            val matchesDate = matchesDateRange(tx.timestamp, selectedDateRange)
 
             matchesQuery && matchesType && matchesCategory && matchesAccount && matchesDate
         }
     }
 
-    val sortedTransactions = remember(filteredTransactions, selectedSortOption) {
+    // Goal-creation events only show up in the unfiltered "all types" view — a type filter
+    // (expense/income/transfer) implies the user only wants transactions.
+    val filteredGoals = remember(goals, searchQuery, selectedTypeFilter, selectedAccountId, selectedCategoryId, selectedDateRange) {
+        if (selectedTypeFilter != null || selectedAccountId != null || selectedCategoryId != null) {
+            emptyList()
+        } else {
+            goals.filter { goal ->
+                val matchesQuery = searchQuery.isBlank() || goal.name.contains(searchQuery, ignoreCase = true)
+                matchesQuery && matchesDateRange(goal.createdAt, selectedDateRange)
+            }
+        }
+    }
+
+    // Recurring items have a real type/category/account, so "added" events respect those
+    // filters the same way ordinary transactions do. createdAt == 0 means this row predates the
+    // column (backfilled by the schema migration, not a real creation time) — skip it rather than
+    // show a nonsense "added Dec 31, 1969" event.
+    val filteredRecurring = remember(recurringTransactions, searchQuery, selectedTypeFilter, selectedCategoryId, selectedAccountId, selectedDateRange) {
+        recurringTransactions.filter { rec ->
+            val matchesQuery = searchQuery.isBlank() ||
+                    rec.title.contains(searchQuery, ignoreCase = true) ||
+                    (rec.note?.contains(searchQuery, ignoreCase = true) == true)
+            val matchesType = selectedTypeFilter == null || rec.type == selectedTypeFilter
+            val matchesCategory = selectedCategoryId == null || rec.categoryId == selectedCategoryId
+            val matchesAccount = selectedAccountId == null || rec.accountId == selectedAccountId || rec.transferAccountId == selectedAccountId
+            rec.createdAt > 0 && matchesQuery && matchesType && matchesCategory && matchesAccount && matchesDateRange(rec.createdAt, selectedDateRange)
+        }
+    }
+
+    // Account-creation events have no transaction type/category, same reasoning as goals.
+    // Same createdAt == 0 backfill guard as recurring items above.
+    val filteredAccounts = remember(accounts, searchQuery, selectedTypeFilter, selectedCategoryId, selectedAccountId, selectedDateRange) {
+        if (selectedTypeFilter != null || selectedCategoryId != null) {
+            emptyList()
+        } else {
+            accounts.filter { acc ->
+                val matchesQuery = searchQuery.isBlank() || acc.name.contains(searchQuery, ignoreCase = true)
+                val matchesAccount = selectedAccountId == null || acc.id == selectedAccountId
+                acc.createdAt > 0 && matchesQuery && matchesAccount && matchesDateRange(acc.createdAt, selectedDateRange)
+            }
+        }
+    }
+
+    // Only user-created categories are activity-worthy — the built-in defaults are silently
+    // re-seeded on every app open (see DatabaseModule.onOpen) and would otherwise flood the feed.
+    // Same createdAt == 0 backfill guard as recurring items/accounts above.
+    val filteredCategories = remember(categories, searchQuery, selectedTypeFilter, selectedCategoryId, selectedAccountId, selectedDateRange) {
+        if (selectedAccountId != null) {
+            emptyList()
+        } else {
+            categories.filter { cat ->
+                val matchesQuery = searchQuery.isBlank() || cat.name.contains(searchQuery, ignoreCase = true)
+                val matchesType = selectedTypeFilter == null || cat.type == selectedTypeFilter
+                val matchesCategory = selectedCategoryId == null || cat.id == selectedCategoryId
+                !cat.isDefault && cat.createdAt > 0 && matchesQuery && matchesType && matchesCategory && matchesDateRange(cat.createdAt, selectedDateRange)
+            }
+        }
+    }
+
+    // Log entries are just a title/timestamp/amount snapshot — no category or account link is
+    // kept, so (like goals/accounts) they only surface in the unfiltered "all types" view.
+    val filteredLog = remember(activityLog, searchQuery, selectedTypeFilter, selectedCategoryId, selectedAccountId, selectedDateRange) {
+        if (selectedTypeFilter != null || selectedCategoryId != null || selectedAccountId != null) {
+            emptyList()
+        } else {
+            activityLog.filter { entry ->
+                val matchesQuery = searchQuery.isBlank() || entry.title.contains(searchQuery, ignoreCase = true)
+                matchesQuery && matchesDateRange(entry.timestamp, selectedDateRange)
+            }
+        }
+    }
+
+    val sortedEntries = remember(filteredTransactions, filteredGoals, filteredRecurring, filteredAccounts, filteredCategories, filteredLog, selectedSortOption) {
+        val entries: List<ActivityEntry> = filteredTransactions.map { ActivityEntry.Tx(it) } +
+                filteredGoals.map { ActivityEntry.GoalCreated(it) } +
+                filteredRecurring.map { ActivityEntry.RecurringAdded(it) } +
+                filteredAccounts.map { ActivityEntry.AccountAdded(it) } +
+                filteredCategories.map { ActivityEntry.CategoryAdded(it) } +
+                filteredLog.map { ActivityEntry.LogEvent(it) }
         when (selectedSortOption) {
-            SortOption.NEWEST -> filteredTransactions.sortedByDescending { it.timestamp }
-            SortOption.OLDEST -> filteredTransactions.sortedBy { it.timestamp }
-            SortOption.HIGHEST_AMOUNT -> filteredTransactions.sortedByDescending { it.amount }
-            SortOption.LOWEST_AMOUNT -> filteredTransactions.sortedBy { it.amount }
+            SortOption.NEWEST -> entries.sortedByDescending { it.timestamp }
+            SortOption.OLDEST -> entries.sortedBy { it.timestamp }
+            SortOption.HIGHEST_AMOUNT -> entries.sortedByDescending { it.sortAmount }
+            SortOption.LOWEST_AMOUNT -> entries.sortedBy { it.sortAmount }
         }
     }
 
@@ -330,10 +489,10 @@ fun SearchScreen(
                         totalFilteredIncome > 0 && totalFilteredExpense == 0.0 -> "+$currencySymbol%.2f".format(totalFilteredIncome)
                         totalFilteredExpense > 0 && totalFilteredIncome == 0.0 -> "-$currencySymbol%.2f".format(totalFilteredExpense)
                         totalFilteredIncome > 0 -> "+$currencySymbol%.2f / -$currencySymbol%.2f".format(totalFilteredIncome, totalFilteredExpense)
-                        else -> "${sortedTransactions.size} record${if (sortedTransactions.size != 1) "s" else ""}"
+                        else -> "${sortedEntries.size} record${if (sortedEntries.size != 1) "s" else ""}"
                     }
                 ) {
-                    if (sortedTransactions.isEmpty()) {
+                    if (sortedEntries.isEmpty()) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -356,75 +515,256 @@ fun SearchScreen(
                             )
                         }
                     } else {
-                        sortedTransactions.forEachIndexed { index, tx ->
-                            val category = categoryMap[tx.categoryId]
-                            val account = accountMap[tx.accountId]
-                            val isIncome = tx.type == TransactionType.INCOME
-                            val isTransfer = tx.type == TransactionType.TRANSFER
-                            val sym = if (account?.currencyCode?.isNotBlank() == true) Currencies.symbolFor(account.currencyCode) else currencySymbol
+                        sortedEntries.forEachIndexed { index, entry ->
+                            when (entry) {
+                                is ActivityEntry.Tx -> {
+                                    val tx = entry.transaction
+                                    val category = categoryMap[tx.categoryId]
+                                    val account = accountMap[tx.accountId]
+                                    val isIncome = tx.type == TransactionType.INCOME
+                                    val isTransfer = tx.type == TransactionType.TRANSFER
+                                    val sym = if (account?.currencyCode?.isNotBlank() == true) Currencies.symbolFor(account.currencyCode) else currencySymbol
 
-                            // Activity rows are colored by category identity, never by transaction sign (spec §10).
-                            val rowRamp = when {
-                                isTransfer -> Ramp.Gray
-                                isIncome -> Ramp.Teal
-                                category != null -> sectionRamp(getExpenseCategoryGroup(category))
-                                else -> Ramp.Gray
-                            }
-                            val icon = when {
-                                isTransfer -> Icons.Default.SwapHoriz
-                                category != null -> getCategoryIcon(category)
-                                isIncome -> Icons.Default.ArrowDownward
-                                else -> Icons.Default.ArrowUpward
-                            }
+                                    // Activity rows are colored by category identity, never by transaction sign (spec §10).
+                                    val rowRamp = when {
+                                        isTransfer -> Ramp.Gray
+                                        isIncome -> Ramp.Teal
+                                        category != null -> sectionRamp(getExpenseCategoryGroup(category))
+                                        else -> Ramp.Gray
+                                    }
+                                    val icon = when {
+                                        isTransfer -> Icons.Default.SwapHoriz
+                                        category != null -> getCategoryIcon(category)
+                                        isIncome -> Icons.Default.ArrowDownward
+                                        else -> Icons.Default.ArrowUpward
+                                    }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(if (onEditTransaction != null) Modifier.clickable { onEditTransaction(tx) } else Modifier)
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    RampIconTile(icon = icon, ramp = rowRamp, size = 36.dp, iconSize = 18.dp)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .then(if (onEditTransaction != null) Modifier.clickable { onEditTransaction(tx) } else Modifier)
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = icon, ramp = rowRamp, size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = tx.title,
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${category?.name ?: "General"}${if (account != null) " · ${account.name}" else ""} · ${dateFormat.format(Date(tx.timestamp))}",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                if (!tx.note.isNullOrBlank()) {
+                                                    Text(
+                                                        text = "Note: ${tx.note}",
+                                                        style = SelfBudgetType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Income reads Teal; transfers and ordinary expenses read neutral —
+                                        // red is reserved for over-limit, not ordinary spending (spec §10/§13).
+                                        val amountPrefix = if (isIncome) "+$sym" else if (isTransfer) sym else "-$sym"
+                                        val amountColor = if (isIncome) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurface
                                         Text(
-                                            text = tx.title,
+                                            text = "$amountPrefix%.2f".format(tx.amount),
                                             style = SelfBudgetType.rowTitle,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = amountColor
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${category?.name ?: "General"}${if (account != null) " · ${account.name}" else ""} · ${dateFormat.format(Date(tx.timestamp))}",
-                                            style = SelfBudgetType.meta,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        if (!tx.note.isNullOrBlank()) {
-                                            Text(
-                                                text = "Note: ${tx.note}",
-                                                style = SelfBudgetType.meta,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                    }
+                                }
+
+                                is ActivityEntry.GoalCreated -> {
+                                    val goal = entry.goal
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = Icons.Default.Savings, ramp = Ramp.Purple, size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Goal created: ${goal.name}",
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "Target $currencySymbol%.2f · ${dateFormat.format(Date(goal.createdAt))}".format(goal.targetAmount),
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
                                     }
                                 }
 
-                                // Income reads Teal; transfers and ordinary expenses read neutral —
-                                // red is reserved for over-limit, not ordinary spending (spec §10/§13).
-                                val amountPrefix = if (isIncome) "+$sym" else if (isTransfer) sym else "-$sym"
-                                val amountColor = if (isIncome) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurface
-                                Text(
-                                    text = "$amountPrefix%.2f".format(tx.amount),
-                                    style = SelfBudgetType.rowTitle,
-                                    color = amountColor
-                                )
+                                is ActivityEntry.RecurringAdded -> {
+                                    val rec = entry.recurring
+                                    val category = categoryMap[rec.categoryId]
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = Icons.Default.Repeat, ramp = Ramp.Purple, size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Recurring added: ${rec.title}",
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${category?.name ?: "General"} · ${rec.frequency.name.lowercase().replaceFirstChar { it.uppercase() }} · ${dateFormat.format(Date(rec.createdAt))}",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "$currencySymbol%.2f".format(rec.amount),
+                                            style = SelfBudgetType.rowTitle,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+
+                                is ActivityEntry.AccountAdded -> {
+                                    val account = entry.account
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = Icons.Default.AccountBalanceWallet, ramp = Ramp.Purple, size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Account added: ${account.name}",
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${account.type.name.lowercase().replaceFirstChar { it.uppercase() }} · ${dateFormat.format(Date(account.createdAt))}",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                is ActivityEntry.CategoryAdded -> {
+                                    val category = entry.category
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = getCategoryIcon(category), ramp = sectionRamp(getExpenseCategoryGroup(category)), size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Category added: ${category.name}",
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${category.type.name.lowercase().replaceFirstChar { it.uppercase() }} · ${dateFormat.format(Date(category.createdAt))}",
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                is ActivityEntry.LogEvent -> {
+                                    val logEntry = entry.entry
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            RampIconTile(icon = activityLogIcon(logEntry.action), ramp = activityLogRamp(logEntry.action), size = 36.dp, iconSize = 18.dp)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "${activityLogLabel(logEntry)}: ${logEntry.title}",
+                                                    style = SelfBudgetType.rowTitle,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = dateFormat.format(Date(logEntry.timestamp)),
+                                                    style = SelfBudgetType.meta,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        if (logEntry.amount != null) {
+                                            val isContribution = logEntry.action == ActivityAction.CONTRIBUTED
+                                            Text(
+                                                text = "${if (isContribution) "+$currencySymbol" else currencySymbol}%.2f".format(logEntry.amount),
+                                                style = SelfBudgetType.rowTitle,
+                                                color = if (isContribution) Ramp.Teal.secondaryText(isDark) else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
-                            if (index < sortedTransactions.lastIndex) {
+                            if (index < sortedEntries.lastIndex) {
                                 HorizontalDivider(
                                     color = MaterialTheme.colorScheme.outlineVariant,
                                     thickness = 0.5.dp,
@@ -570,7 +910,7 @@ fun SearchScreen(
                         )
 
                         PrimaryPillButton(
-                            text = "Show ${sortedTransactions.size} transaction${if (sortedTransactions.size != 1) "s" else ""}",
+                            text = "Show ${sortedEntries.size} record${if (sortedEntries.size != 1) "s" else ""}",
                             onClick = { showFilterModal = false },
                             modifier = Modifier
                                 .weight(1.5f)

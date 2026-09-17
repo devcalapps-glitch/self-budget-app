@@ -1,31 +1,38 @@
 package com.selfbudget.app.feature.onboarding
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,7 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.selfbudget.app.core.ui.AppLogoBadge
@@ -49,7 +56,8 @@ import com.selfbudget.app.ui.theme.ProgressTrackDark
 import com.selfbudget.app.ui.theme.ProgressTrackLight
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
-import com.selfbudget.app.ui.theme.ShapeChip
+import com.selfbudget.app.ui.theme.ShapeCard
+import com.selfbudget.app.ui.theme.ShapePill
 import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
@@ -72,40 +80,34 @@ fun detectSystemCurrencySymbol(): String {
     }
 }
 
+/** A single onboarding choice: a Material icon paired with its label. */
+private data class OnboardingOption(val icon: ImageVector, val title: String)
+
 @Composable
 fun OnboardingQuestionnaireScreen(
     onComplete: (preferredCurrency: String, primaryGoal: String, referralSource: String) -> Unit
 ) {
+    // Currency is auto-detected from the device locale and applied silently —
+    // it's still changeable anytime from Settings, so onboarding doesn't ask.
     val autoDetectedCurrency = remember { detectSystemCurrencySymbol() }
 
     var currentStep by remember { mutableIntStateOf(1) }
-    var selectedGoal by remember { mutableStateOf("Track daily expenses & control spending") }
-    var selectedCurrency by remember { mutableStateOf(autoDetectedCurrency) }
-    var selectedReferral by remember { mutableStateOf("App Store Search") }
+    var selectedGoal by remember { mutableStateOf<String?>(null) }
+    var selectedReferral by remember { mutableStateOf<String?>(null) }
 
     val goals = listOf(
-        Pair("🎯 Track daily expenses & control spending", "Monitor transactions and eliminate unnecessary expenses."),
-        Pair("💰 Build savings & emergency fund", "Set aside money monthly for unexpected financial needs."),
-        Pair("💳 Pay off credit cards & debt", "Organize card balances and systematically reduce liabilities."),
-        Pair("📊 Plan monthly budget & manage bills", "Allocate income to categories and never miss due dates.")
-    )
-
-    val currencies = listOf(
-        Pair("$", "USD ($) - US Dollar"),
-        Pair("€", "EUR (€) - Euro"),
-        Pair("£", "GBP (£) - British Pound"),
-        Pair("₹", "INR (₹) - Indian Rupee"),
-        Pair("C$", "CAD ($) - Canadian Dollar"),
-        Pair("A$", "AUD ($) - Australian Dollar"),
-        Pair("¥", "JPY (¥) - Japanese Yen")
+        OnboardingOption(Icons.Default.PieChart, "Track & control my spending"),
+        OnboardingOption(Icons.Default.Savings, "Grow my savings"),
+        OnboardingOption(Icons.Default.CreditCard, "Pay off my debt"),
+        OnboardingOption(Icons.Default.CalendarMonth, "Master my monthly budget")
     )
 
     val referralSources = listOf(
-        Pair("📱 Social Media", "Instagram, TikTok, Reddit, or X"),
-        Pair("👥 Friend or Family", "Word of mouth recommendation"),
-        Pair("🔍 App Store Search", "Discovered on Google Play / App Store"),
-        Pair("📰 Blog / Article / YouTube", "Financial review or YouTube video"),
-        Pair("📌 Other", "Other referral source")
+        OnboardingOption(Icons.Default.Public, "Social media"),
+        OnboardingOption(Icons.Default.Groups, "A friend or family member"),
+        OnboardingOption(Icons.Default.Search, "Searched the app store"),
+        OnboardingOption(Icons.Default.SmartDisplay, "An article or YouTube video"),
+        OnboardingOption(Icons.Default.MoreHoriz, "Something else")
     )
 
     val isDark = isAppInDarkTheme()
@@ -129,21 +131,31 @@ fun OnboardingQuestionnaireScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppLogoBadge(size = 44.dp)
-                NeutralBadge(text = "Step $currentStep of 3")
+                NeutralBadge(text = "Step $currentStep of 2")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Step Progress Bar
-            LinearProgressIndicator(
-                progress = { currentStep / 3.0f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(ShapeChip),
-                color = getProgressBarColor(),
-                trackColor = if (isDark) ProgressTrackDark else ProgressTrackLight
-            )
+            // Segmented step progress: one pill per step, filled as the user advances.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                repeat(2) { index ->
+                    val isFilled = index < currentStep
+                    val segmentColor by animateColorAsState(
+                        targetValue = if (isFilled) getProgressBarColor() else if (isDark) ProgressTrackDark else ProgressTrackLight,
+                        label = "stepSegment${index + 1}"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(ShapePill)
+                            .background(segmentColor)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -161,13 +173,7 @@ fun OnboardingQuestionnaireScreen(
                         selectedGoal = selectedGoal,
                         onSelectGoal = { selectedGoal = it }
                     )
-                    2 -> StepCurrencySetup(
-                        currencies = currencies,
-                        selectedCurrency = selectedCurrency,
-                        autoDetectedCurrency = autoDetectedCurrency,
-                        onSelectCurrency = { selectedCurrency = it }
-                    )
-                    3 -> StepReferralSource(
+                    2 -> StepReferralSource(
                         referrals = referralSources,
                         selectedReferral = selectedReferral,
                         onSelectReferral = { selectedReferral = it }
@@ -193,13 +199,20 @@ fun OnboardingQuestionnaireScreen(
                     )
                 }
 
+                val canContinue = if (currentStep == 1) selectedGoal != null else selectedReferral != null
+
                 PrimaryPillButton(
-                    text = if (currentStep == 3) "Complete setup" else "Continue",
+                    text = if (currentStep == 2) "Complete setup" else "Continue",
+                    enabled = canContinue,
                     onClick = {
-                        if (currentStep < 3) {
+                        if (currentStep < 2) {
                             currentStep += 1
                         } else {
-                            onComplete(selectedCurrency, selectedGoal, selectedReferral)
+                            val goal = selectedGoal
+                            val referral = selectedReferral
+                            if (goal != null && referral != null) {
+                                onComplete(autoDetectedCurrency, goal, referral)
+                            }
                         }
                     },
                     modifier = Modifier
@@ -211,221 +224,157 @@ fun OnboardingQuestionnaireScreen(
     }
 }
 
-/** A single-select option row shared by all onboarding steps (spec §20: Teal selected state). */
+/**
+ * A single-select square tile shared by all onboarding steps: centered icon
+ * badge over a title, with a teal tint + border + checkmark when selected.
+ */
 @Composable
-private fun SelectableOptionRow(
+private fun SelectableOptionTile(
+    icon: ImageVector,
     title: String,
-    subtitle: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val isDark = isAppInDarkTheme()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ShapeChip)
-            .clickable { onClick() }
-            .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = SelfBudgetType.rowTitle,
-                color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                text = subtitle,
-                style = SelfBudgetType.meta,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) Ramp.Teal.tintFill(isDark) else MaterialTheme.colorScheme.surface,
+        label = "optionTileContainer"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.outlineVariant,
+        label = "optionTileBorder"
+    )
 
-        if (isSelected) {
-            Spacer(modifier = Modifier.width(12.dp))
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = "Selected",
-                tint = Ramp.Teal.titleText(isDark),
-                modifier = Modifier.size(24.dp)
-            )
+    Surface(
+        onClick = onClick,
+        shape = ShapeCard,
+        color = containerColor,
+        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, borderColor),
+        modifier = modifier.aspectRatio(1f)
+    ) {
+        Box(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = Ramp.Teal.titleText(isDark),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(20.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = title,
+                    style = SelfBudgetType.rowTitle,
+                    color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3
+                )
+            }
+        }
+    }
+}
+
+/** Lays [items] out as square tiles in a 2-column grid, keeping the last odd tile half-width. */
+@Composable
+private fun OptionTileGrid(
+    items: List<OnboardingOption>,
+    selectedTitle: String?,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowItems.forEach { option ->
+                    SelectableOptionTile(
+                        icon = option.icon,
+                        title = option.title,
+                        isSelected = selectedTitle == option.title,
+                        onClick = { onSelect(option.title) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun StepPrimaryGoal(
-    goals: List<Pair<String, String>>,
-    selectedGoal: String,
+    goals: List<OnboardingOption>,
+    selectedGoal: String?,
     onSelectGoal: (String) -> Unit
 ) {
     Column {
         Text(
-            text = "Welcome to Self Budget",
+            text = "Let's tailor Self Budget to you",
             style = SelfBudgetType.title,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "What is your primary financial focus right now?",
+            text = "Choose the focus that matters most to you right now — we'll shape your experience around it.",
             style = SelfBudgetType.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        goals.forEachIndexed { index, (title, subtitle) ->
-            SelectableOptionRow(title, subtitle, selectedGoal == title) { onSelectGoal(title) }
-            if (index < goals.size - 1) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StepCurrencySetup(
-    currencies: List<Pair<String, String>>,
-    selectedCurrency: String,
-    autoDetectedCurrency: String,
-    onSelectCurrency: (String) -> Unit
-) {
-    val isDark = isAppInDarkTheme()
-    Column {
-        Text(
-            text = "Set your primary currency",
-            style = SelfBudgetType.title,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "Select your base currency for accounts, budgets, and net worth reports.",
-            style = SelfBudgetType.body,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Auto-detected region notice (spec §12: neutral gray, not a warning tint)
-        Surface(
-            shape = ShapeChip,
-            color = Ramp.Gray.tintFill(isDark)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "System region auto-detected: $autoDetectedCurrency. Tap to change below.",
-                    style = SelfBudgetType.meta,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        currencies.forEachIndexed { index, (symbol, label) ->
-            val isSelected = selectedCurrency == symbol
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(ShapeChip)
-                    .clickable { onSelectCurrency(symbol) }
-                    .background(if (isSelected) Ramp.Teal.tintFill(isDark) else Color.Transparent)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isSelected) Ramp.Teal.solidFill(isDark) else Ramp.Gray.tintFill(isDark),
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = symbol,
-                                style = SelfBudgetType.rowTitle,
-                                color = if (isSelected) Ramp.Teal.onSolidFill(isDark) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Text(
-                        text = label,
-                        style = SelfBudgetType.rowTitle,
-                        color = if (isSelected) Ramp.Teal.titleText(isDark) else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Selected",
-                        tint = Ramp.Teal.titleText(isDark),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            if (index < currencies.size - 1) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-        }
+        OptionTileGrid(items = goals, selectedTitle = selectedGoal, onSelect = onSelectGoal)
     }
 }
 
 @Composable
 private fun StepReferralSource(
-    referrals: List<Pair<String, String>>,
-    selectedReferral: String,
+    referrals: List<OnboardingOption>,
+    selectedReferral: String?,
     onSelectReferral: (String) -> Unit
 ) {
     Column {
         Text(
-            text = "One last quick question",
+            text = "Just one more thing",
             style = SelfBudgetType.title,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "How did you hear about Self Budget?",
+            text = "Tell us how you found Self Budget — it helps us keep improving.",
             style = SelfBudgetType.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        referrals.forEachIndexed { index, (title, subtitle) ->
-            SelectableOptionRow(title, subtitle, selectedReferral == title) { onSelectReferral(title) }
-            if (index < referrals.size - 1) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-        }
+        OptionTileGrid(items = referrals, selectedTitle = selectedReferral, onSelect = onSelectReferral)
     }
 }

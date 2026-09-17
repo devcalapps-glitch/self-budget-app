@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.ActivityLogEntity
 import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.ExchangeRateEntity
@@ -205,6 +206,18 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets WHERE userId = :userId OR userId = 'system'")
     suspend fun deleteAllBudgets(userId: String)
+}
+
+@Dao
+interface ActivityLogDao {
+    @Query("SELECT * FROM activity_log WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getActivityLogByUser(userId: String): Flow<List<ActivityLogEntity>>
+
+    @Insert
+    suspend fun insertActivityLog(entry: ActivityLogEntity)
+
+    @Query("DELETE FROM activity_log WHERE userId = :userId")
+    suspend fun deleteAllActivityLog(userId: String)
 }
 
 @Dao
