@@ -80,6 +80,11 @@ The testing suite consists of unit tests written with JUnit 4 and Kotlin Corouti
 - **Feb 28/29/30/31 Clamping**: Verifies monthly recurrence handling for February leap years (Feb 29) and non-leap years (Feb 28).
 - **Crash & Restart Idempotency**: Verifies recurring scheduler checks `lastPostedDate` to remain 100% idempotent after background worker or app crashes.
 
+### 🗄️ `DatabaseMigrationTest.kt` & `RealDatabaseMigrationTest.kt` (Room Schema Migration Suite)
+- **Catchup Migration Suite Coverage (v1..21 $\rightarrow$ v22)**: Verifies 21 migration paths from every historical schema version (1 through 21) directly up to version 22 with 100% table and column structure preservation.
+- **Composite Index Integrity**: Validates that all composite and foreign-key performance indices (`(userId, timestamp)`, `accountId`, `categoryId`) are safely generated without data corruption.
+- **Entity Preservation**: Asserts zero data loss across users, accounts, transactions, budgets, recurring items, goals, categories, exchange rates, and net worth history during upgrades.
+
 ---
 
 ## 3. Running the Tests

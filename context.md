@@ -10,7 +10,7 @@
 ## 2. Core Goals & Objectives
 - **Seamless Authentication**: Fast and secure Google Sign-In using Android Credential Manager API / Firebase Auth. The ID token is used only for the duration of sign-in and is never written to the local database.
 - **Zero-Cost Automated Cloud & File Backup**: Schema-versioned, cent-safe JSON serialization engine (`SyncDataPayload.kt`) backed by `CloudSyncManager.kt`, `GoogleDriveSyncManager.kt`, and `GoogleDriveSyncWorker.kt`. Automatically backs up database snapshots to the user's hidden Google Drive `appDataFolder` once every 24 hours under low-impact battery/network constraints at $0.00 developer infrastructure cost, alongside manual JSON/CSV/Excel exports.
-- **Offline-First & Fast UX**: Local storage (Room DB v12 with Kotlin Flow) for immediate response times.
+- **Offline-First & Fast UX**: Local storage (Room DB v22 with composite indices and Kotlin Flow) for immediate response times.
 - **Multi-Account & Wallet Support**: Live balance tracking for Checking, Credit Cards, Cash Wallets, Savings, Loans, and Custom Accounts, computed from each account's starting balance plus its actual income/expense/transfer history — not a static number.
 - **Account Transfers**: Move money between the user's own accounts without it being miscounted as income or expense. Smart credit card/loan payoff payments deduct from source account and simultaneously reduce debt balance on target liability account.
 - **Single System Default Currency Source of Truth**: All screens, account dialogs, budget cards, and transaction forms inherit the user's system default currency configured in Settings without label clutter.
@@ -31,7 +31,7 @@
 - **Top-Right Profile & Settings Avatar**: Settings and Profile controls are housed behind a top-right circular user initial badge avatar in the TopAppBar, opening a full-screen `Profile & Settings` modal sheet and keeping the bottom bar 100% focused on core financial management.
 - **Consistent 5-Panel Navigation Bar**: Streamlined 5 tabs for active financial tracking: `Home` 🏠 (Dashboard summary), `Plan` 🎯 (Category budgets & rollover `BudgetScreen.kt`), `Recurring` 🔄 (Bills calendar & paychecks `RecurringScreen.kt`), `Analytics` 📊 (Spending charts & net worth trends `AnalyticsScreen.kt`), and `Activity` 📜 (Search & line-item feed `SearchScreen.kt`).
 - **Theme & Appearance Customization**: Full support for System Default ⚙️, Light ☀️, and high-contrast Dark 🌙 mode (WCAG AAA compliant).
-- **Modern Android Stack**: Built with Kotlin, Jetpack Compose, Material 3, Clean Architecture, Hilt DI, and Room DB (Schema v12).
+- **Modern Android Stack**: Built with Kotlin, Jetpack Compose, Material 3, Clean Architecture, Hilt DI, and Room DB (Schema v22 with composite indices).
 
 ---
 
@@ -90,6 +90,13 @@
 - **Savings Goals**: Create a named goal with a target amount, strictly linked to asset accounts (Checking, Savings, Cash, Investment); progress is that account's live balance vs target.
 - **Net Worth History Modal**: Full-screen overlay `NetWorthHistoryModal` rendering live net worth hero card, assets vs liabilities split cards, and month-by-month trend log table.
 
+### 3.9 High-Scale Performance & Virtualization
+- **Room Database Composite Indices**: Composite indices on `(userId, timestamp)` for transactions and activity logs, plus `accountId` and `categoryId` indices on transactions, preventing full table scans on large databases.
+- **Activity Log Pruning**: Auto-prunes audit logs on insert to retain a maximum of 1,000 recent records per user, preventing storage and sync payload inflation.
+- **Integer Timestamp Range Filtering**: Evaluates monthly transactions via primitive 64-bit millisecond ranges (`timestamp in start..end`), eliminating thousands of string allocations per second.
+- **Linear-Time Net Worth Snapshots**: Chronologically sorted single-pass timeline iteration ($O(N \log N + M \times A)$) eliminating previous nested loops.
+- **Lazy List Row Recycling**: `SearchScreen` feeds entries through `itemsIndexed` with unique keys, virtualizing row rendering to maintain constant memory usage and 60/120 FPS frame rates.
+
 ---
 
 ## 4. Architecture & Tech Stack
@@ -100,7 +107,7 @@
 | **UI Framework** | Jetpack Compose with Material 3 (MD3) |
 | **Architecture** | Clean Architecture + MVVM / Unidirectional Data Flow (UDF) |
 | **Dependency Injection** | Hilt |
-| **Local Database** | Room DB (Schema v12) + Kotlin Flow |
+| **Local Database** | Room DB (Schema v22 with Composite Indices & Catchup Migrations) + Kotlin Flow |
 | **Cloud Backup & Sync** | `GoogleDriveSyncManager` (Google Drive REST API v3 `appDataFolder`), `GoogleDriveSyncWorker` (Android Jetpack WorkManager 24h periodic sync) |
 | **File Backup & Serialization** | `CloudSyncManager` + Gson cent-safe JSON serialization engine (`SyncDataPayload`), `ExcelExporter`, `DataImporter` |
 | **Money Math** | `Money` utility — `BigDecimal.valueOf`-backed cent rounding for every sum/multiply, avoiding raw `Double` floating-point drift |
@@ -114,6 +121,6 @@
 ---
 
 ## 5. Known Limitations (Deliberately Out of Scope)
-- **Automatic Destructive Fallback Migration**: Room uses fallback migration to version 12 to handle entity updates smoothly without manual SQL scripts.
+- **Catchup Schema Migrations**: Non-destructive SQL migrations preserve user data across schema updates up to version 22 without data loss.
 - **Zero Third-Party Developer Cloud**: Cloud backups use the user's personal Google Drive storage directly (`appDataFolder`) — there are no intermediate developer-hosted databases, user profiles, or backend servers.
 - **No live FX rates**: Multi-currency conversion relies on exchange rates entered by hand in Settings — there is no background job or API call fetching current rates.

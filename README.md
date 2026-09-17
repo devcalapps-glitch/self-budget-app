@@ -55,7 +55,7 @@
 | **UI Framework** | Jetpack Compose (Material 3), Compose Navigation |
 | **Architecture** | Model-View-ViewModel (MVVM) + Clean Architecture |
 | **Dependency Injection** | Hilt (Dagger 2) |
-| **Database & Persistence** | Room Database (SQLite), Gson Serialization |
+| **Database & Persistence** | Room Database (SQLite Schema v22 with Composite Indices), Gson Serialization |
 | **Asynchronous State** | Kotlin Coroutines, `StateFlow`, `SharedFlow` |
 | **Auth & Cloud Sync** | Google Credential Manager, Google Drive REST API (`appDataFolder`), Android WorkManager (`GoogleDriveSyncWorker`) |
 | **Machine Learning** | Google ML Kit Vision (Text Recognition) |
@@ -98,7 +98,7 @@ self-budget-app/
 
 ## 🧪 Testing & Verification
 
-The codebase includes an automated unit test suite covering core financial calculations, safe-to-spend logic, cash flow equations, recurring frequency normalizations, and multi-month rollover chaining.
+The codebase includes an automated unit test suite (159+ tests) covering core financial calculations, safe-to-spend logic, cash flow equations, recurring frequency normalizations, database catchup migrations, and multi-month rollover chaining.
 
 ### Running Unit Tests
 ```bash
