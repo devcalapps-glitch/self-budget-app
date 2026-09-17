@@ -82,7 +82,14 @@ data class AccountEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [
+        Index(value = ["userId", "timestamp"]),
+        Index(value = ["accountId"]),
+        Index(value = ["categoryId"])
+    ]
+)
 data class TransactionEntity(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
@@ -242,7 +249,12 @@ data class ExchangeRateEntity(
 // createdAt instead (see SearchScreen's Activity feed), since those don't need a durable log.
 // title/amount are a snapshot taken at the time of the action, since a delete removes the row
 // the event refers to and an edit overwrites it in place.
-@Entity(tableName = "activity_log")
+@Entity(
+    tableName = "activity_log",
+    indices = [
+        Index(value = ["userId", "timestamp"])
+    ]
+)
 data class ActivityLogEntity(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),

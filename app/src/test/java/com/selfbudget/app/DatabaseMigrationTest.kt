@@ -24,12 +24,12 @@ class DatabaseMigrationTest {
     @Test
     fun testMigrationSuiteArrayCoverage() {
         val migrations = AppDatabase.MIGRATIONS_ALL
-        assertEquals(20, migrations.size) // 1..20 to 21
+        assertEquals(21, migrations.size) // 1..21 to 22
 
-        for (i in 1..20) {
+        for (i in 1..21) {
             val migration = migrations[i - 1]
             assertEquals(i, migration.startVersion)
-            assertEquals(21, migration.endVersion)
+            assertEquals(22, migration.endVersion)
         }
     }
 

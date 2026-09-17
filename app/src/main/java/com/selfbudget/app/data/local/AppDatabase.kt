@@ -55,7 +55,9 @@ import com.selfbudget.app.data.model.UserEntity
     // v21: New activity_log table records edit/delete/archive/contribution events against
     // transactions, goals, recurring items, accounts, and categories — creation events don't need
     // it since they're derived live from each entity's own createdAt.
-    version = 21,
+    // v22: Added high-performance SQLite indices on transactions (userId+timestamp, accountId, categoryId)
+    // and activity_log (userId+timestamp) to eliminate full-table scans at scale.
+    version = 22,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -186,11 +188,19 @@ abstract class AppDatabase : RoomDatabase() {
                     if (tableExists(db, "budgets")) {
                         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_userId_categoryId_monthYear` ON `budgets` (`userId`, `categoryId`, `monthYear`)")
                     }
+                    if (tableExists(db, "transactions")) {
+                        db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_userId_timestamp` ON `transactions` (`userId`, `timestamp`)")
+                        db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `transactions` (`accountId`)")
+                        db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
+                    }
+                    if (tableExists(db, "activity_log")) {
+                        db.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_log_userId_timestamp` ON `activity_log` (`userId`, `timestamp`)")
+                    }
                 }
             }
         }
 
-        val MIGRATIONS_ALL = (1 until 21).map { createCatchupMigration(it, 21) }.toTypedArray()
+        val MIGRATIONS_ALL = (1 until 22).map { createCatchupMigration(it, 22) }.toTypedArray()
 
         @Volatile
         private var INSTANCE: AppDatabase? = null

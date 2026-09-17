@@ -197,5 +197,6 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun logActivity(entry: ActivityLogEntity) {
         activityLogDao.insertActivityLog(entry)
+        activityLogDao.pruneActivityLog(entry.userId, 1000)
     }
 }

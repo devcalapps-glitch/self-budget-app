@@ -216,6 +216,9 @@ interface ActivityLogDao {
     @Insert
     suspend fun insertActivityLog(entry: ActivityLogEntity)
 
+    @Query("DELETE FROM activity_log WHERE userId = :userId AND id NOT IN (SELECT id FROM activity_log WHERE userId = :userId ORDER BY timestamp DESC LIMIT :keepCount)")
+    suspend fun pruneActivityLog(userId: String, keepCount: Int = 1000)
+
     @Query("DELETE FROM activity_log WHERE userId = :userId")
     suspend fun deleteAllActivityLog(userId: String)
 }

@@ -150,14 +150,11 @@ class MainViewModel @Inject constructor(
                     }.map { extra -> Triple(base, extra, selectedMonth) }
                 }
             }.map { (base, extra, selectedMonth) ->
-                val formatter = SimpleDateFormat("yyyy-MM", Locale.getDefault())
-                val monthTxs = base.txs.filter {
-                    formatter.format(Date(it.timestamp)) == selectedMonth
-                }
+                val (startCurrent, endCurrent) = AccountBalanceCalculator.getMonthTimestampRange(selectedMonth)
+                val monthTxs = base.txs.filter { it.timestamp in startCurrent..endCurrent }
                 val previousMonth = shiftMonth(selectedMonth, -1)
-                val previousMonthTxs = base.txs.filter {
-                    formatter.format(Date(it.timestamp)) == previousMonth
-                }
+                val (startPrev, endPrev) = AccountBalanceCalculator.getMonthTimestampRange(previousMonth)
+                val previousMonthTxs = base.txs.filter { it.timestamp in startPrev..endPrev }
 
                 val currentMonthBudgets = BudgetCalculator.computeBudgetsForMonth(base.allBudgets, selectedMonth)
                 val previousMonthBudgets = BudgetCalculator.computeBudgetsForMonth(base.allBudgets, previousMonth)
