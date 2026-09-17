@@ -18,9 +18,11 @@
 * **Daily Pace Safeguard**: Zero-floored daily spending pace tracker ($\max(0.0, \, \text{Remaining Budget} / \text{Remaining Days})$).
 
 ### 3. ☁️ Automated Google Drive Cloud Sync & Offline Backups
-* **Private Sandbox Cloud Sync**: Automated background sync directly to your personal Google Drive private `appDataFolder` (`self_budget_cloud_backup.json`).
+* **Private Sandbox Cloud Sync**: Automated background sync directly to your personal Google Drive private `appDataFolder` (`self_budget_cloud_backup.json`) via Google Drive REST API.
+* **Automated 24-Hour Background Worker**: Android Jetpack WorkManager (`GoogleDriveSyncWorker`) executes silent daily backups under battery-safe and network-connected constraints.
 * **Zero Cost & High Privacy**: Uses the user's personal Google storage quota ($0.00 cloud server cost to developer). Data is hidden from third-party apps and standard Drive views.
-* **Offline Share Sheet Export**: Cent-safe JSON export/import via Android Share Sheet and Storage Access Framework document picker.
+* **Persistent Status & User Control**: Enabled by default with an instant in-app toggle switch in Settings, persistent `"Last cloud backup"` timestamp across restarts, and full session cleanup upon sign-out.
+* **Multi-Format Export & Import**: Cent-safe JSON backup/restore, multi-tab Excel (`.xlsx`) export/import, and CSV export/import via Android Share Sheet and Storage Access Framework.
 
 ### 4. 💳 Net Worth, Accounts & Wallet Management
 * **Signed Asset & Debt Balancing**: Accurately tracks checking, savings, cash, investments, retirement accounts (e.g. 401(k), IRA), credit card debts, and loan balances. Purchases increase liability debt, while payments reduce debt and adjust net worth.
@@ -55,7 +57,7 @@
 | **Dependency Injection** | Hilt (Dagger 2) |
 | **Database & Persistence** | Room Database (SQLite), Gson Serialization |
 | **Asynchronous State** | Kotlin Coroutines, `StateFlow`, `SharedFlow` |
-| **Auth & Cloud Sync** | Google Credential Manager, Google Drive REST API (`appDataFolder`) |
+| **Auth & Cloud Sync** | Google Credential Manager, Google Drive REST API (`appDataFolder`), Android WorkManager (`GoogleDriveSyncWorker`) |
 | **Machine Learning** | Google ML Kit Vision (Text Recognition) |
 | **Build Tooling** | Gradle 9.3 (AGP 8.8), KSP (Kotlin Symbol Processing) |
 

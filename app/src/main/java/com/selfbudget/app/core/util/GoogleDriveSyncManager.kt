@@ -40,6 +40,39 @@ object GoogleDriveSyncManager {
     private const val BACKUP_FILE_NAME = "self_budget_cloud_backup.json"
     private val SCOPES = Collections.singletonList(DriveScopes.DRIVE_APPDATA)
 
+    private const val PREFS_NAME = "google_drive_sync_prefs"
+    private const val KEY_AUTO_SYNC_ENABLED = "daily_auto_sync_enabled"
+    private const val KEY_LAST_SYNC_FORMATTED = "last_sync_formatted"
+    private const val KEY_LAST_SYNC_MILLIS = "last_sync_millis"
+
+    fun isAutoSyncEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_SYNC_ENABLED, true)
+    }
+
+    fun setAutoSyncEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_SYNC_ENABLED, enabled).apply()
+    }
+
+    fun getLastSyncTime(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LAST_SYNC_FORMATTED, null)
+    }
+
+    fun setLastSyncTime(context: Context, formatted: String, millis: Long) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_LAST_SYNC_FORMATTED, formatted)
+            .putLong(KEY_LAST_SYNC_MILLIS, millis)
+            .apply()
+    }
+
+    fun clearSyncPrefs(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
+    }
+
     fun getLastSignedInAccount(context: Context): GoogleSignInAccount? {
         return GoogleSignIn.getLastSignedInAccount(context)
     }
@@ -121,6 +154,7 @@ object GoogleDriveSyncManager {
 
             val sdf = SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault())
             val formatted = sdf.format(Date(nowMillis))
+            setLastSyncTime(context, formatted, nowMillis)
 
             Result.success(DriveSyncMetadata(fileId, nowMillis, formatted))
         } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException) {
@@ -191,6 +225,7 @@ object GoogleDriveSyncManager {
             val modifiedTimeMillis = file.modifiedTime?.value ?: System.currentTimeMillis()
             val sdf = SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault())
             val formatted = sdf.format(Date(modifiedTimeMillis))
+            setLastSyncTime(context, formatted, modifiedTimeMillis)
 
             Result.success(DriveSyncMetadata(file.id, modifiedTimeMillis, formatted))
         } catch (e: Exception) {

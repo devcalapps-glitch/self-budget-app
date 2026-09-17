@@ -1,15 +1,15 @@
 # Project Context: Personal Expense App (Self Budget)
 
 ## 1. Executive Summary
-**Self Budget** is a modern personal finance and expense tracking application built for Android. The application enables users to track daily income and expenses, manage multiple bank accounts and wallets with live computed balances, transfer money between their own accounts, hold accounts in different currencies with manually-entered exchange rates, toggle financial balance privacy (`👁️ / 🙈`), monitor category budgets with daily pace safeguards (`💡 $140.00 / day max pace`) and optional month-to-month rollover, track credit card / loan debt with payoff estimates, set savings goals tied to live account balances, view monthly net worth history via a dedicated full-screen overlay modal, analyze spending trends (including month-over-month comparative analytics), manage recurring expenses & bi-weekly paychecks with start/due date pickers, cycle-aware posting logic, and styled archived states, capture receipt photos via camera, scan receipts using ML Kit OCR, log transactions/budgets/recurring bills via voice speech-to-text with Big Round Mic buttons (`🎙️`), customize theme appearance (Light / Dark / System), lock app with biometrics (Fingerprint / Face ID / PIN) with a solid Privacy Shield during prompts, receive local bill and budget push notifications with Android 13+ runtime permissions, enjoy a streamlined 2-tier Recent Activity dashboard preview with full history sheet, navigate months seamlessly using a unified top `MonthYearHeader` (`< Month Year >`) across all main tabs (Dashboard, Plan, Recurring, Analytics), add income and expenses through two dedicated entry forms reached from a single unified full-page "+" entry point shared by every tab, view a 4-column Monthly Cash Flow breakdown (`Income` | `Budgets` | `Unbudgeted` | `Paid`), backup and restore complete database payloads as a JSON file via the Android Share Sheet and System Document Picker (the user can save it to Google Drive, email, or local storage - there is no dedicated Drive API integration), and sign in with Google Authentication (without raw ID tokens ever being persisted to disk).
+**Self Budget** is a modern personal finance and expense tracking application built for Android. The application enables users to track daily income and expenses, manage multiple bank accounts and wallets with live computed balances, transfer money between their own accounts, hold accounts in different currencies with manually-entered exchange rates, toggle financial balance privacy (`👁️ / 🙈`), monitor category budgets with daily pace safeguards (`💡 $140.00 / day max pace`) and optional month-to-month rollover, track credit card / loan debt with payoff estimates, set savings goals tied to live account balances, view monthly net worth history via a dedicated full-screen overlay modal, analyze spending trends (including month-over-month comparative analytics), manage recurring expenses & bi-weekly paychecks with start/due date pickers, cycle-aware posting logic, and styled archived states, capture receipt photos via camera, scan receipts using ML Kit OCR, log transactions/budgets/recurring bills via voice speech-to-text with Big Round Mic buttons (`🎙️`), customize theme appearance (Light / Dark / System), lock app with biometrics (Fingerprint / Face ID / PIN) with a solid Privacy Shield during prompts, receive local bill and budget push notifications with Android 13+ runtime permissions, enjoy a streamlined 2-tier Recent Activity dashboard preview with full history sheet, navigate months seamlessly using a unified top `MonthYearHeader` (`< Month Year >`) across all main tabs (Dashboard, Plan, Recurring, Analytics), add income and expenses through two dedicated entry forms reached from a single unified full-page "+" entry point shared by every tab, view a 4-column Monthly Cash Flow breakdown (`Income` | `Budgets` | `Unbudgeted` | `Paid`), backup and restore complete database payloads to Google Drive private `appDataFolder` with automated 24-hour WorkManager background sync and on-demand manual export/import (via Excel `.xlsx`, CSV, or JSON), and sign in with Google Authentication (without raw ID tokens ever being persisted to disk).
 
-> **Note on scope**: Self Budget remains fully offline-first and single-device. "Multi-currency" means each account is tracked in its own currency with rates you enter yourself — there is no live FX feed. All financial amounts inherit the single system default currency configured in Settings. "Google Authentication" establishes local identity only; backup/restore is a manual JSON file export/import via the Android Share Sheet and System Document Picker, not an automatic Drive sync — there is no third-party server involved either way. See §5 for what was deliberately left as-is.
+> **Note on scope**: Self Budget remains fully offline-first and private. "Multi-currency" means each account is tracked in its own currency with rates you enter yourself — there is no live FX feed. All financial amounts inherit the single system default currency configured in Settings. Cloud backups are stored in the user's private Google Drive `appDataFolder` using the official `drive.appdata` OAuth scope with zero developer infrastructure costs or servers. Manual export/import is also supported via Android Share Sheet and System Document Picker. See §5 for what was deliberately left as-is.
 
 ---
 
 ## 2. Core Goals & Objectives
 - **Seamless Authentication**: Fast and secure Google Sign-In using Android Credential Manager API / Firebase Auth. The ID token is used only for the duration of sign-in and is never written to the local database.
-- **Zero-Cost File Backup**: Schema-versioned, cent-safe JSON serialization engine (`SyncDataPayload.kt`) backed by `CloudSyncManager.kt`. Users can export/import full Room DB backups as a JSON file via the Android Share Sheet (to Google Drive, email, or any app) or the System Document Picker, at $0.00 infrastructure cost - there is no dedicated Google Drive API integration.
+- **Zero-Cost Automated Cloud & File Backup**: Schema-versioned, cent-safe JSON serialization engine (`SyncDataPayload.kt`) backed by `CloudSyncManager.kt`, `GoogleDriveSyncManager.kt`, and `GoogleDriveSyncWorker.kt`. Automatically backs up database snapshots to the user's hidden Google Drive `appDataFolder` once every 24 hours under low-impact battery/network constraints at $0.00 developer infrastructure cost, alongside manual JSON/CSV/Excel exports.
 - **Offline-First & Fast UX**: Local storage (Room DB v12 with Kotlin Flow) for immediate response times.
 - **Multi-Account & Wallet Support**: Live balance tracking for Checking, Credit Cards, Cash Wallets, Savings, Loans, and Custom Accounts, computed from each account's starting balance plus its actual income/expense/transfer history — not a static number.
 - **Account Transfers**: Move money between the user's own accounts without it being miscounted as income or expense. Smart credit card/loan payoff payments deduct from source account and simultaneously reduce debt balance on target liability account.
@@ -79,12 +79,12 @@
 - **Auto-Synced vs. Manually-Set Budget Ceilings**: `BudgetEntity.isAutoSynced` tracks whether a category's limit is still the auto-suggested figure derived from its recurring bills, or a number the user set by hand on the budget screen. Recurring-bill changes recompute the auto-suggested ceiling from scratch (so lowering a bill lowers the ceiling too) but never overwrite a manually-set one; deleting a manual budget lets auto-sync suggest a fresh number again.
 
 ### 3.7 Settings, Appearance & Data Backup / Restore
-- **Zero-Cost Data Backups**: Export full database snapshot to a `.json` backup file via the Android Share Sheet (user picks Google Drive, email, or any app); 1-tap restore using the System Document Picker.
+- **Zero-Cost Automated Cloud & File Backups**: Automated 24-hour background backup to Google Drive private `appDataFolder` via WorkManager (`GoogleDriveSyncWorker.kt`), on-demand Google Drive sync/restore, full database snapshot JSON export/restore, multi-tab Excel (`.xlsx`) export/import, and CSV export/import via Android Share Sheet.
 - **Push Notifications**: System notification channel for bill reminders and budget threshold alerts (with Test Notification button in Settings).
 - **Appearance**: Toggle between System Default ⚙️, Light Mode ☀️, and high-contrast Dark Mode 🌙.
 - **Preferred Currency**: Live selector for $, €, £, ₹, ¥, A$ updating all app balance formatters.
-- **In-App Reset All Data**: 1-tap `[ 🧹 Reset All App Data ]` feature with red trash badge M3 confirmation dialog.
-- **Data Export**: Export transaction history into standard `.csv` format via Android Share Sheet.
+- **In-App Reset All Data**: 1-tap `[ 🧹 Reset All App Data ]` feature with red trash badge M3 confirmation dialog and automatic sync preference cleanup.
+- **Data Export**: Export transaction history into standard `.csv` or multi-tab `.xlsx` format via Android Share Sheet.
 
 ### 3.8 Savings Goals & Net Worth History
 - **Savings Goals**: Create a named goal with a target amount, strictly linked to asset accounts (Checking, Savings, Cash, Investment); progress is that account's live balance vs target.
@@ -101,18 +101,19 @@
 | **Architecture** | Clean Architecture + MVVM / Unidirectional Data Flow (UDF) |
 | **Dependency Injection** | Hilt |
 | **Local Database** | Room DB (Schema v12) + Kotlin Flow |
-| **Backup & Serialization** | `CloudSyncManager` + Gson cent-safe JSON serialization engine (`SyncDataPayload`) |
+| **Cloud Backup & Sync** | `GoogleDriveSyncManager` (Google Drive REST API v3 `appDataFolder`), `GoogleDriveSyncWorker` (Android Jetpack WorkManager 24h periodic sync) |
+| **File Backup & Serialization** | `CloudSyncManager` + Gson cent-safe JSON serialization engine (`SyncDataPayload`), `ExcelExporter`, `DataImporter` |
 | **Money Math** | `Money` utility — `BigDecimal.valueOf`-backed cent rounding for every sum/multiply, avoiding raw `Double` floating-point drift |
 | **Theme & Dark Mode** | Custom MD3 High-Contrast Dark & Light Color Schemes |
 | **Authentication & Security** | Google Credential Manager API & Android BiometricPrompt (ID token not persisted) |
 | **OCR Text Recognition** | Google ML Kit Vision Text Recognition (`com.google.android.gms:play-services-mlkit-text-recognition`) |
 | **Voice Processing** | Android Speech Recognizer (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`) + Regex Parser |
-| **Notifications** | Android NotificationManager & NotificationChannel (`POST_NOTIFICATIONS`) |
-| **Data Export** | CsvExporter + FileProvider / Android Share Sheet |
+| **Notifications** | Android NotificationManager & NotificationChannel (`POST_NOTIFICATIONS`), `BillReminderWorker` |
+| **Data Export** | CsvExporter, ExcelExporter + FileProvider / Android Share Sheet |
 
 ---
 
 ## 5. Known Limitations (Deliberately Out of Scope)
 - **Automatic Destructive Fallback Migration**: Room uses fallback migration to version 12 to handle entity updates smoothly without manual SQL scripts.
-- **No Dedicated Cloud Sync**: Backup/restore is a manual JSON file export/import via the Android Share Sheet and Storage Access Framework - the user can choose Google Drive as a destination, but there is no Drive API integration or automatic sync.
+- **Zero Third-Party Developer Cloud**: Cloud backups use the user's personal Google Drive storage directly (`appDataFolder`) — there are no intermediate developer-hosted databases, user profiles, or backend servers.
 - **No live FX rates**: Multi-currency conversion relies on exchange rates entered by hand in Settings — there is no background job or API call fetching current rates.

@@ -34,6 +34,8 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.selfbudget.app.core.security.BiometricSecurityManager
 import com.selfbudget.app.core.util.BillReminderWorker
+import com.selfbudget.app.core.util.GoogleDriveSyncManager
+import com.selfbudget.app.core.util.GoogleDriveSyncWorker
 import com.selfbudget.app.core.util.NotificationHelper
 import com.selfbudget.app.data.model.AppThemeMode
 import com.selfbudget.app.feature.auth.AppLockScreen
@@ -54,6 +56,9 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         NotificationHelper.createNotificationChannel(this)
         BillReminderWorker.scheduleDaily8AmReminder(this)
+        if (GoogleDriveSyncManager.isAutoSyncEnabled(this)) {
+            GoogleDriveSyncWorker.scheduleDailySync(this)
+        }
 
         setContent {
             val currentUser by viewModel.currentUser.collectAsState()
@@ -284,12 +289,16 @@ class MainActivity : FragmentActivity() {
                                 viewModel.restoreFromGoogleDrive(this@MainActivity, account, onResult)
                             },
                             onResetData = {
+                                GoogleDriveSyncManager.clearSyncPrefs(this@MainActivity)
+                                GoogleDriveSyncWorker.cancelDailySync(this@MainActivity)
                                 viewModel.clearAllData()
                             },
                             onResetTransactionsOnly = {
                                 viewModel.clearTransactionsOnly()
                             },
                             onSignOut = {
+                                GoogleDriveSyncManager.clearSyncPrefs(this@MainActivity)
+                                GoogleDriveSyncWorker.cancelDailySync(this@MainActivity)
                                 viewModel.signOut()
                             }
                         )

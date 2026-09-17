@@ -190,15 +190,18 @@ $$\text{Annual Spending Pace} = \text{Money.round}\left(\frac{\text{YTD Expense 
 
 ---
 
-### 2.7 Automated Google Drive Cloud Sync Engine ([`GoogleDriveSyncManager.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/GoogleDriveSyncManager.kt))
+### 2.7 Automated Google Drive Cloud Sync Engine ([`GoogleDriveSyncManager.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/GoogleDriveSyncManager.kt), [`GoogleDriveSyncWorker.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/core/util/GoogleDriveSyncWorker.kt))
 
 - **Zero Cost to Developer**: Operates directly using the user's personal Google Account and Google Drive storage quota ($0.00 infrastructure cost).
 - **Private Sandbox Scope (`DriveScopes.DRIVE_APPDATA`)**: Backups are written to the user's hidden Google Drive `appDataFolder` (`self_budget_cloud_backup.json`), keeping financial data isolated from standard user Drive files and third-party apps.
-- **On-Demand & Background Restore**: Supports background uploads (`uploadToAppDataFolder`) and cloud restoration (`downloadFromAppDataFolder`) seamlessly across multiple Android devices.
+- **Automated 24-Hour Background Worker (`GoogleDriveSyncWorker`)**: Integrated with Android Jetpack WorkManager (`ExistingPeriodicWorkPolicy.KEEP`). Scheduled to run automatically every 24 hours under battery-safe (`requiresBatteryNotLow`) and network-connected constraints.
+- **Default-Enabled with Full User Control**: Auto-sync is enabled by default (`daily_auto_sync_enabled`), allowing silent background protection as soon as Google Drive access is granted, with a dedicated toggle switch in Settings.
+- **Persistent Timestamp & Session Cleanup**: Persists `last_sync_formatted` and `last_sync_millis` in SharedPreferences for transparent UI status across app restarts. Safely clears sync preferences and cancels the background worker upon sign-out or Clean Sweep data resets.
+- **On-Demand & Background Restore**: Supports manual sync (`uploadToAppDataFolder`) and cloud restoration (`downloadFromAppDataFolder`) seamlessly across multiple Android devices.
 
 ---
 
-### 2.7 Single Entry Point & Category Budget Auto-Sync Engine ([`MainViewModel.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/ui/MainViewModel.kt))
+### 2.8 Single Entry Point & Category Budget Auto-Sync Engine ([`MainViewModel.kt`](file:///Users/bbhanda1/Desktop/Personal%20Projects/self-budget-app/app/src/main/java/com/selfbudget/app/ui/MainViewModel.kt))
 
 Two UI surfaces can create or edit a recurring bill — the transaction form's "recurring" toggle and the Recurring tab's own form. Both now route through one private function, `MainViewModel.upsertRecurring`, which is the only code path allowed to create/update a `RecurringTransactionEntity` and trigger the category's budget-ceiling sync. This guarantees the two surfaces can never disagree about what counts as a duplicate bill (matched by `(userId, categoryId, title, frequency)`, per §6) or how the resulting budget suggestion is computed.
 

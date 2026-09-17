@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
@@ -108,6 +109,7 @@ import com.selfbudget.app.core.util.CsvExporter
 import com.selfbudget.app.core.util.Currencies
 import com.selfbudget.app.core.util.DataImporter
 import com.selfbudget.app.core.util.GoogleDriveSyncManager
+import com.selfbudget.app.core.util.GoogleDriveSyncWorker
 import com.selfbudget.app.core.util.NotificationHelper
 import com.selfbudget.app.core.util.ParsedImportData
 import com.selfbudget.app.data.local.AppDatabase
@@ -802,6 +804,10 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
+                    val persistentLastSync = remember(syncStatusMessage) {
+                        GoogleDriveSyncManager.getLastSyncTime(context)
+                    }
+
                     if (syncStatusMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         val statusRamp = if (isSyncError) Ramp.Red else Ramp.Teal
@@ -809,6 +815,48 @@ fun SettingsScreen(
                             text = syncStatusMessage!!,
                             style = SelfBudgetType.meta,
                             color = statusRamp.secondaryText(isDarkBackup)
+                        )
+                    } else if (persistentLastSync != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Last cloud backup: $persistentLastSync",
+                            style = SelfBudgetType.meta,
+                            color = Ramp.Teal.secondaryText(isDarkBackup)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var isAutoSyncEnabled by remember(activeSubScreen) {
+                        mutableStateOf(GoogleDriveSyncManager.isAutoSyncEnabled(context))
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ShapeCard,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        ToggleRow(
+                            icon = Icons.Default.Sync,
+                            title = "Daily automatic backup",
+                            description = "Syncs once every 24h in background",
+                            checked = isAutoSyncEnabled,
+                            onCheckedChange = { enable ->
+                                if (enable) {
+                                    requestDriveAccessAndExecute { _ ->
+                                        GoogleDriveSyncManager.setAutoSyncEnabled(context, true)
+                                        GoogleDriveSyncWorker.scheduleDailySync(context)
+                                        isAutoSyncEnabled = true
+                                        syncStatusMessage = "✅ Daily automatic cloud backup enabled."
+                                    }
+                                } else {
+                                    GoogleDriveSyncManager.setAutoSyncEnabled(context, false)
+                                    GoogleDriveSyncWorker.cancelDailySync(context)
+                                    isAutoSyncEnabled = false
+                                    syncStatusMessage = "ℹ️ Daily automatic cloud backup disabled."
+                                }
+                            }
                         )
                     }
 
