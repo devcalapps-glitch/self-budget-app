@@ -130,4 +130,164 @@ class RecurringSchedulerTest {
         // Then: Idempotency is preserved and duplicate execution is prevented
         assertTrue(isAlreadyPosted)
     }
+
+    @Test
+    fun testEffectiveDueDateMonthly_projectsPastDueDateToTargetMonth() {
+        // Given: A bill with nextDueDate in September 2026 (previous month)
+        val sepCal = Calendar.getInstance().apply {
+            set(2026, Calendar.SEPTEMBER, 15, 10, 0, 0)
+        }
+        val item = com.selfbudget.app.data.model.RecurringTransactionEntity(
+            userId = "u1",
+            title = "Gym",
+            amount = 50.0,
+            type = com.selfbudget.app.data.model.TransactionType.EXPENSE,
+            categoryId = "cat_fitness",
+            frequency = RecurringFrequency.MONTHLY,
+            nextDueDate = sepCal.timeInMillis
+        )
+
+        // When: Projecting to October 2026, unpaid
+        val effectiveDue = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = false
+        )
+        val resCal = Calendar.getInstance().apply { timeInMillis = effectiveDue }
+
+        // Then: Should be October 15, 2026, not September
+        assertEquals(2026, resCal.get(Calendar.YEAR))
+        assertEquals(Calendar.OCTOBER, resCal.get(Calendar.MONTH))
+        assertEquals(15, resCal.get(Calendar.DAY_OF_MONTH))
+    }
+
+    @Test
+    fun testEffectiveDueDateMonthly_whenCyclePaid_advancesToNextMonth() {
+        // Given: A bill for October 2026 that has already been posted/paid
+        val octCal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 10, 10, 0, 0)
+        }
+        val item = com.selfbudget.app.data.model.RecurringTransactionEntity(
+            userId = "u1",
+            title = "Internet",
+            amount = 80.0,
+            type = com.selfbudget.app.data.model.TransactionType.EXPENSE,
+            categoryId = "cat_utilities",
+            frequency = RecurringFrequency.MONTHLY,
+            nextDueDate = octCal.timeInMillis
+        )
+
+        // When: Projecting to October 2026 with isCyclePaid = true
+        val effectiveDue = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = true
+        )
+        val resCal = Calendar.getInstance().apply { timeInMillis = effectiveDue }
+
+        // Then: Next due date advances to November 10, 2026
+        assertEquals(2026, resCal.get(Calendar.YEAR))
+        assertEquals(Calendar.NOVEMBER, resCal.get(Calendar.MONTH))
+        assertEquals(10, resCal.get(Calendar.DAY_OF_MONTH))
+    }
+
+    @Test
+    fun testEffectiveDueDate_preservesFutureStartDate() {
+        // Given: A recurring item with a future start date in December 2026
+        val decCal = Calendar.getInstance().apply {
+            set(2026, Calendar.DECEMBER, 1, 10, 0, 0)
+        }
+        val item = com.selfbudget.app.data.model.RecurringTransactionEntity(
+            userId = "u1",
+            title = "New Car Lease",
+            amount = 400.0,
+            type = com.selfbudget.app.data.model.TransactionType.EXPENSE,
+            categoryId = "cat_auto",
+            frequency = RecurringFrequency.MONTHLY,
+            nextDueDate = decCal.timeInMillis
+        )
+
+        // When: Viewing October 2026
+        val effectiveDue = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = false
+        )
+
+        // Then: Future start date is preserved and not pulled backward into October
+        assertEquals(decCal.timeInMillis, effectiveDue)
+    }
+
+    @Test
+    fun testEffectiveDueDateSemiMonthly_handlesPartiallyAndFullyPaid() {
+        val sepCal = Calendar.getInstance().apply {
+            set(2026, Calendar.SEPTEMBER, 1, 9, 0, 0)
+        }
+        val item = com.selfbudget.app.data.model.RecurringTransactionEntity(
+            userId = "u1",
+            title = "Salary",
+            amount = 2500.0,
+            type = com.selfbudget.app.data.model.TransactionType.INCOME,
+            categoryId = "cat_income",
+            frequency = RecurringFrequency.SEMI_MONTHLY,
+            nextDueDate = sepCal.timeInMillis
+        )
+
+        // When: In October 2026, 0 posted
+        val due0 = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = false,
+            postedOccurrences = 0
+        )
+        val cal0 = Calendar.getInstance().apply { timeInMillis = due0 }
+        assertEquals(Calendar.OCTOBER, cal0.get(Calendar.MONTH))
+        assertEquals(1, cal0.get(Calendar.DAY_OF_MONTH))
+
+        // When: In October 2026, 1 posted (partially paid)
+        val due1 = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = false,
+            postedOccurrences = 1
+        )
+        val cal1 = Calendar.getInstance().apply { timeInMillis = due1 }
+        assertEquals(Calendar.OCTOBER, cal1.get(Calendar.MONTH))
+        assertEquals(15, cal1.get(Calendar.DAY_OF_MONTH))
+
+        // When: In October 2026, fully paid (2 posted)
+        val due2 = RecurringScheduler.computeEffectiveDueDate(
+            item = item,
+            targetMonthYear = "2026-10",
+            isCyclePaid = true,
+            postedOccurrences = 2
+        )
+        val cal2 = Calendar.getInstance().apply { timeInMillis = due2 }
+        assertEquals(Calendar.NOVEMBER, cal2.get(Calendar.MONTH))
+        assertEquals(1, cal2.get(Calendar.DAY_OF_MONTH))
+    }
+
+    @Test
+    fun testAdvancePastDueDate_catchesUpMultipleLapsedCycles() {
+        // Given: A monthly bill due on the 5th, with stored nextDueDate in July 2026 (3 cycles ago)
+        val julCal = Calendar.getInstance().apply {
+            set(2026, Calendar.JULY, 5, 10, 0, 0)
+        }
+        val oct1Cal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 1, 0, 0, 0)
+        }
+
+        // When: Catching up past Oct 1, 2026
+        val caughtUp = RecurringScheduler.advancePastDueDate(
+            currentDueDate = julCal.timeInMillis,
+            frequency = RecurringFrequency.MONTHLY,
+            minDateMillis = oct1Cal.timeInMillis
+        )
+        val resCal = Calendar.getInstance().apply { timeInMillis = caughtUp }
+
+        // Then: Should be October 5, 2026
+        assertEquals(2026, resCal.get(Calendar.YEAR))
+        assertEquals(Calendar.OCTOBER, resCal.get(Calendar.MONTH))
+        assertEquals(5, resCal.get(Calendar.DAY_OF_MONTH))
+    }
 }

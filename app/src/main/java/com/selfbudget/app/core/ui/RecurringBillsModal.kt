@@ -82,7 +82,7 @@ fun RecurringBillsModal(
 
     val activeBills = remember(recurringList) {
         recurringList.filter { it.type == TransactionType.EXPENSE && !it.isArchived }
-            .sortedBy { it.nextDueDate }
+            .sortedBy { com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(it) }
     }
 
     val totalMonthlyExpense = remember(activeBills) {
@@ -218,7 +218,8 @@ fun RecurringBillsModal(
                                 val cat = categoryMap[item.categoryId]
                                 val account = accountMap[item.accountId]
                                 val monthly = RecurringFrequencyNormalizer.toMonthlyAmount(item.amount, item.frequency)
-                                val nextDueStr = dateFormatter.format(Date(item.nextDueDate))
+                                val effectiveDue = com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(item)
+                                val nextDueStr = dateFormatter.format(Date(effectiveDue))
                                 val catRamp = sectionRamp(cat?.name ?: "Bills")
 
                                 Row(

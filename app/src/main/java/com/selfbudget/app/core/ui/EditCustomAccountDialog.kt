@@ -82,6 +82,8 @@ import com.selfbudget.app.core.ui.components.QuickAmountChips
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.core.ui.components.TransactionAmountHero
+import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.Money
 import com.selfbudget.app.core.util.toWordTitleCase
 import com.selfbudget.app.data.model.AccountEntity
 import com.selfbudget.app.data.model.AccountType
@@ -139,7 +141,7 @@ fun EditCustomAccountDialog(
     }
     val txDelta = remember(account, currentBalance) {
         val cur = currentBalance ?: account.initialBalance
-        cur - account.initialBalance
+        Money.subtract(cur, account.initialBalance)
     }
     var accountTypeExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -194,12 +196,14 @@ fun EditCustomAccountDialog(
 
     fun buildUpdatedAccount(): AccountEntity {
         val rawEntered = initialBalanceText.toDoubleOrNull() ?: liveDisplayBalance
-        val signedEntered = if (isDebtType && rawEntered > 0.0) -rawEntered else rawEntered
-        val targetInitialBalance = signedEntered - txDelta
-        return account.copy(
+        val cur = currentBalance ?: account.initialBalance
+        val updatedBase = AccountBalanceCalculator.calculateAccountWithUpdatedBalance(
+            account = account.copy(type = selectedType),
+            currentLiveBalance = cur,
+            targetLiveBalance = rawEntered
+        )
+        return updatedBase.copy(
             name = accountName.trim(),
-            type = selectedType,
-            initialBalance = targetInitialBalance,
             colorHex = accColorHex,
             currencyCode = selectedCurrency,
             creditLimit = if (isDebtType) creditLimitText.toDoubleOrNull() else null,

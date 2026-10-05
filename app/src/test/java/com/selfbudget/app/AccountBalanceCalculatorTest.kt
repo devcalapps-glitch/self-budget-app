@@ -369,5 +369,104 @@ class AccountBalanceCalculatorTest {
         // But it must be counted in the current month, now that it exists.
         assertEquals(51200.0, currentSnapshot.netWorth, 0.001) // 1200 + 50000
     }
+
+    @Test
+    fun testCheckingToCheckingTransferWithLiveBalances() {
+        val checking1 = AccountEntity(id = "c1", userId = "u1", name = "Primary Checking", type = AccountType.CHECKING, initialBalance = 1523.45)
+        val checking2 = AccountEntity(id = "c2", userId = "u1", name = "Secondary Checking", type = AccountType.CHECKING, initialBalance = 200.10)
+
+        val transfer = TransactionEntity(
+            userId = "u1",
+            title = "Checking Transfer",
+            amount = 323.45,
+            type = TransactionType.TRANSFER,
+            categoryId = "cat_other",
+            accountId = "c1",
+            transferAccountId = "c2"
+        )
+
+        val balances = AccountBalanceCalculator.computeLiveBalances(
+            accounts = listOf(checking1, checking2),
+            allTransactions = listOf(transfer)
+        )
+
+        assertEquals(1200.00, balances["c1"] ?: 0.0, 0.001)
+        assertEquals(523.55, balances["c2"] ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testCheckingToSavingsTransferWithLiveBalances() {
+        val checking = AccountEntity(id = "c1", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 3000.00)
+        val savings = AccountEntity(id = "s1", userId = "u1", name = "High Yield Savings", type = AccountType.SAVINGS, initialBalance = 10000.50)
+
+        val transfer = TransactionEntity(
+            userId = "u1",
+            title = "Transfer to Savings",
+            amount = 1250.25,
+            type = TransactionType.TRANSFER,
+            categoryId = "cat_other",
+            accountId = "c1",
+            transferAccountId = "s1"
+        )
+
+        val balances = AccountBalanceCalculator.computeLiveBalances(
+            accounts = listOf(checking, savings),
+            allTransactions = listOf(transfer)
+        )
+
+        assertEquals(1749.75, balances["c1"] ?: 0.0, 0.001)
+        assertEquals(11250.75, balances["s1"] ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testCalculateAccountWithUpdatedBalanceAfterTransfers() {
+        val checking = AccountEntity(id = "c1", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 1000.00)
+        val tx = TransactionEntity(
+            userId = "u1",
+            title = "Transfer Out",
+            amount = 300.00,
+            type = TransactionType.TRANSFER,
+            categoryId = "cat_other",
+            accountId = "c1",
+            transferAccountId = "s1"
+        )
+        // Live balance is currently 700.00 (1000 - 300)
+        val liveBal = AccountBalanceCalculator.computeBalance(checking, listOf(tx))
+        assertEquals(700.00, liveBal, 0.001)
+
+        // User manually adjusts the bank balance to match bank statement $750.25
+        val updated = AccountBalanceCalculator.calculateAccountWithUpdatedBalance(
+            account = checking,
+            currentLiveBalance = liveBal,
+            targetLiveBalance = 750.25
+        )
+
+        // Adjusted initialBalance should be 1050.25
+        assertEquals(1050.25, updated.initialBalance, 0.001)
+
+        // Recomputing with the existing transactions should yield exactly the target $750.25
+        val newLiveBal = AccountBalanceCalculator.computeBalance(updated, listOf(tx))
+        assertEquals(750.25, newLiveBal, 0.001)
+    }
+
+    @Test
+    fun testSelfTransferDoesNotDoubleCountOrLeak() {
+        val checking = AccountEntity(id = "c1", userId = "u1", name = "Checking", type = AccountType.CHECKING, initialBalance = 500.00)
+        val selfTransfer = TransactionEntity(
+            userId = "u1",
+            title = "Self Transfer",
+            amount = 100.00,
+            type = TransactionType.TRANSFER,
+            categoryId = "cat_other",
+            accountId = "c1",
+            transferAccountId = "c1"
+        )
+
+        val balance = AccountBalanceCalculator.computeBalance(checking, listOf(selfTransfer))
+        val liveBalances = AccountBalanceCalculator.computeLiveBalances(listOf(checking), listOf(selfTransfer))
+
+        assertEquals(500.00, balance, 0.001)
+        assertEquals(500.00, liveBalances["c1"] ?: 0.0, 0.001)
+    }
 }
 

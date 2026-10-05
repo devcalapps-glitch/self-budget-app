@@ -33,8 +33,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -56,6 +60,7 @@ data class HomeUiState(
     val monthTransactions: List<TransactionEntity> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val budgets: List<BudgetEntity> = emptyList(),
+    val allBudgets: List<BudgetEntity> = emptyList(),
     val recurringList: List<RecurringTransactionEntity> = emptyList(),
     val accounts: List<AccountEntity> = emptyList(),
     val user: UserEntity? = null,
@@ -170,10 +175,9 @@ class MainViewModel @Inject constructor(
                     AppThemeMode.SYSTEM
                 }
 
-                val accountBalances = AccountBalanceCalculator.computeBalancesAsOfMonth(
+                val accountBalances = AccountBalanceCalculator.computeLiveBalances(
                     accounts = base.accs,
-                    allTransactions = base.txs,
-                    monthYear = selectedMonth
+                    allTransactions = base.txs
                 )
 
                 val baseCurrencyCode = Currencies.codeForSymbol(userCurrency)
@@ -206,6 +210,7 @@ class MainViewModel @Inject constructor(
                     monthTransactions = monthTxs,
                     categories = base.cats,
                     budgets = currentMonthBudgets,
+                    allBudgets = base.allBudgets,
                     recurringList = base.recurrings,
                     accounts = base.accs,
                     user = user,
@@ -262,6 +267,24 @@ class MainViewModel @Inject constructor(
                     )
                 }
                 .collect { }
+        }
+
+        // Catch up active recurring transactions whose nextDueDate has fallen behind into past months,
+        // ensuring reminders and upcoming bill metrics reflect the current billing cycle.
+        viewModelScope.launch {
+            currentUser.filterNotNull().collectLatest { user ->
+                val currentRealMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+                val (currentMonthStart, _) = AccountBalanceCalculator.getMonthTimestampRange(currentRealMonth)
+                val recurrings = repository.getRecurringTransactions(user.id).firstOrNull() ?: emptyList()
+                recurrings.forEach { item ->
+                    if (!item.isArchived && item.nextDueDate < currentMonthStart) {
+                        val effectiveDue = RecurringScheduler.computeEffectiveDueDate(item, currentRealMonth)
+                        if (effectiveDue != item.nextDueDate) {
+                            repository.updateRecurringTransaction(item.copy(nextDueDate = effectiveDue))
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -384,7 +407,8 @@ class MainViewModel @Inject constructor(
             amount = Money.round(amount),
             type = type,
             isArchived = false,
-            transferAccountId = transferAccountId
+            transferAccountId = transferAccountId,
+            nextDueDate = nextDueDate ?: existing.nextDueDate
         ) ?: RecurringTransactionEntity(
             userId = userId,
             title = trimmedTitle,
@@ -625,6 +649,13 @@ class MainViewModel @Inject constructor(
 
             val effectiveTransferAccountId = matchingGoal?.linkedAccountId ?: recurring.transferAccountId
 
+            val currentSelectedMonth = _selectedMonthYear.value
+            val effectiveDueDate = RecurringScheduler.computeEffectiveDueDate(
+                item = recurring,
+                targetMonthYear = currentSelectedMonth,
+                isCyclePaid = false
+            )
+
             addTransaction(
                 title = recurring.title,
                 amount = postAmount,
@@ -635,7 +666,7 @@ class MainViewModel @Inject constructor(
                 paymentMethod = recurring.paymentMethod,
                 transferAccountId = effectiveTransferAccountId,
                 linkedRecurringId = recurring.id,
-                recurringCycleDueDate = recurring.nextDueDate
+                recurringCycleDueDate = effectiveDueDate
             )
 
             // If the goal does not have a linked account (direct cash/envelope savings), credit its savedAmount directly.
@@ -647,8 +678,7 @@ class MainViewModel @Inject constructor(
             // If it is a partial payment, retain the current due date so the user can post the remainder.
             val isPartial = postAmount < (recurring.amount - 0.005)
             if (!isPartial) {
-                val postedDueDate = recurring.nextDueDate
-                val nextDueDate = RecurringScheduler.computeNextDueDate(postedDueDate, recurring.frequency)
+                val nextDueDate = RecurringScheduler.computeNextDueDate(effectiveDueDate, recurring.frequency)
                 val remaining = RecurringScheduler.decrementOccurrences(recurring.remainingOccurrences)
                 val finished = RecurringScheduler.isFinished(remaining)
                 val updated = recurring.copy(
@@ -676,6 +706,90 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             repository.updateAccount(account)
             logActivity(account.userId, ActivityEntityType.ACCOUNT, ActivityAction.EDITED, account.id, account.name, account.initialBalance)
+        }
+    }
+
+    /**
+     * Batch updates multiple account balances simultaneously (e.g. from the Monthly Balance Review).
+     * Calculates the adjusted initial balance for each changed account, logs activity, and refreshes
+     * the net worth snapshot for the current month.
+     */
+    fun updateAccountBalances(
+        updatedBalances: Map<String, Double>,
+        onComplete: (() -> Unit)? = null
+    ) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val state = uiState.value
+            val currentBalances = state.accountBalances
+            val accountsMap = state.accounts.associateBy { it.id }
+
+            var hasChanges = false
+            for ((accountId, newTargetBalance) in updatedBalances) {
+                val account = accountsMap[accountId] ?: continue
+                val curBalance = currentBalances[accountId] ?: account.initialBalance
+                val curDisplayBalance = if (AccountBalanceCalculator.isLiability(account.type)) kotlin.math.abs(curBalance) else curBalance
+
+                if (kotlin.math.abs(newTargetBalance - curDisplayBalance) > 0.001) {
+                    val updatedAccount = AccountBalanceCalculator.calculateAccountWithUpdatedBalance(
+                        account = account,
+                        currentLiveBalance = curBalance,
+                        targetLiveBalance = newTargetBalance
+                    )
+                    repository.updateAccount(updatedAccount)
+                    logActivity(
+                        user.id,
+                        ActivityEntityType.ACCOUNT,
+                        ActivityAction.EDITED,
+                        account.id,
+                        account.name,
+                        newTargetBalance
+                    )
+                    hasChanges = true
+                }
+            }
+
+            if (hasChanges) {
+                val currentRealMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+                val baseCurrencyCode = Currencies.codeForSymbol(user.preferredCurrency)
+                val allAccounts = repository.getAccounts(user.id).firstOrNull() ?: state.accounts
+                val allTxs = repository.getTransactions(user.id).firstOrNull() ?: state.transactions
+                val rates = repository.getExchangeRates(user.id).firstOrNull() ?: state.exchangeRates
+
+                val newNetWorth = AccountBalanceCalculator.computeTotalInBaseCurrency(
+                    accounts = allAccounts,
+                    allTransactions = allTxs,
+                    baseCurrency = baseCurrencyCode,
+                    rates = rates
+                )
+
+                val newBalances = AccountBalanceCalculator.computeBalancesAsOfMonth(
+                    accounts = allAccounts,
+                    allTransactions = allTxs,
+                    monthYear = currentRealMonth
+                )
+
+                val assets = allAccounts.sumOf { acc ->
+                    val b = newBalances[acc.id] ?: acc.initialBalance
+                    if (AccountBalanceCalculator.isLiability(acc.type)) 0.0 else if (b > 0) b else 0.0
+                }
+                val liabilities = allAccounts.sumOf { acc ->
+                    val b = newBalances[acc.id] ?: acc.initialBalance
+                    if (AccountBalanceCalculator.isLiability(acc.type)) kotlin.math.abs(b) else if (b < 0) kotlin.math.abs(b) else 0.0
+                }
+
+                repository.upsertNetWorthSnapshot(
+                    NetWorthSnapshotEntity(
+                        id = "${user.id}-$currentRealMonth",
+                        userId = user.id,
+                        monthYear = currentRealMonth,
+                        totalAssets = Money.round(assets),
+                        totalLiabilities = Money.round(liabilities),
+                        netWorth = Money.round(newNetWorth)
+                    )
+                )
+            }
+            onComplete?.invoke()
         }
     }
 

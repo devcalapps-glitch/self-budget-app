@@ -74,7 +74,8 @@ fun AccountsScreen(
     onAddAccount: (AccountEntity) -> Unit,
     onUpdateAccount: (AccountEntity) -> Unit,
     onDeleteAccount: (AccountEntity) -> Unit,
-    onAddTransfer: (fromId: String, toId: String, amount: Double, note: String?) -> Unit
+    onAddTransfer: (fromId: String, toId: String, amount: Double, note: String?) -> Unit,
+    onUpdateAccountBalances: ((Map<String, Double>) -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -82,6 +83,7 @@ fun AccountsScreen(
     var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
     var showNetWorthModal by remember { mutableStateOf(false) }
+    var showMonthlyReviewModal by remember { mutableStateOf(false) }
     var payoffCalculatorAccount by remember { mutableStateOf<AccountEntity?>(null) }
 
     // Calculate totals - via the same canonical classification (AccountBalanceCalculator.isLiability)
@@ -290,6 +292,13 @@ fun AccountsScreen(
             SecondaryPillButton(
                 text = "Transfer",
                 onClick = { showTransferDialog = true },
+                modifier = Modifier.weight(1f)
+            )
+
+            SecondaryPillButton(
+                text = "Review",
+                onClick = { showMonthlyReviewModal = true },
+                ramp = Ramp.Teal,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -513,6 +522,21 @@ fun AccountsScreen(
             accountBalances = accountBalances,
             currencySymbol = currencySymbol,
             onDismiss = { showNetWorthModal = false }
+        )
+    }
+
+    if (showMonthlyReviewModal) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        com.selfbudget.app.core.ui.MonthlyAccountReviewModal(
+            accounts = accounts,
+            accountBalances = accountBalances,
+            currencySymbol = currencySymbol,
+            onSaveBalances = { updatedMap ->
+                com.selfbudget.app.core.util.MonthlyReviewHelper.markMonthReviewed(context)
+                onUpdateAccountBalances?.invoke(updatedMap)
+                showMonthlyReviewModal = false
+            },
+            onDismiss = { showMonthlyReviewModal = false }
         )
     }
 }

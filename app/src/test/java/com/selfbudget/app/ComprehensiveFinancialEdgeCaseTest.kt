@@ -107,7 +107,7 @@ class ComprehensiveFinancialEdgeCaseTest {
     @Test
     fun testFutureDatedTransactionsExclusionFromRealizedCurrentTotals() {
         val now = System.currentTimeMillis()
-        val futureTimestamp = now + (30L * 24 * 60 * 60 * 1000) // 30 days in future
+        val futureTimestamp = now + (45L * 24 * 60 * 60 * 1000) // 45 days in future, guaranteed next month
 
         val currentMonthKey = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault()).format(java.util.Date(now))
         val currentTxs = listOf(

@@ -55,6 +55,7 @@ import com.selfbudget.app.core.ui.components.CircularBackButton
 import com.selfbudget.app.core.ui.components.IconTile
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.PrimaryPillButton
+import com.selfbudget.app.core.ui.components.SecondaryPillButton
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SectionHeaderBand
 import com.selfbudget.app.core.ui.components.SectionRowDivider
@@ -79,7 +80,8 @@ fun AccountsViewAllModal(
     goals: List<GoalEntity> = emptyList(),
     onDismiss: () -> Unit,
     onEditAccount: (AccountEntity) -> Unit,
-    onAddAccount: () -> Unit
+    onAddAccount: () -> Unit,
+    onReviewBalances: (() -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
@@ -293,30 +295,21 @@ fun AccountsViewAllModal(
                                                                 }
                                                             }
                                                         }
-                                                        if (earmarked > 0 && !isLiability) {
-                                                            Spacer(modifier = Modifier.height(2.dp))
-                                                            Text(
-                                                                text = "Total: $sym%.2f".format(currentBalance),
-                                                                style = SelfBudgetType.meta,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
                                                     }
                                                 }
 
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    val displayBalance = if (earmarked > 0 && !isLiability) availableToSpend else currentBalance
-                                                    val cleanDisplayBalance = if (kotlin.math.abs(displayBalance) < 0.005) 0.0 else displayBalance
-                                                    val isNegBalance = (isLiability && cleanDisplayBalance > 0.0) || (!isLiability && cleanDisplayBalance < 0.0)
+                                                    val cleanBalance = if (kotlin.math.abs(currentBalance) < 0.005) 0.0 else currentBalance
+                                                    val isNegBalance = (isLiability && cleanBalance > 0.0) || (!isLiability && cleanBalance < 0.0)
                                                     Column(horizontalAlignment = Alignment.End) {
                                                         Text(
-                                                            text = "${if (isNegBalance) "-$sym" else sym}%.2f".format(kotlin.math.abs(cleanDisplayBalance)),
+                                                            text = "${if (isNegBalance) "-$sym" else sym}%.2f".format(kotlin.math.abs(cleanBalance)),
                                                             style = SelfBudgetType.rowTitle,
-                                                            color = if (isNegBalance) getExpenseColor() else if (cleanDisplayBalance > 0.0) getIncomeColor() else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            color = if (isNegBalance) getExpenseColor() else if (cleanBalance > 0.0) getIncomeColor() else MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
                                                         if (earmarked > 0 && !isLiability) {
                                                             Text(
-                                                                text = "Available",
+                                                                text = "$sym%.2f available".format(availableToSpend),
                                                                 style = SelfBudgetType.meta,
                                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             )
@@ -340,13 +333,36 @@ fun AccountsViewAllModal(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    PrimaryPillButton(
-                        text = "Add new account or wallet",
-                        onClick = onAddAccount,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                    )
+                    if (onReviewBalances != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PrimaryPillButton(
+                                text = "Add account",
+                                onClick = onAddAccount,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                            )
+                            SecondaryPillButton(
+                                text = "Review balances",
+                                onClick = onReviewBalances,
+                                ramp = Ramp.Teal,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                            )
+                        }
+                    } else {
+                        PrimaryPillButton(
+                            text = "Add new account or wallet",
+                            onClick = onAddAccount,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }

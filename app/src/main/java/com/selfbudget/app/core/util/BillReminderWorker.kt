@@ -56,7 +56,7 @@ class BillReminderWorker(
                 // should never generate reminders.
                 if (item.isArchived) return@forEach
 
-                val dueTime = item.nextDueDate
+                val dueTime = RecurringScheduler.computeEffectiveDueDate(item)
 
                 // NOTE: this worker only ever sends reminder notifications - it never inserts a
                 // transaction on its own. An earlier version auto-posted a real transaction the

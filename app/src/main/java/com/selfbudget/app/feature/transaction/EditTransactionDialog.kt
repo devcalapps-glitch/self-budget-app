@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
@@ -206,13 +207,17 @@ fun EditTransactionDialog(
     }
     var showTargetDebtAccountModal by remember { mutableStateOf(false) }
 
-    val availableTargetAccounts = remember(availableAccounts, selectedAccount) {
+    val availableTargetAccounts = remember(availableAccounts, selectedAccount, selectedType) {
         availableAccounts.filter { 
-            (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) || 
-             it.type == AccountType.INVESTMENT || 
-             it.type == AccountType.RETIREMENT || 
-             it.type == AccountType.SAVINGS) && 
-            it.id != selectedAccount?.id 
+            if (selectedType == TransactionType.TRANSFER) {
+                it.id != selectedAccount?.id
+            } else {
+                (com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(it.type) || 
+                 it.type == AccountType.INVESTMENT || 
+                 it.type == AccountType.RETIREMENT || 
+                 it.type == AccountType.SAVINGS) && 
+                it.id != selectedAccount?.id 
+            }
         }
     }
     var expandedAccountDropdown by remember { mutableStateOf(false) }
@@ -397,7 +402,7 @@ fun EditTransactionDialog(
                 categoryId = categoryId,
                 accountId = accId,
                 timestamp = selectedTimestamp,
-                note = null,
+                note = note.ifBlank { null },
                 receiptImageUri = receiptImageUri?.toString(),
                 transferAccountId = selectedTargetDebtAccount?.id
             )
@@ -542,9 +547,9 @@ fun EditTransactionDialog(
                                                catName.contains("ira") ||
                                                catName.contains("retire") ||
                                                catName.contains("transfer")
-                        val shouldShowTargetAccountField = selectedType == TransactionType.EXPENSE &&
-                                                         availableTargetAccounts.isNotEmpty() &&
-                                                         (isTargetCategory || selectedTargetDebtAccount != null)
+                        val isTransfer = selectedType == TransactionType.TRANSFER
+                        val shouldShowTargetAccountField = availableTargetAccounts.isNotEmpty() &&
+                            (isTransfer || (selectedType == TransactionType.EXPENSE && (isTargetCategory || selectedTargetDebtAccount != null)))
 
                         Surface(
                             shape = ShapeCard,
@@ -691,7 +696,11 @@ fun EditTransactionDialog(
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column {
                                             Text(
-                                                text = if (selectedType == TransactionType.INCOME) "Deposit Account" else "Payment Account",
+                                                text = when (selectedType) {
+                                                    TransactionType.INCOME -> "Deposit Account"
+                                                    TransactionType.TRANSFER -> "Source Account (From)"
+                                                    else -> "Payment Account"
+                                                },
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -782,6 +791,7 @@ fun EditTransactionDialog(
                                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                                     )
 
+                                    val isTransfer = selectedType == TransactionType.TRANSFER
                                     val isInvestmentOrSavings = selectedTargetDebtAccount?.type == AccountType.INVESTMENT ||
                                         selectedTargetDebtAccount?.type == AccountType.RETIREMENT ||
                                         selectedTargetDebtAccount?.type == AccountType.SAVINGS ||
@@ -792,8 +802,16 @@ fun EditTransactionDialog(
                                         catName.contains("401k") ||
                                         catName.contains("ira")
 
-                                    val labelText = if (isInvestmentOrSavings) "Contribute Toward Account" else "Apply Payment Toward Debt"
-                                    val iconVector = if (isInvestmentOrSavings) Icons.Default.TrendingUp else Icons.Default.CreditCard
+                                    val labelText = when {
+                                        isTransfer -> "Destination Account (To)"
+                                        isInvestmentOrSavings -> "Contribute Toward Account"
+                                        else -> "Apply Payment Toward Debt"
+                                    }
+                                    val iconVector = when {
+                                        isTransfer -> Icons.Default.SwapHoriz
+                                        isInvestmentOrSavings -> Icons.Default.TrendingUp
+                                        else -> Icons.Default.CreditCard
+                                    }
 
                                     Row(
                                         modifier = Modifier
@@ -830,10 +848,10 @@ fun EditTransactionDialog(
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                                 Text(
-                                                    text = selectedTargetDebtAccount?.name ?: "None (Standard Expense)",
+                                                    text = selectedTargetDebtAccount?.name ?: if (isTransfer) "Select Destination Account" else "None (Standard Expense)",
                                                     style = MaterialTheme.typography.bodyLarge,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurface
+                                                    color = if (selectedTargetDebtAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }

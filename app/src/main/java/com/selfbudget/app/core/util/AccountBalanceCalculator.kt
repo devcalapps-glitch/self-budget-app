@@ -42,6 +42,7 @@ object AccountBalanceCalculator {
                 tx.type == TransactionType.EXPENSE && tx.accountId == account.id -> -tx.amount
 
                 // Transfer out of account
+                tx.type == TransactionType.TRANSFER && tx.accountId == account.id && tx.transferAccountId == account.id -> 0.0
                 tx.type == TransactionType.TRANSFER && tx.accountId == account.id -> -tx.amount
 
                 // Transfer into account
@@ -54,6 +55,59 @@ object AccountBalanceCalculator {
             }
         })
         return Money.add(account.initialBalance, delta)
+    }
+
+    /**
+     * Computes the live, all-time balances for all accounts across all transactions.
+     * Unlike [computeBalancesAsOfMonth], this is not bound to a historical month cutoff,
+     * reflecting current real-world bank balances.
+     */
+    fun computeLiveBalances(
+        accounts: List<AccountEntity>,
+        allTransactions: List<TransactionEntity>
+    ): Map<String, Double> {
+        val deltas = mutableMapOf<String, Double>()
+        for (tx in allTransactions) {
+            when {
+                tx.type == TransactionType.INCOME -> {
+                    deltas[tx.accountId] = Money.add(deltas[tx.accountId] ?: 0.0, tx.amount)
+                }
+                tx.type == TransactionType.EXPENSE -> {
+                    deltas[tx.accountId] = Money.subtract(deltas[tx.accountId] ?: 0.0, tx.amount)
+                    if (tx.transferAccountId != null) {
+                        deltas[tx.transferAccountId] = Money.add(deltas[tx.transferAccountId] ?: 0.0, tx.amount)
+                    }
+                }
+                tx.type == TransactionType.TRANSFER -> {
+                    deltas[tx.accountId] = Money.subtract(deltas[tx.accountId] ?: 0.0, tx.amount)
+                    if (tx.transferAccountId != null) {
+                        deltas[tx.transferAccountId] = Money.add(deltas[tx.transferAccountId] ?: 0.0, tx.amount)
+                    }
+                }
+            }
+        }
+        return accounts.associate { acc ->
+            acc.id to Money.add(acc.initialBalance, deltas[acc.id] ?: 0.0)
+        }
+    }
+
+    /**
+     * Computes an updated [AccountEntity] with adjusted [AccountEntity.initialBalance] such that
+     * its live computed balance matches [targetLiveBalance].
+     *
+     * For liability accounts (e.g. Credit Card or Loans), [targetLiveBalance] is accepted as
+     * a positive number representing the debt owed, and correctly signed internally.
+     */
+    fun calculateAccountWithUpdatedBalance(
+        account: AccountEntity,
+        currentLiveBalance: Double,
+        targetLiveBalance: Double
+    ): AccountEntity {
+        val isDebt = isLiability(account.type)
+        val signedEntered = if (isDebt && targetLiveBalance > 0.0) -targetLiveBalance else targetLiveBalance
+        val txDelta = Money.subtract(currentLiveBalance, account.initialBalance)
+        val targetInitialBalance = Money.subtract(signedEntered, txDelta)
+        return account.copy(initialBalance = targetInitialBalance)
     }
 
     /**

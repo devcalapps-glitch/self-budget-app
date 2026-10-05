@@ -282,8 +282,19 @@ fun RecurringScreen(
 
     val now = remember { System.currentTimeMillis() }
     val sevenDaysLater = remember { now + 7L * 24 * 60 * 60 * 1000 }
-    val upcomingDueExpenses = remember(activeList) {
-        activeList.filter { it.type == TransactionType.EXPENSE && it.nextDueDate in now..sevenDaysLater }
+    val upcomingDueExpenses = remember(activeList, allTransactions, selectedMonthYear) {
+        activeList.filter { item ->
+            if (item.type != TransactionType.EXPENSE) return@filter false
+            val summary = getCyclePaymentSummary(item, allTransactions, selectedMonthYear)
+            if (summary.isFullyPaid) return@filter false
+            val effectiveDue = com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(
+                item = item,
+                targetMonthYear = selectedMonthYear,
+                isCyclePaid = summary.isFullyPaid,
+                postedOccurrences = summary.postedOccurrences
+            )
+            effectiveDue in now..sevenDaysLater
+        }
     }
     val upcomingDueTotal = remember(upcomingDueExpenses) {
         Money.sum(upcomingDueExpenses.map { it.amount })
@@ -789,6 +800,14 @@ fun RecurringScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val effectiveNextDue = remember(item, selectedMonthYear, isFullyPostedThisCycle, cycleSummary.postedOccurrences) {
+                                com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(
+                                    item = item,
+                                    targetMonthYear = selectedMonthYear,
+                                    isCyclePaid = isFullyPostedThisCycle,
+                                    postedOccurrences = cycleSummary.postedOccurrences
+                                )
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.Schedule,
@@ -798,7 +817,7 @@ fun RecurringScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Next: ${dateFormatter.format(Date(item.nextDueDate))}",
+                                    text = "Next: ${dateFormatter.format(Date(effectiveNextDue))}",
                                     style = com.selfbudget.app.ui.theme.SelfBudgetType.meta,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1197,7 +1216,15 @@ fun RecurringScreen(
             var selectedFrequency by remember(item.id) { mutableStateOf(item.frequency) }
             var selectedCategory by remember(item.id) { mutableStateOf(categoryMap[item.categoryId]) }
             var isArchived by remember(item.id) { mutableStateOf(item.isArchived) }
-            var selectedNextDueDate by remember(item.id) { mutableStateOf(item.nextDueDate) }
+            val initialEffectiveDueDate = remember(item.id, selectedMonthYear, isFullyPostedThisCycle, cycleSummary.postedOccurrences) {
+                com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(
+                    item = item,
+                    targetMonthYear = selectedMonthYear,
+                    isCyclePaid = isFullyPostedThisCycle,
+                    postedOccurrences = cycleSummary.postedOccurrences
+                )
+            }
+            var selectedNextDueDate by remember(item.id) { mutableStateOf(initialEffectiveDueDate) }
             var showDatePickerModal by remember { mutableStateOf(false) }
             var hasLimitedOccurrences by remember(item.id) { mutableStateOf(item.remainingOccurrences != null) }
             var occurrencesText by remember(item.id) { mutableStateOf(item.remainingOccurrences?.toString() ?: "") }

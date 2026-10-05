@@ -234,6 +234,9 @@ class MainActivity : FragmentActivity() {
                             onUpdateAccount = { account ->
                                 viewModel.updateAccount(account)
                             },
+                            onUpdateAccountBalances = { updatedBalances ->
+                                viewModel.updateAccountBalances(updatedBalances)
+                            },
                             onDeleteAccount = { account ->
                                 viewModel.deleteAccount(account)
                             },

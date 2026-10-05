@@ -220,6 +220,7 @@ fun HomeScreen(
     onToggleCategoryArchive: (CategoryEntity) -> Unit = {},
     onAddCustomAccount: (AccountEntity) -> Unit,
     onUpdateAccount: (AccountEntity) -> Unit,
+    onUpdateAccountBalances: (Map<String, Double>) -> Unit = {},
     onDeleteAccount: (AccountEntity) -> Unit,
     onAddTransfer: (fromAccountId: String, toAccountId: String, amount: Double, note: String?) -> Unit = { _, _, _, _ -> },
     onAddGoal: (
@@ -270,6 +271,16 @@ fun HomeScreen(
     var pendingNewRecurringType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var showProfileSettings by remember { mutableStateOf(false) }
     var showPlanReviewModal by remember { mutableStateOf(false) }
+    var showMonthlyAccountReviewModal by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Auto-display pop-up review screen on the first day of the month
+    LaunchedEffect(uiState.accounts) {
+        if (uiState.accounts.isNotEmpty() && com.selfbudget.app.core.util.MonthlyReviewHelper.shouldPromptMonthlyReview(context)) {
+            showMonthlyAccountReviewModal = true
+        }
+    }
+
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var pendingDeleteTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
@@ -434,7 +445,8 @@ fun HomeScreen(
                     onUpdateAccount = onUpdateAccount,
                     onDeleteAccount = onDeleteAccount,
                     onAddTransfer = onAddTransfer,
-                    onReviewPlan = { showPlanReviewModal = true }
+                    onReviewPlan = { showPlanReviewModal = true },
+                    onReviewBalances = { showMonthlyAccountReviewModal = true }
                 )
                 1 -> BudgetScreen(
                     budgets = uiState.budgets,
@@ -496,7 +508,12 @@ fun HomeScreen(
                     netWorthHistory = uiState.netWorthHistory,
                     accounts = uiState.accounts,
                     accountBalances = uiState.accountBalances,
-                    goals = uiState.goals
+                    goals = uiState.goals,
+                    budgets = uiState.budgets,
+                    allBudgets = uiState.allBudgets,
+                    activityLog = uiState.activityLog,
+                    previousMonthBudgets = uiState.previousMonthBudgets,
+                    previousMonthSpentByCategory = uiState.previousMonthSpentByCategory
                 )
                 4 -> SearchScreen(
                     transactions = uiState.transactions,
@@ -663,6 +680,21 @@ fun HomeScreen(
                     coroutineScope.launch { pagerState.animateScrollToPage(1) }
                 },
                 onDismiss = { showPlanReviewModal = false }
+            )
+        }
+
+        if (showMonthlyAccountReviewModal) {
+            com.selfbudget.app.core.ui.MonthlyAccountReviewModal(
+                accounts = uiState.accounts,
+                accountBalances = uiState.accountBalances,
+                currencySymbol = uiState.currencySymbol,
+                exchangeRates = uiState.exchangeRates,
+                onSaveBalances = { updatedBalances ->
+                    com.selfbudget.app.core.util.MonthlyReviewHelper.markMonthReviewed(context)
+                    onUpdateAccountBalances(updatedBalances)
+                    showMonthlyAccountReviewModal = false
+                },
+                onDismiss = { showMonthlyAccountReviewModal = false }
             )
         }
 
@@ -1108,7 +1140,8 @@ fun DashboardContent(
     onUpdateAccount: (AccountEntity) -> Unit = {},
     onDeleteAccount: (AccountEntity) -> Unit = {},
     onAddTransfer: (fromAccountId: String, toAccountId: String, amount: Double, note: String?) -> Unit = { _, _, _, _ -> },
-    onReviewPlan: () -> Unit = {}
+    onReviewPlan: () -> Unit = {},
+    onReviewBalances: () -> Unit = {}
 ) {
     var isBalanceVisible by remember { mutableStateOf(true) }
     var showFullHistorySheet by remember { mutableStateOf(false) }
@@ -1142,6 +1175,7 @@ fun DashboardContent(
         onShowAllAccounts = { showAllAccountsSheet = true },
         onTransfer = { showTransferDialog = true },
         onReviewPlan = onReviewPlan,
+        onReviewBalances = onReviewBalances,
         onAddAccount = { showAddAccountDialog = true },
         onEditAccount = { selectedAccountForEdit = it },
         onShowFullHistory = { showFullHistorySheet = true },
@@ -1224,6 +1258,10 @@ fun DashboardContent(
             onAddAccount = {
                 showAllAccountsSheet = false
                 showAddAccountDialog = true
+            },
+            onReviewBalances = {
+                showAllAccountsSheet = false
+                onReviewBalances()
             }
         )
     }
@@ -1255,6 +1293,7 @@ private fun HomeDashboardMockupContent(
     onShowAllAccounts: () -> Unit,
     onTransfer: () -> Unit,
     onReviewPlan: () -> Unit,
+    onReviewBalances: () -> Unit = {},
     onAddAccount: () -> Unit,
     onEditAccount: (AccountEntity) -> Unit,
     onShowFullHistory: () -> Unit,
@@ -1488,46 +1527,89 @@ private fun HomeDashboardMockupContent(
         }
 
         item {
-            // "Next best action" banner: the Attention/Coral role (spec §5), distinct from
-            // the Amber Watch-status color used for over-budget category warnings elsewhere.
-            val actionTitle = watchCategory?.let { "${it.first} is trending high" } ?: "No urgent action"
-            val actionSubtitle = watchCategory?.let { "$sym%.0f left this month".format(it.second.coerceAtLeast(0.0)) } ?: "Your spending plan looks steady"
+            val isFirstDay = com.selfbudget.app.core.util.MonthlyReviewHelper.isFirstDayOfMonth()
             val isDarkAction = isAppInDarkTheme()
-            Surface(
-                shape = ShapeHero,
-                color = if (isDarkAction) CardSurfaceDark else Ramp.Coral.tintFill(isDarkAction),
-                border = if (isDarkAction) BorderStroke(0.5.dp, DividerDark) else null,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically
+
+            if (isFirstDay) {
+                val firstOfMonthLabel = com.selfbudget.app.core.util.MonthlyReviewHelper.formatFirstOfMonthLabel()
+                Surface(
+                    shape = ShapeHero,
+                    color = if (isDarkAction) CardSurfaceDark else Ramp.Teal.tintFill(isDarkAction),
+                    border = if (isDarkAction) BorderStroke(0.5.dp, DividerDark) else null,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    RampIconTile(
-                        icon = Icons.AutoMirrored.Filled.TrendingUp,
-                        ramp = Ramp.Coral,
-                        size = 42.dp,
-                        iconSize = 22.dp
-                    )
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "NEXT BEST ACTION".uppercase(),
-                            style = SelfBudgetType.eyebrow,
-                            color = if (isDarkAction) Ramp.Coral.c200 else Ramp.Coral.secondaryText(isDarkAction)
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RampIconTile(
+                            icon = Icons.Default.AccountBalance,
+                            ramp = Ramp.Teal,
+                            size = 42.dp,
+                            iconSize = 22.dp
                         )
-                        Text(
-                            actionTitle,
-                            style = SelfBudgetType.heading,
-                            color = if (isDarkAction) TextPrimaryDark else Ramp.Coral.titleText(isDarkAction)
-                        )
-                        Text(
-                            actionSubtitle,
-                            style = SelfBudgetType.meta,
-                            color = if (isDarkAction) TextSecondaryDark else Ramp.Coral.secondaryText(isDarkAction)
-                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "FIRST OF THE MONTH REVIEW".uppercase(),
+                                style = SelfBudgetType.eyebrow,
+                                color = if (isDarkAction) Ramp.Teal.c200 else Ramp.Teal.secondaryText(isDarkAction)
+                            )
+                            Text(
+                                text = "$firstOfMonthLabel Balance Check-In",
+                                style = SelfBudgetType.heading,
+                                color = if (isDarkAction) TextPrimaryDark else Ramp.Teal.titleText(isDarkAction)
+                            )
+                            Text(
+                                text = "Update checking, savings, and investment balances",
+                                style = SelfBudgetType.meta,
+                                color = if (isDarkAction) TextSecondaryDark else Ramp.Teal.secondaryText(isDarkAction)
+                            )
+                        }
+                        PrimaryPillButton(text = "Review", onClick = onReviewBalances, ramp = Ramp.Teal)
                     }
-                    PrimaryPillButton(text = "Review plan", onClick = onReviewPlan, ramp = Ramp.Coral)
+                }
+            } else {
+                // "Next best action" banner: the Attention/Coral role (spec §5), distinct from
+                // the Amber Watch-status color used for over-budget category warnings elsewhere.
+                val actionTitle = watchCategory?.let { "${it.first} is trending high" } ?: "No urgent action"
+                val actionSubtitle = watchCategory?.let { "$sym%.0f left this month".format(it.second.coerceAtLeast(0.0)) } ?: "Your spending plan looks steady"
+                Surface(
+                    shape = ShapeHero,
+                    color = if (isDarkAction) CardSurfaceDark else Ramp.Coral.tintFill(isDarkAction),
+                    border = if (isDarkAction) BorderStroke(0.5.dp, DividerDark) else null,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RampIconTile(
+                            icon = Icons.AutoMirrored.Filled.TrendingUp,
+                            ramp = Ramp.Coral,
+                            size = 42.dp,
+                            iconSize = 22.dp
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "NEXT BEST ACTION".uppercase(),
+                                style = SelfBudgetType.eyebrow,
+                                color = if (isDarkAction) Ramp.Coral.c200 else Ramp.Coral.secondaryText(isDarkAction)
+                            )
+                            Text(
+                                actionTitle,
+                                style = SelfBudgetType.heading,
+                                color = if (isDarkAction) TextPrimaryDark else Ramp.Coral.titleText(isDarkAction)
+                            )
+                            Text(
+                                actionSubtitle,
+                                style = SelfBudgetType.meta,
+                                color = if (isDarkAction) TextSecondaryDark else Ramp.Coral.secondaryText(isDarkAction)
+                            )
+                        }
+                        PrimaryPillButton(text = "Review plan", onClick = onReviewPlan, ramp = Ramp.Coral)
+                    }
                 }
             }
         }
@@ -1732,7 +1814,8 @@ private fun UpcomingBillsModal(
     data class UpcomingBill(
         val item: RecurringTransactionEntity,
         val remaining: Double,
-        val isPartiallyPaid: Boolean
+        val isPartiallyPaid: Boolean,
+        val effectiveDueDate: Long
     )
 
     val upcomingBillsList = remember(recurringList, allTransactions, selectedMonthYear) {
@@ -1740,9 +1823,17 @@ private fun UpcomingBillsModal(
             .filter { it.type == TransactionType.EXPENSE && !it.isArchived }
             .mapNotNull { item ->
                 val summary = RecurringCycleCalculator.getCyclePaymentSummary(item, allTransactions, selectedMonthYear)
-                if (summary.remainingAmount > 0.005) UpcomingBill(item, summary.remainingAmount, summary.isPartiallyPaid) else null
+                if (summary.remainingAmount > 0.005) {
+                    val effectiveDue = com.selfbudget.app.core.util.RecurringScheduler.computeEffectiveDueDate(
+                        item = item,
+                        targetMonthYear = selectedMonthYear,
+                        isCyclePaid = summary.isFullyPaid,
+                        postedOccurrences = summary.postedOccurrences
+                    )
+                    UpcomingBill(item, summary.remainingAmount, summary.isPartiallyPaid, effectiveDue)
+                } else null
             }
-            .sortedBy { it.item.nextDueDate }
+            .sortedBy { it.effectiveDueDate }
     }
     val total = remember(upcomingBillsList) { Money.sum(upcomingBillsList.map { it.remaining }) }
 
@@ -1826,7 +1917,7 @@ private fun UpcomingBillsModal(
                                             Column {
                                                 Text(text = bill.item.title, style = SelfBudgetType.rowTitle, color = MaterialTheme.colorScheme.onSurface)
                                                 Text(
-                                                    text = "Due ${dueDateFormat.format(Date(bill.item.nextDueDate))}" +
+                                                    text = "Due ${dueDateFormat.format(Date(bill.effectiveDueDate))}" +
                                                         if (bill.isPartiallyPaid) " · partially paid" else "",
                                                     style = SelfBudgetType.meta,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1903,9 +1994,9 @@ private fun HomeAccountCard(
     val accountSymbol = com.selfbudget.app.core.util.Currencies.symbolFor(account.currencyCode).ifBlank { fallbackSymbol }
     val isLiability = com.selfbudget.app.core.util.AccountBalanceCalculator.isLiability(account.type)
     val rawBalance = if (isLiability) kotlin.math.abs(balance) else balance
-    val cleanBalance = if (kotlin.math.abs(rawBalance) < 0.5) 0.0 else rawBalance
-    val isNegative = (isLiability && cleanBalance >= 0.5) || (!isLiability && cleanBalance < 0.0)
-    val formattedBalance = "$accountSymbol%,.0f".format(kotlin.math.abs(cleanBalance))
+    val cleanBalance = if (kotlin.math.abs(rawBalance) < 0.005) 0.0 else rawBalance
+    val isNegative = (isLiability && cleanBalance >= 0.005) || (!isLiability && cleanBalance < 0.0)
+    val formattedBalance = "$accountSymbol%,.2f".format(kotlin.math.abs(cleanBalance))
 
     Surface(
         shape = ShapeCard,
@@ -1933,7 +2024,7 @@ private fun HomeAccountCard(
                 Text(account.name, style = SelfBudgetType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 if (account.type == AccountType.CREDIT_CARD && account.creditLimit != null) {
                     val availableCredit = (account.creditLimit - cleanBalance).coerceAtLeast(0.0)
-                    val formattedAvailable = "$accountSymbol%,.0f".format(availableCredit)
+                    val formattedAvailable = "$accountSymbol%,.2f".format(availableCredit)
                     Text(
                         text = if (isBalanceVisible) "$formattedAvailable available" else "$accountSymbol•••",
                         style = SelfBudgetType.heading,

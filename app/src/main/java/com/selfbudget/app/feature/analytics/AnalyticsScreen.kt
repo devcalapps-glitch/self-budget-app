@@ -1,5 +1,6 @@
 package com.selfbudget.app.feature.analytics
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +21,12 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -50,26 +55,38 @@ import com.selfbudget.app.core.ui.components.DeltaMetric
 import com.selfbudget.app.core.ui.components.NeutralBadge
 import com.selfbudget.app.core.ui.components.RampIconTile
 import com.selfbudget.app.core.ui.components.SectionHeaderBand
+import com.selfbudget.app.core.ui.components.StatusBadge
 import com.selfbudget.app.core.ui.getAccountIcon
 import com.selfbudget.app.core.ui.getCategoryIcon
 import com.selfbudget.app.core.ui.getExpenseCategoryGroup
 import com.selfbudget.app.core.util.AccountBalanceCalculator
+import com.selfbudget.app.core.util.AnalyticsSummaryCalculator
+import com.selfbudget.app.core.util.CategorySummaryItem
 import com.selfbudget.app.core.util.Money
+import com.selfbudget.app.core.util.PeriodFinancialSummary
 import com.selfbudget.app.data.model.AccountEntity
+import com.selfbudget.app.data.model.ActivityLogEntity
+import com.selfbudget.app.data.model.BudgetEntity
 import com.selfbudget.app.data.model.CategoryEntity
 import com.selfbudget.app.data.model.GoalEntity
 import com.selfbudget.app.data.model.NetWorthSnapshotEntity
 import com.selfbudget.app.data.model.TransactionEntity
 import com.selfbudget.app.data.model.TransactionType
+import com.selfbudget.app.ui.theme.BudgetStatus
+import com.selfbudget.app.ui.theme.CardSurfaceDark
 import com.selfbudget.app.ui.theme.Ramp
 import com.selfbudget.app.ui.theme.SelfBudgetType
+import com.selfbudget.app.ui.theme.ShapeCard
 import com.selfbudget.app.ui.theme.ShapeChip
 import com.selfbudget.app.ui.theme.ShapePill
+import com.selfbudget.app.ui.theme.containerBorder
 import com.selfbudget.app.ui.theme.getProgressBarColor
 import com.selfbudget.app.ui.theme.isAppInDarkTheme
 import com.selfbudget.app.ui.theme.onSolidFill
+import com.selfbudget.app.ui.theme.secondaryText
 import com.selfbudget.app.ui.theme.sectionRamp
 import com.selfbudget.app.ui.theme.solidFill
+import com.selfbudget.app.ui.theme.tintFill
 import com.selfbudget.app.ui.theme.titleText
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -93,7 +110,12 @@ fun AnalyticsScreen(
     netWorthHistory: List<NetWorthSnapshotEntity> = emptyList(),
     accounts: List<AccountEntity> = emptyList(),
     accountBalances: Map<String, Double> = emptyMap(),
-    goals: List<GoalEntity> = emptyList()
+    goals: List<GoalEntity> = emptyList(),
+    budgets: List<BudgetEntity> = emptyList(),
+    allBudgets: List<BudgetEntity> = emptyList(),
+    activityLog: List<ActivityLogEntity> = emptyList(),
+    previousMonthBudgets: List<BudgetEntity> = emptyList(),
+    previousMonthSpentByCategory: Map<String, Double> = emptyMap()
 ) {
     var selectedTimeframe by remember { mutableStateOf(AnalyticsTimeframe.MONTHLY) }
     var showNetWorthModal by remember { mutableStateOf(false) }
@@ -101,6 +123,7 @@ fun AnalyticsScreen(
     var showExpenseDetailModal by remember { mutableStateOf(false) }
     var showDebtPayoffModal by remember { mutableStateOf(false) }
     var showGoalsModal by remember { mutableStateOf(false) }
+    var showSummaryModal by remember { mutableStateOf(false) }
 
     val sdfMonth = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
     val sdfMonthName = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
@@ -322,6 +345,38 @@ fun AnalyticsScreen(
 
     val isDarkScreen = isAppInDarkTheme()
 
+    val periodSummary = remember(
+        selectedTimeframe,
+        selectedMonthYear,
+        allTransactions,
+        categories,
+        budgets,
+        allBudgets,
+        accounts,
+        accountBalances,
+        goals,
+        activityLog,
+        currencySymbol,
+        previousMonthBudgets,
+        previousMonthSpentByCategory
+    ) {
+        AnalyticsSummaryCalculator.computeSummary(
+            isAnnual = selectedTimeframe == AnalyticsTimeframe.ANNUAL,
+            selectedMonthYear = selectedMonthYear,
+            currencySymbol = currencySymbol,
+            allTransactions = allTransactions,
+            categories = categories,
+            budgets = budgets,
+            allBudgets = allBudgets,
+            accounts = accounts,
+            accountBalances = accountBalances,
+            goals = goals,
+            activityLog = activityLog,
+            previousMonthBudgets = previousMonthBudgets,
+            previousMonthSpentByCategory = previousMonthSpentByCategory
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -363,6 +418,15 @@ fun AnalyticsScreen(
                     }
                 }
             }
+        }
+
+        // 0. General Financial Summary Card (Monthly & Annual in words)
+        item {
+            FinancialSummaryCard(
+                summary = periodSummary,
+                currencySymbol = currencySymbol,
+                onViewDetails = { showSummaryModal = true }
+            )
         }
 
         // 1. Net Worth Summary Card (Top Card) — report band identity: Teal (spec §11)
@@ -842,6 +906,112 @@ fun AnalyticsScreen(
             currencySymbol = currencySymbol,
             onDismiss = { showGoalsModal = false }
         )
+    }
+
+    if (showSummaryModal) {
+        com.selfbudget.app.core.ui.FinancialSummaryDetailModal(
+            summary = periodSummary,
+            currencySymbol = currencySymbol,
+            onDismiss = { showSummaryModal = false }
+        )
+    }
+}
+
+@Composable
+private fun FinancialSummaryCard(
+    summary: PeriodFinancialSummary,
+    currencySymbol: String,
+    onViewDetails: () -> Unit
+) {
+    SectionHeaderBand(
+        title = if (summary.isAnnual) "Annual summary" else "Monthly summary",
+        ramp = Ramp.Blue,
+        icon = Icons.Default.Summarize,
+        trailingText = "View details ›",
+        onTrailingClick = onViewDetails,
+        modifier = Modifier.clickable { onViewDetails() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // High-level overview narrative in words
+            Text(
+                text = summary.highLevelNarrative,
+                style = SelfBudgetType.body,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // High-level 4-metric strip
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SummaryStatPill(
+                    label = "Spent",
+                    value = "$currencySymbol%,.2f".format(summary.totalExpense),
+                    ramp = Ramp.Coral,
+                    modifier = Modifier.weight(1f)
+                )
+                SummaryStatPill(
+                    label = "Budget",
+                    value = if (summary.totalBudget > 0.0) "$currencySymbol%,.2f".format(summary.totalBudget) else "None",
+                    ramp = Ramp.Blue,
+                    modifier = Modifier.weight(1f)
+                )
+                SummaryStatPill(
+                    label = if (summary.netSavings >= 0) "Saved" else "Deficit",
+                    value = (if (summary.netSavings >= 0) "+$currencySymbol" else "-$currencySymbol") + "%,.2f".format(kotlin.math.abs(summary.netSavings)),
+                    ramp = if (summary.netSavings >= 0) Ramp.Teal else Ramp.Red,
+                    modifier = Modifier.weight(1f)
+                )
+                SummaryStatPill(
+                    label = "Goals Added",
+                    value = "+$currencySymbol%,.2f".format(summary.totalAmountAddedToGoals),
+                    ramp = Ramp.Amber,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryStatPill(
+    label: String,
+    value: String,
+    ramp: Ramp,
+    modifier: Modifier = Modifier
+) {
+    val isDark = isAppInDarkTheme()
+    Surface(
+        shape = ShapeCard,
+        color = ramp.tintFill(isDark),
+        border = BorderStroke(0.5.dp, ramp.containerBorder(isDark)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label.uppercase(),
+                style = SelfBudgetType.eyebrow,
+                color = ramp.secondaryText(isDark),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = SelfBudgetType.badge,
+                color = ramp.titleText(isDark),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
